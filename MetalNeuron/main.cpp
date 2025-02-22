@@ -22,9 +22,13 @@
 
 #include "src/app-delegate.h"
 
+#include <iostream>
+#include <filesystem>
 
 int main( int argc, char* argv[] )
 {
+    std::cout << std::filesystem::current_path() << std::endl;
+    
     NS::AutoreleasePool* pAutoreleasePool = NS::AutoreleasePool::alloc()->init();
 
     AppDelegate del;
@@ -37,3 +41,13 @@ int main( int argc, char* argv[] )
 
     return 0;
 }
+
+
+
+
+
+
+
+
+
+
