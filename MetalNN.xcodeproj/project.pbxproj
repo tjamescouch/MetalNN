@@ -1,0 +1,176 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXFileReference section */
+		DF5F238C2D6A2D3100D915B2 /* MetalNN.metallib */ = {isa = PBXFileReference; explicitFileType = "archive.metal-library"; includeInIndex = 0; path = MetalNN.metallib; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		DF5F238E2D6A2D3100D915B2 /* MetalNN */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MetalNN;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXGroup section */
+		DF5F23852D6A2D3100D915B2 = {
+			isa = PBXGroup;
+			children = (
+				DF5F238E2D6A2D3100D915B2 /* MetalNN */,
+				DF5F238D2D6A2D3100D915B2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		DF5F238D2D6A2D3100D915B2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DF5F238C2D6A2D3100D915B2 /* MetalNN.metallib */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		DF5F238B2D6A2D3100D915B2 /* MetalNN */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DF5F23932D6A2D3100D915B2 /* Build configuration list for PBXNativeTarget "MetalNN" */;
+			buildPhases = (
+				DF5F238A2D6A2D3100D915B2 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				DF5F238E2D6A2D3100D915B2 /* MetalNN */,
+			);
+			name = MetalNN;
+			packageProductDependencies = (
+			);
+			productName = MetalNN;
+			productReference = DF5F238C2D6A2D3100D915B2 /* MetalNN.metallib */;
+			productType = "com.apple.product-type.metal-library";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DF5F23862D6A2D3100D915B2 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1620;
+				TargetAttributes = {
+					DF5F238B2D6A2D3100D915B2 = {
+						CreatedOnToolsVersion = 16.2;
+					};
+				};
+			};
+			buildConfigurationList = DF5F23892D6A2D3100D915B2 /* Build configuration list for PBXProject "MetalNN" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = DF5F23852D6A2D3100D915B2;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = DF5F238D2D6A2D3100D915B2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DF5F238B2D6A2D3100D915B2 /* MetalNN */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		DF5F238A2D6A2D3100D915B2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		DF5F23912D6A2D3100D915B2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		DF5F23922D6A2D3100D915B2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		DF5F23942D6A2D3100D915B2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_DEBUG_DYLIB = YES;
+				ENABLE_TESTABILITY = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				VERSIONING_SYSTEM = "";
+			};
+			name = Debug;
+		};
+		DF5F23952D6A2D3100D915B2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_DEBUG_DYLIB = YES;
+				ONLY_ACTIVE_ARCH = NO;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				VERSIONING_SYSTEM = "";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DF5F23892D6A2D3100D915B2 /* Build configuration list for PBXProject "MetalNN" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DF5F23912D6A2D3100D915B2 /* Debug */,
+				DF5F23922D6A2D3100D915B2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DF5F23932D6A2D3100D915B2 /* Build configuration list for PBXNativeTarget "MetalNN" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DF5F23942D6A2D3100D915B2 /* Debug */,
+				DF5F23952D6A2D3100D915B2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DF5F23862D6A2D3100D915B2 /* Project object */;
+}
