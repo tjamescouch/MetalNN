@@ -56,7 +56,9 @@ public:
     Computer(MTL::Device* pDevice);
     ~Computer();
     void compute();
+    void extractResults();
     void keyPress(KeyPress* kp);
+    void handleKeyStateChange();
     static constexpr int kMaxFramesInFlight = 3;
     
 private:
@@ -84,7 +86,7 @@ private:
     // Buffers for the argument buffer approach
     MTL::Buffer* _pBufferA = nullptr;
     MTL::Buffer* _pBufferB = nullptr;
-    MTL::Buffer* _pBufferResult = nullptr;
+    MTL::Buffer* _pResultBuffer = nullptr;
     
     MTL::Buffer* _pArgBuffer   = nullptr;
     
@@ -92,6 +94,7 @@ private:
     
     // Frame / Synchronization
     bool                    areBuffersBuilt = false;
+    bool                    currentlyComputing = false;
     int                     _frame = 0;
     dispatch_semaphore_t    _semaphore;
     

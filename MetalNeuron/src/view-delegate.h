@@ -16,10 +16,10 @@ class ViewDelegate : public MTK::ViewDelegate
     ViewDelegate( MTL::Device* pDevice );
         virtual ~ViewDelegate() override;
         virtual void drawInMTKView( MTK::View* pView ) override;
-        Computer* getRenederer() { return _pRenderer; }
+        Computer* getComputer() { return _pComputer; }
 
     private:
-        Computer* _pRenderer;
+        Computer* _pComputer;
 };
 
 #pragma endregion Declarations }

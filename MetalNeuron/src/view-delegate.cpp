@@ -12,21 +12,19 @@
 
 ViewDelegate::ViewDelegate( MTL::Device* pDevice )
 : MTK::ViewDelegate()
-, _pRenderer( new Computer( pDevice ) )
+, _pComputer( new Computer( pDevice ) )
 {
 }
 
 ViewDelegate::~ViewDelegate()
 {
-    delete _pRenderer;
+    delete _pComputer;
 }
 
 void ViewDelegate::drawInMTKView( MTK::View* pView )
 {
     pView->setDepthStencilPixelFormat(MTL::PixelFormatDepth32Float);
     pView->setClearDepth(1.0);
-
-    _pRenderer->compute();
 }
 
 #pragma endregion ViewDelegate }
