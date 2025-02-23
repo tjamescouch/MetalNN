@@ -16,15 +16,15 @@ const inline char* addArrayKernelSrc = R"(
 using namespace metal;
 
 struct Buffers {
-    device const float* inA  [[id(0)]];
-    device const float* inB  [[id(1)]];
-    device float*       result [[id(2)]];
+    device const simd::float3* inA  [[id(0)]];
+    device const simd::float3* inB  [[id(1)]];
+    device simd::float3*       result [[id(2)]];
 };
 
 kernel void add_arrays(constant Buffers& buffers [[buffer(0)]],
                        uint id [[thread_position_in_grid]])
 {
-    buffers.result[id] = 1.f;//buffers.inA[id] + buffers.inB[id];
+    buffers.result[id] = buffers.inA[id] + buffers.inB[id];
 }
 )";
 

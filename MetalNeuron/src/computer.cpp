@@ -20,7 +20,7 @@
 #pragma region Computer {
 
 const int DATA_SOURCE_WIDTH = 300;
-const int DATA_SOURCE_MAX_VECTORS_PER_ROW = 300;
+const int DATA_SOURCE_MAX_VECTORS_PER_ROW = 256;
 
 Computer::Computer(MTL::Device* pDevice) :
 dataSource(DATA_SOURCE_MAX_VECTORS_PER_ROW, DATA_SOURCE_WIDTH),
@@ -78,13 +78,14 @@ void Computer::buildComputePipeline()
     }
     
     _pComputeLibrary->release();
+    _pComputeFn->release();
 }
 
 void Computer::buildBuffers()
 {
     // Assuming dataSource provides two float arrays for inA and inB.
     const size_t numElements = dataSource.get_num_data();
-    const size_t dataSize = numElements * sizeof(float);
+    const size_t dataSize = numElements * sizeof(simd::float3);
     
     // Create buffer for inA.
     _pBufferA = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
@@ -98,6 +99,8 @@ void Computer::buildBuffers()
     
     // Create output buffer for result.
     _pResultBuffer = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBufferB->contents(), dataSource.get_data_buffer(), dataSize);
+    
     
     
     // Create an argument encoder for the Buffers struct (defined in the shader) at buffer index 0.
@@ -138,22 +141,7 @@ void Computer::compute()
     });
     
     MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-    doCompute(enc);
     
-    enc->endEncoding();
-    
-    MTL::BlitCommandEncoder* blitEncoder = cmdBuf->blitCommandEncoder();
-    blitEncoder->synchronizeResource(_pResultBuffer);
-    blitEncoder->endEncoding();
-    
-    cmdBuf->commit();
-    dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
-    
-    pPool->release();
-}
-
-void Computer::doCompute(MTL::ComputeCommandEncoder* enc)
-{
     enc->setComputePipelineState(_pComputePipelineState);
     enc->setBuffer(_pArgBuffer, 0, 0);  // Bind the argument buffer at index 0
     
@@ -167,6 +155,18 @@ void Computer::doCompute(MTL::ComputeCommandEncoder* enc)
     };
     
     enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+    
+    enc->endEncoding();
+    
+    MTL::BlitCommandEncoder* blitEncoder = cmdBuf->blitCommandEncoder();
+    blitEncoder->synchronizeResource(_pResultBuffer);
+    blitEncoder->endEncoding();
+    
+    cmdBuf->commit();
+    
+    dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
+    
+    pPool->release();
 }
 
 void Computer::keyPress(KeyPress* kp)
@@ -185,27 +185,51 @@ void Computer::handleKeyStateChange() {
     auto it = keyState.find(6); // Key: C
     if (it != keyState.end()) {
         if (it->second) {
-            std::cout << "HERE" << std::endl;
             this->compute();
         }
     }
 }
 
 void Computer::extractResults() {
-    // Assuming resultBuffer is a pointer to your output buffer
-    void* data = _pResultBuffer->contents();
+    /*
+     // Assuming resultBuffer is a pointer to your output buffer
+     void* data = _pResultBuffer->contents();
+     
+     // Assuming your results are float values
+     float* results = static_cast<float*>(data);
+     
+     uint64_t length = _pResultBuffer->length() / sizeof(float);
+     
+     float sum = 0.f;
+     for (uint64_t i = 0; i < length; i++) {
+     sum += results[i];
+     }
+     
+     std::cout << "Sum: " << sum << std::endl;
+     */
     
-    // Assuming your results are float values
-    float* results = static_cast<float*>(data);
+    
+    float* a = static_cast<float*>(_pBufferA->contents());
+    float* b = static_cast<float*>(_pBufferB->contents());
+    float* result = static_cast<float*>(_pResultBuffer->contents());
     
     uint64_t length = _pResultBuffer->length() / sizeof(float);
     
-    float sum = 0.f;
-    for (uint64_t i = 0; i < length; i++) {
-        sum += results[i];
-    }
     
-    std::cout << "Sum: " << sum << std::endl;
+    for (unsigned long index = 0; index < length; index++)
+    {
+        if (result[index] != (a[index] + b[index]))
+        {
+            printf("Compute ERROR: index=%lu result=%g vs %g=a+b\n",
+                   index, result[index], a[index] + b[index]);
+            //assert(result[index] == (a[index] + b[index]));
+        }
+        else {
+            printf("Verfied\n");
+        }
+    }
+    printf("Compute results as expected\n");
+    
     
     // Unmap the buffer when done
     _pResultBuffer->didModifyRange(NS::Range(0, _pResultBuffer->length()));

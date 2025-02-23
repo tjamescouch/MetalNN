@@ -68,8 +68,6 @@ private:
     void buildComputePipeline();
     void buildBuffers();
     
-    void doCompute(MTL::ComputeCommandEncoder* pEnc);
-    
     // ---------------------------------------------------
     //  Data Members
     // ---------------------------------------------------
