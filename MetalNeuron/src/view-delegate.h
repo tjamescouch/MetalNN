@@ -8,7 +8,7 @@
 #define VIEW_DELEGATE_H
 
 #pragma region Declarations {
-#include "renderer.h"
+#include "computer.h"
 
 class ViewDelegate : public MTK::ViewDelegate
 {
@@ -16,10 +16,10 @@ class ViewDelegate : public MTK::ViewDelegate
     ViewDelegate( MTL::Device* pDevice );
         virtual ~ViewDelegate() override;
         virtual void drawInMTKView( MTK::View* pView ) override;
-        Renderer* getRenederer() { return _pRenderer; }
+        Computer* getRenederer() { return _pRenderer; }
 
     private:
-        Renderer* _pRenderer;
+        Computer* _pRenderer;
 };
 
 #pragma endregion Declarations }

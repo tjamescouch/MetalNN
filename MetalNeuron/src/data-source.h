@@ -4,8 +4,8 @@
 //
 //  Created by James Couch on 2024-12-07.
 //
-#ifndef HEIGHT_MAP_H
-#define HEIGHT_MAP_H
+#ifndef DATA_SOURCE_H
+#define DATA_SOURCE_H
 
 #pragma region Declarations {
 
@@ -14,26 +14,17 @@
 
 #include <array>
 
-class HeightMap
+class DataSource
 {
 public:
-    HeightMap(int num_samples_per_row, float width);
-    ~HeightMap();
+    DataSource(int num_samples_per_row, float width);
+    ~DataSource();
     
-    size_t get_num_vertices();
-    size_t get_num_normals();
-    size_t get_num_tangents();
-    size_t get_num_bitangents();
-    size_t get_num_colors();
-    simd::float3* get_position_buffer();
-    simd::float3* get_color_buffer();
-    float get_height(float x, float y);
+    size_t get_num_data();
+    simd::float3* get_data_buffer();
+    float get_data(float x, float y);
     
     void build();
-    
-    simd::float3* get_normal_buffer();
-    simd::float3* get_tangent_buffer();
-    simd::float3* get_bitangent_buffer();
     
     
     // Asynchronous build interface
@@ -48,7 +39,7 @@ public:
     }
     
 private:
-    std::vector<simd::float3> positions;
+    std::vector<simd::float3> data;
     std::vector<simd::float3> normals;
     std::vector<simd::float3> colors;
     std::vector<simd::float3> tangents;

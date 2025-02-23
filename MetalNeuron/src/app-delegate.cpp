@@ -88,6 +88,9 @@ void AppDelegate::applicationDidFinishLaunching( NS::Notification* pNotification
         false );
 
     _pDevice = MTL::CreateSystemDefaultDevice();
+    
+
+
 
     _pMtkView = MTK::View::alloc()->init( frame, _pDevice );
     _pMtkView->setColorPixelFormat( MTL::PixelFormat::PixelFormatBGRA8Unorm_sRGB );
