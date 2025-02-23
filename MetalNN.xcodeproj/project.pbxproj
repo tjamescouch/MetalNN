@@ -15,6 +15,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		DF0C95852D6AC5F10046F318 /* MLCompute.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MLCompute.framework; path = System/Library/Frameworks/MLCompute.framework; sourceTree = SDKROOT; };
 		DF5F23FE2D6A711A00D915B2 /* MetalNeuron.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MetalNeuron.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF5F240E2D6A713100D915B2 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		DF5F24102D6A713F00D915B2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
@@ -81,6 +82,7 @@
 		DF5F240D2D6A713100D915B2 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				DF0C95852D6AC5F10046F318 /* MLCompute.framework */,
 				DF5F24162D6A715600D915B2 /* MetalKit.framework */,
 				DF5F24142D6A714D00D915B2 /* Metal.framework */,
 				DF5F24122D6A714600D915B2 /* GameController.framework */,
