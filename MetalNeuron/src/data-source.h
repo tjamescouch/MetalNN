@@ -17,7 +17,7 @@
 class DataSource
 {
 public:
-    DataSource(int num_samples_per_row, float width);
+    DataSource(int num_samples_per_row);
     ~DataSource();
     
     size_t get_num_data();
@@ -40,15 +40,8 @@ public:
     
 private:
     std::vector<simd::float3> data;
-    std::vector<simd::float3> normals;
-    std::vector<simd::float3> colors;
-    std::vector<simd::float3> tangents;
-    std::vector<simd::float3> bitangents;
-    std::vector<simd::float2> gridUVs;
     
     int num_samples_per_row;
-    float stride;
-    float width;
     
 };
 

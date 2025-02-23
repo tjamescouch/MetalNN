@@ -19,11 +19,10 @@
 #pragma mark - Computer
 #pragma region Computer {
 
-const int DATA_SOURCE_WIDTH = 300;
 const int DATA_SOURCE_MAX_VECTORS_PER_ROW = 256;
 
 Computer::Computer(MTL::Device* pDevice) :
-dataSource(DATA_SOURCE_MAX_VECTORS_PER_ROW, DATA_SOURCE_WIDTH),
+dataSource(DATA_SOURCE_MAX_VECTORS_PER_ROW),
 _pDevice(pDevice->retain()),
 _pCompileOptions(),
 areBuffersBuilt(false),
@@ -99,10 +98,12 @@ void Computer::buildBuffers()
     
     // Create output buffer for result.
     _pResultBuffer = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBufferB->contents(), dataSource.get_data_buffer(), dataSize);
+    _pResultBuffer->didModifyRange(NS::Range::Make(0, dataSize));
+    
+    std::memcpy(_pResultBuffer->contents(), dataSource.get_data_buffer(), dataSize);
     
     
-    
+
     // Create an argument encoder for the Buffers struct (defined in the shader) at buffer index 0.
     MTL::ArgumentEncoder* pArgEncoder = _pComputeFn->newArgumentEncoder(0);
     _pArgBuffer = _pDevice->newBuffer(pArgEncoder->encodedLength(), MTL::ResourceStorageModeManaged);
@@ -145,14 +146,14 @@ void Computer::compute()
     enc->setComputePipelineState(_pComputePipelineState);
     enc->setBuffer(_pArgBuffer, 0, 0);  // Bind the argument buffer at index 0
     
-    // Set up a 1D threadgroup dispatch for vector addition.
-    size_t numElements = dataSource.get_num_data();
     MTL::Size threadsPerThreadgroup = MTL::Size{1024, 1, 1};
     MTL::Size threadgroups = MTL::Size{
-        (unsigned int)((numElements + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width),
-        1,
-        1
+    (unsigned int)ceil(((DATA_SOURCE_MAX_VECTORS_PER_ROW*DATA_SOURCE_MAX_VECTORS_PER_ROW) / 1024)),
+    1,
+    1
     };
+    
+    extractResults();
     
     enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
     
@@ -191,45 +192,18 @@ void Computer::handleKeyStateChange() {
 }
 
 void Computer::extractResults() {
-    /*
-     // Assuming resultBuffer is a pointer to your output buffer
-     void* data = _pResultBuffer->contents();
-     
-     // Assuming your results are float values
-     float* results = static_cast<float*>(data);
-     
-     uint64_t length = _pResultBuffer->length() / sizeof(float);
-     
-     float sum = 0.f;
-     for (uint64_t i = 0; i < length; i++) {
-     sum += results[i];
-     }
-     
-     std::cout << "Sum: " << sum << std::endl;
-     */
-    
-    
-    float* a = static_cast<float*>(_pBufferA->contents());
-    float* b = static_cast<float*>(_pBufferB->contents());
-    float* result = static_cast<float*>(_pResultBuffer->contents());
+    //simd::float3* a = static_cast<simd::float3*>(_pBufferA->contents());
+    //simd::float3* b = static_cast<simd::float3*>(_pBufferB->contents());
+    simd::float3* result = static_cast<simd::float3*>(_pResultBuffer->contents());
     
     uint64_t length = _pResultBuffer->length() / sizeof(float);
     
-    
+    simd::float3 sum = simd::float3{0, 0, 0};
     for (unsigned long index = 0; index < length; index++)
     {
-        if (result[index] != (a[index] + b[index]))
-        {
-            printf("Compute ERROR: index=%lu result=%g vs %g=a+b\n",
-                   index, result[index], a[index] + b[index]);
-            //assert(result[index] == (a[index] + b[index]));
-        }
-        else {
-            printf("Verfied\n");
-        }
+        sum += *result;
     }
-    printf("Compute results as expected\n");
-    
+    printf("<%f,%f,%f>", result->x, result->y, result->z);
     
     // Unmap the buffer when done
     _pResultBuffer->didModifyRange(NS::Range(0, _pResultBuffer->length()));
