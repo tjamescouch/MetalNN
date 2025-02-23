@@ -101,7 +101,7 @@ void AppDelegate::applicationDidFinishLaunching( NS::Notification* pNotification
     _pMtkView->setDelegate( _pViewDelegate );
     
     _pWindow->setContentView( _pMtkView );
-    _pWindow->setTitle( NS::String::string( "Height Map", NS::StringEncoding::UTF8StringEncoding ) );
+    _pWindow->setTitle( NS::String::string( "Metal Compute", NS::StringEncoding::UTF8StringEncoding ) );
     
     _pWindow->makeKeyAndOrderFront( nullptr );
     

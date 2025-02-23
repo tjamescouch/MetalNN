@@ -6,6 +6,7 @@
 #include <simd/simd.h>
 #include <cmath>
 #include <iostream>
+#include <cassert>
 
 #include "computer.h"
 #include "data-source.h"
@@ -52,7 +53,6 @@ Computer::~Computer()
     
     _pCommandQueue->release();
     _pDevice->release();
-    _pComputeLibrary->release();
     _pComputeFn->release();
 }
 
@@ -76,6 +76,8 @@ void Computer::buildComputePipeline()
         std::cerr << "Compute pipeline error: " << pErr2->localizedDescription()->utf8String() << std::endl;
         assert(false);
     }
+    
+    _pComputeLibrary->release();
 }
 
 void Computer::buildBuffers()
@@ -97,6 +99,7 @@ void Computer::buildBuffers()
     // Create output buffer for result.
     _pResultBuffer = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
     
+    
     // Create an argument encoder for the Buffers struct (defined in the shader) at buffer index 0.
     MTL::ArgumentEncoder* pArgEncoder = _pComputeFn->newArgumentEncoder(0);
     _pArgBuffer = _pDevice->newBuffer(pArgEncoder->encodedLength(), MTL::ResourceStorageModeManaged);
@@ -107,8 +110,6 @@ void Computer::buildBuffers()
     pArgEncoder->setBuffer(_pBufferB, 0, 1);      // inB at [[id(1)]]
     pArgEncoder->setBuffer(_pResultBuffer, 0, 2); // result at [[id(2)]]
     
-    _pBufferA->didModifyRange(NS::Range::Make(0, _pBufferA->length()));
-    _pBufferB->didModifyRange(NS::Range::Make(0, _pBufferB->length()));
     _pArgBuffer->didModifyRange(NS::Range::Make(0, _pArgBuffer->length()));
     
     pArgEncoder->release();
@@ -125,6 +126,7 @@ void Computer::compute()
     NS::AutoreleasePool* pPool = NS::AutoreleasePool::alloc()->init();
     
     MTL::CommandBuffer* cmdBuf = _pCommandQueue->commandBuffer();
+    assert(cmdBuf);
     
     Computer* self = this;
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
@@ -139,6 +141,11 @@ void Computer::compute()
     doCompute(enc);
     
     enc->endEncoding();
+    
+    MTL::BlitCommandEncoder* blitEncoder = cmdBuf->blitCommandEncoder();
+    blitEncoder->synchronizeResource(_pResultBuffer);
+    blitEncoder->endEncoding();
+    
     cmdBuf->commit();
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
     
@@ -152,7 +159,7 @@ void Computer::doCompute(MTL::ComputeCommandEncoder* enc)
     
     // Set up a 1D threadgroup dispatch for vector addition.
     size_t numElements = dataSource.get_num_data();
-    MTL::Size threadsPerThreadgroup = MTL::Size{256, 1, 1};
+    MTL::Size threadsPerThreadgroup = MTL::Size{1024, 1, 1};
     MTL::Size threadgroups = MTL::Size{
         (unsigned int)((numElements + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width),
         1,
@@ -191,15 +198,14 @@ void Computer::extractResults() {
     // Assuming your results are float values
     float* results = static_cast<float*>(data);
     
-    // Process the results (for example, print the first value)
-    if (results) {
-        printf("Result: %f\n", results[0]);
+    uint64_t length = _pResultBuffer->length() / sizeof(float);
+    
+    float sum = 0.f;
+    for (uint64_t i = 0; i < length; i++) {
+        sum += results[i];
     }
     
-    uint64_t length = _pResultBuffer->length() / sizeof(float);
-    for (uint64_t i = 0; i < length; i++) {
-        printf("result[%d] => %f\n", static_cast<int>(i), results[i]);
-    }
+    std::cout << "Sum: " << sum << std::endl;
     
     // Unmap the buffer when done
     _pResultBuffer->didModifyRange(NS::Range(0, _pResultBuffer->length()));
