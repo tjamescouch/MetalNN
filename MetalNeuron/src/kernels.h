@@ -1,6 +1,5 @@
 //
-//  shaders.h
-//  LearnMetalCPP
+//  kernels.h
 //
 //  Created by James Couch on 2025-02-17.
 //
@@ -16,18 +15,20 @@ const inline char* addArrayKernelSrc = R"(
 #include <metal_stdlib>
 using namespace metal;
 
-kernel void add_arrays(
-    device const float* inA, 
-    device const float* inB, 
-    device float* result, 
-    uint id [[thread_position_in_grid]]) {
-    result[id] = inA[id] + inB[id];
+struct Buffers {
+    device const float* inA [[id(0)]];
+    device const float* inB [[id(1)]];
+    device float* result [[id(2)]];
+};
+
+kernel void add_arrays(const device Buffers* buffers [[buffer(0)]],
+                       uint id [[thread_position_in_grid]])
+{
+    buffers->result[id] = buffers->inA[id] + buffers->inB[id];
 }
 )";
 
-
-}
-
+} // namespace kernels
 
 #pragma endregion Declarations }
 #endif

@@ -30,7 +30,7 @@ Computer::Computer(MTL::Device* pDevice) :
     _pCommandQueue = _pDevice->newCommandQueue();
     buildComputePipeline();
 
-    // Asynchronous data build
+    // Asynchronous data build; once done, buffers are built on the main queue.
     dataSource.buildAsync([this]() {
         dispatch_async(dispatch_get_main_queue(), ^{
             buildBuffers();
@@ -45,7 +45,9 @@ Computer::~Computer()
 {
     if (_pComputePipelineState) _pComputePipelineState->release();
     if (_pArgBuffer) _pArgBuffer->release();
-    if (_pInputBuffer) _pInputBuffer->release();
+    if (_pBufferA) _pBufferA->release();
+    if (_pBufferB) _pBufferB->release();
+    if (_pBufferResult) _pBufferResult->release();
     
     _pCommandQueue->release();
     _pDevice->release();
@@ -77,19 +79,33 @@ void Computer::buildComputePipeline()
 
 void Computer::buildBuffers()
 {
-    const size_t numData = dataSource.get_num_data();
-    const size_t dataSize = numData * sizeof(simd::float3);
+    // Assuming dataSource provides two float arrays for inA and inB.
+    const size_t numElements = dataSource.get_num_data();
+    const size_t dataSize = numElements * sizeof(float);
 
-    // Allocate buffer
-    _pInputBuffer = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
-    std::memcpy(_pInputBuffer->contents(), dataSource.get_data_buffer(), dataSize);
-    _pInputBuffer->didModifyRange(NS::Range::Make(0, dataSize));
-    
+    // Create buffer for inA.
+    _pBufferA = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBufferA->contents(), dataSource.get_data_buffer(), dataSize);
+    _pBufferA->didModifyRange(NS::Range::Make(0, dataSize));
+
+    // Create buffer for inB.
+    _pBufferB = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBufferB->contents(), dataSource.get_data_buffer(), dataSize);
+    _pBufferB->didModifyRange(NS::Range::Make(0, dataSize));
+
+    // Create output buffer for result.
+    _pBufferResult = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
+
+    // Create an argument encoder for the Buffers struct (defined in the shader) at buffer index 0.
     MTL::ArgumentEncoder* pArgEncoder = _pComputeFn->newArgumentEncoder(0);
-
     _pArgBuffer = _pDevice->newBuffer(pArgEncoder->encodedLength(), MTL::ResourceStorageModeManaged);
     pArgEncoder->setArgumentBuffer(_pArgBuffer, 0);
-    pArgEncoder->setBuffer(_pInputBuffer, 0, 0);
+
+    // Bind the individual buffers into the argument buffer at their designated [[id]] slots.
+    pArgEncoder->setBuffer(_pBufferA, 0, 0);      // inA at [[id(0)]]
+    pArgEncoder->setBuffer(_pBufferB, 0, 1);      // inB at [[id(1)]]
+    pArgEncoder->setBuffer(_pBufferResult, 0, 2); // result at [[id(2)]]
+
     _pArgBuffer->didModifyRange(NS::Range::Make(0, _pArgBuffer->length()));
 
     pArgEncoder->release();
@@ -121,13 +137,14 @@ void Computer::compute()
 void Computer::doCompute(MTL::ComputeCommandEncoder* enc)
 {
     enc->setComputePipelineState(_pComputePipelineState);
-    enc->setBuffer(_pArgBuffer, 0, 0);
-    enc->setBuffer(_pInputBuffer, 0, 1);
-    
-    MTL::Size threadsPerThreadgroup = MTL::Size{16, 16, 1};
+    enc->setBuffer(_pArgBuffer, 0, 0);  // Bind the argument buffer at index 0
+
+    // Set up a 1D threadgroup dispatch for vector addition.
+    size_t numElements = dataSource.get_num_data();
+    MTL::Size threadsPerThreadgroup = MTL::Size{256, 1, 1};
     MTL::Size threadgroups = MTL::Size{
-        (DATA_SOURCE_WIDTH + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
-        (DATA_SOURCE_WIDTH + threadsPerThreadgroup.height - 1) / threadsPerThreadgroup.height,
+        (unsigned int)((numElements + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width),
+        1,
         1
     };
 
@@ -145,6 +162,5 @@ void Computer::keyPress(KeyPress* kp)
         keyState.erase(kp->code);
     }
 }
-
 
 #pragma endregion Computer
