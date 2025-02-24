@@ -259,7 +259,16 @@ void Computer::computeForward()
     pPool->release();
 }
 
-void Computer::computeLearn()
+void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
+{
+    this->computeLearn([this, iterations]() {
+        this->computeApplyUpdates([this, iterations]() {
+            this->computeLearnAndApplyUpdates(iterations - 1);
+        });
+    });
+}
+
+void Computer::computeLearn(std::function<void()> onComplete)
 {
     if (!areBuffersBuilt) return;
     if (currentlyComputing) return;
@@ -303,6 +312,8 @@ void Computer::computeLearn()
         this->extractResults(_pBuffer_y);
         std::cout << "Done Learning." << std::endl;
         currentlyComputing = false;
+        
+        onComplete();
     });
     
     const uint32_t maxThreads = 1024;
@@ -327,7 +338,7 @@ void Computer::computeLearn()
     pPool->release();
 }
 
-void Computer::computeApplyUpdates()
+void Computer::computeApplyUpdates(std::function<void()> onComplete)
 {
     if (!areBuffersBuilt) return;
     if (currentlyComputing) return;
@@ -356,6 +367,8 @@ void Computer::computeApplyUpdates()
         dispatch_semaphore_signal(self->_semaphore);
         std::cout << "Done Applying Updates." << std::endl;
         currentlyComputing = false;
+        
+        onComplete();
     });
     
     const uint32_t maxThreads = 1024;
@@ -410,17 +423,7 @@ void Computer::handleKeyStateChange()
         auto it = keyState.find(15); // Key code for 'L'
         if (it != keyState.end()) {
             if (it->second) {
-                this->computeLearn();
-            }
-        }
-    }
-    
-    // Let's say 'U' triggers apply updates (pick the correct key code as needed)
-    {
-        auto it = keyState.find(32); // Or whatever code you want for 'U'
-        if (it != keyState.end()) {
-            if (it->second) {
-                this->computeApplyUpdates();
+                this->computeLearnAndApplyUpdates(1000);
             }
         }
     }
