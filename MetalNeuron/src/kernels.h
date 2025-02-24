@@ -95,6 +95,8 @@ kernel void learn(
     for (uint i = 0; i < M; i++) {
         delta_w = W[i * N + tid] - W_accumulator[i * N + tid];
         abs_delta_w = fabs(delta_w);
+        float y_hat_minus_y = y_hat[tid] - y[tid];
+        error[tid] = y_hat_minus_y * y_hat_minus_y * y_hat_minus_y;
         delta_error = error[tid];
         
         float delta_w_no_zero = abs_delta_w > min_delta ? delta_w : sign(delta_w) * min_delta;
@@ -110,7 +112,7 @@ kernel void learn(
     float delta_b_no_zero = abs_delta_b > min_delta ? delta_b : sign(delta_b) * min_delta;
     float de_db = clamp(error[tid] / delta_b_no_zero, -max_de_db, max_de_db);
 
-    b_accumulator[tid] += learning_rate_b * plasticity * error[tid] * de_db * sign(de_db);
+    b_accumulator[tid] -= clamp(learning_rate_b * plasticity * error[tid] * de_db * sign(de_db), -0.1f, 0.1f);
 }
 
 kernel void apply_updates(

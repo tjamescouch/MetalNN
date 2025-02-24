@@ -22,7 +22,10 @@
 #pragma region Computer
 
 // Example dimension
-const int N = 256;
+const int N = 1024;
+const char* outputFileName = "neural-network-training.m";
+
+const int NUM_ITERATIONS = 1000;
 
 double expected2(double in) {
     return sin(0.050 * in);
@@ -37,6 +40,13 @@ _pCompileOptions(),
 areBuffersBuilt(false),
 currentlyComputing(false)
 {
+    std::ofstream logFile(outputFileName, std::ios::trunc); // Open file in truncate mode
+    if (!logFile.is_open()) {
+        std::cerr << "Error opening log file!" << std::endl;
+        return;
+    }
+    logFile << std::endl;
+    
     buildComputePipeline();
     
     // Initialize data sources asynchronously
@@ -222,13 +232,13 @@ void Computer::buildBuffers()
     areBuffersBuilt = true;
 }
 
-void Computer::computeForward()
+void Computer::computeForward(std::function<void()> onComplete)
 {
     if (!areBuffersBuilt) return;
     if (currentlyComputing) return;
     
     currentlyComputing = true;
-    std::cout << "Forward..." << std::endl;
+    std::cout << "Thinking..." << std::endl;
     
     NS::AutoreleasePool* pPool = NS::AutoreleasePool::alloc()->init();
     
@@ -241,8 +251,10 @@ void Computer::computeForward()
         // Let Metal know we modified the buffer (required in MTL::ResourceStorageModeManaged)
         _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
         
-        std::cout << "Done Forward." << std::endl;
+        std::cout << "Done Thinking." << std::endl;
         currentlyComputing = false;
+        
+        onComplete();
     });
     
     MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
@@ -281,6 +293,22 @@ void Computer::computeForward()
     pPool->release();
 }
 
+void Computer::computeForwardIterations(uint32_t iterations)
+{
+    this->computeForward([this, iterations]() {
+        printf("Iterations remaining=%d\n", iterations);
+        this->x.build([iterations](double x){ return expected2(x - iterations); });
+        std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(),
+                    x.get_num_data() * sizeof(float));
+        _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
+        
+        this->extractAllResults(iterations);
+        if (iterations > 0) {
+            this->computeForwardIterations(iterations - 1);
+        }
+    });
+}
+
 void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
 {
     this->computeLearn([this, iterations]() {
@@ -294,8 +322,10 @@ void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
                     x.get_num_data() * sizeof(float));
         _pBuffer_y_hat->didModifyRange(NS::Range::Make(0, _pBuffer_y_hat->length()));
         
-        this->extractAllResults(iterations);
-        this->computeLearnAndApplyUpdates(iterations - 1);
+        //this->extractAllResults(iterations);
+        if (iterations > 0) {
+            this->computeLearnAndApplyUpdates(iterations - 1);
+        }
     });
 }
 
@@ -344,7 +374,7 @@ void Computer::computeLearn(std::function<void()> onComplete)
     };
     
     
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 100; i++) {
         MTL::ComputeCommandEncoder* learnEnc = cmdBuf->computeCommandEncoder();
         learnEnc->setComputePipelineState(_pLearnComputePipelineState);
         
@@ -461,12 +491,12 @@ void Computer::keyPress(KeyPress* kp)
 
 void Computer::handleKeyStateChange()
 {
-    // For example, 'F' triggers forward
+    // 'F' triggers forward
     {
         auto it = keyState.find(9); // Key code for 'F'
         if (it != keyState.end()) {
             if (it->second) {
-                this->computeForward();
+                this->computeForwardIterations(NUM_ITERATIONS);
             }
         }
     }
@@ -476,13 +506,13 @@ void Computer::handleKeyStateChange()
         auto it = keyState.find(15); // Key code for 'L'
         if (it != keyState.end()) {
             if (it->second) {
-                this->computeLearnAndApplyUpdates(1000);
+                this->computeLearnAndApplyUpdates(NUM_ITERATIONS);
             }
         }
     }
 }
 
-void Computer::logInformation(const std::string& filename, MTL::Buffer* pBuffer_x, MTL::Buffer* pBuffer_y, MTL::Buffer* pBuffer_error, int remainingIterations)
+void Computer::logInformation(const std::string& filename, int remainingIterations)
 {
     std::ofstream logFile(filename, std::ios::app); // Open file in append mode
     if (!logFile.is_open()) {
@@ -493,12 +523,12 @@ void Computer::logInformation(const std::string& filename, MTL::Buffer* pBuffer_
     logFile << "clf; hold on;" << std::endl;
     logFile << "ylim([-1 1]);" << std::endl;
     
-    float* input = static_cast<float*>(pBuffer_x->contents());
-    float* output = static_cast<float*>(pBuffer_y->contents());
+    float* input = static_cast<float*>(_pBuffer_x->contents());
+    float* output = static_cast<float*>(_pBuffer_y->contents());
     float* y_hat = static_cast<float*>(_pBuffer_y_hat->contents());
     //float* error = static_cast<float*>(pBuffer_error->contents());
     
-    uint64_t length = pBuffer_y->length() / sizeof(float);
+    uint64_t length = _pBuffer_y->length() / sizeof(float);
     
     logFile << "# Logging iteration" << std::endl;
     
@@ -564,7 +594,7 @@ void Computer::extractAllResults(int remainingIterations)
     _pBuffer_error->didModifyRange(NS::Range(0, _pBuffer_error->length()));
     
     // Log the extracted results
-    logInformation("neural-network-training.m", _pBuffer_x, _pBuffer_y, _pBuffer_error, remainingIterations);
+    logInformation(outputFileName, remainingIterations);
 }
 
 #pragma endregion Computer
