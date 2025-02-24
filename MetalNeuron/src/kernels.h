@@ -63,7 +63,7 @@ kernel void forward(
     for (uint i = 0; i < M; i++) {
         sum += x[i] * W[i * N + tid];
     }
-    y[tid] = activationFunction(sum);
+    y[tid] = sum;//activationFunction(sum);
 }
 
 kernel void learn(
@@ -84,10 +84,10 @@ kernel void learn(
     if (tid >= N) return; 
 
     float sum = b[tid];
-    for (uint i = 0; i < M; i++) {
-        sum += x[i] * W[i * N + tid];
-    }
-    y[tid] = activationFunction(sum);
+    //for (uint i = 0; i < M; i++) {
+    //    sum += x[i] * W[i * N + tid];
+    //}
+    y[tid] = sum;//activationFunction(sum);
 
     // Compute weight updates
     float delta_w, abs_delta_w, delta_error;

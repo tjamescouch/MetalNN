@@ -9,8 +9,18 @@
 #include "math-lib.h"
 #include <simd/simd.h>
 
-#pragma mark - HeightMap
-#pragma region HeightMap {
+#pragma mark - DataSource
+#pragma region DataSource {
+
+#include <random>
+
+// Create a random number engine
+std::random_device rd;
+std::mt19937 gen(rd());
+
+// Create a distribution that maps to [0, 1]
+std::uniform_real_distribution<> uniform_0_to_1(0.0, 1.0);
+
 
 DataSource::DataSource(int width, int height)
 {
@@ -51,7 +61,7 @@ void DataSource::initRandom()
     {
         for(int iy = 0; iy < this->height; ++iy)
         {
-            float x  = rand() * 1.f;
+            float x  = uniform_0_to_1(gen);
             this->data.push_back(x);
         }
     }
@@ -80,4 +90,4 @@ void DataSource::build()
 }
 
 
-#pragma endregion HeightMap }
+#pragma endregion DataSource }
