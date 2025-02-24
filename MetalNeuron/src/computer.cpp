@@ -23,6 +23,11 @@
 // Example dimension
 const int N = 256;
 
+double expected(double in) {
+    return sin(0.050 * in);
+}
+
+
 Computer::Computer(MTL::Device* pDevice)
 : x(N, 1),
 W(N, N),
@@ -264,10 +269,12 @@ void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
 {
     this->computeLearn([this, iterations]() {
         this->computeApplyUpdates([this, iterations]() {
+            printf("Iteration=%d\n", iterations);
             if (iterations == 0) {
                 this->extractAllResults();
+            } else {
+                this->computeLearnAndApplyUpdates(iterations - 1);
             }
-            this->computeLearnAndApplyUpdates(iterations - 1);
         });
     });
 }
@@ -285,9 +292,10 @@ void Computer::computeLearn(std::function<void()> onComplete)
     // Example: fill _pBuffer_error with CPU-based error calculation
     {
         float* errPtr = reinterpret_cast<float*>(_pBuffer_error->contents());
+        float* yPtr = reinterpret_cast<float*>(_pBuffer_y->contents());
         // For demonstration, we'll just create some dummy sinusoidal error
         for(int i = 0; i < N; i++) {
-            errPtr[i] = std::sin(i * 0.01f);
+            errPtr[i] = expected(i) - *yPtr;
         }
         _pBuffer_error->didModifyRange(NS::Range::Make(0, _pBuffer_error->length()));
     }
@@ -427,7 +435,7 @@ void Computer::handleKeyStateChange()
         auto it = keyState.find(15); // Key code for 'L'
         if (it != keyState.end()) {
             if (it->second) {
-                this->computeLearnAndApplyUpdates(10);
+                this->computeLearnAndApplyUpdates(100000);
             }
         }
     }
@@ -439,14 +447,14 @@ void Computer::extractResults(MTL::Buffer* pBuffer)
     float* result = static_cast<float*>(pBuffer->contents());
     uint64_t length = pBuffer->length() / sizeof(float);
     
-    //double sum = 0.0;
+    
+    double sum = 0.0;
     for (unsigned long index = 0; index < length; index++)
     {
-        //sum += result[index];
-        printf("r[%lu] = %f\n", index, result[index]);
+        sum += result[index];
     }
-    //printf("sum of result = %f\n", sum);
-    
+    printf("sum of result = %f\n", sum);
+
     // Let Metal know we modified the buffer (required in MTL::ResourceStorageModeManaged)
     pBuffer->didModifyRange(NS::Range(0, pBuffer->length()));
     
@@ -460,37 +468,70 @@ void Computer::logInformation(const std::string& filename, MTL::Buffer* pBuffer_
         std::cerr << "Error opening log file!" << std::endl;
         return;
     }
+    
+    logFile << "clf; hold on;" << std::endl;
+    logFile << "ylim([-1 1]);" << std::endl;
 
     float* input = static_cast<float*>(pBuffer_x->contents());
     float* output = static_cast<float*>(pBuffer_y->contents());
-    float* expected = static_cast<float*>(pBuffer_error->contents());
+    //float* error = static_cast<float*>(pBuffer_error->contents());
 
     uint64_t length = pBuffer_y->length() / sizeof(float);
 
     logFile << "# Logging iteration" << std::endl;
+    
+    logFile << "x = [ ";
 
+    for (int i = 0; i < length; i++)
+    {
+      if (i != 0)
+      {
+          logFile << ", ";
+      }
+        logFile << i;
+    }
+    logFile << " ]" << std::endl;
+    
+    
+    logFile << "y = [ ";
     // Write input values
-    logFile << "Input: [ ";
     for (uint64_t i = 0; i < length; i++) {
+        if (i != 0)
+        {
+            logFile << ", ";
+        }
         logFile << input[i] << " ";
     }
     logFile << "]" << std::endl;
 
     // Write output values
-    logFile << "Output: [ ";
+    logFile << "z = [ ";
     for (uint64_t i = 0; i < length; i++) {
+        if (i != 0)
+        {
+            logFile << ", ";
+        }
         logFile << output[i] << " ";
     }
     logFile << "]" << std::endl;
 
     // Write expected values (error buffer)
-    logFile << "Expected: [ ";
+    logFile << "e = [ ";
     for (uint64_t i = 0; i < length; i++) {
-        logFile << expected[i] << " ";
+        if (i != 0)
+        {
+            logFile << ", ";
+        }
+        logFile << expected(i) << " ";
     }
     logFile << "]" << std::endl;
 
-    logFile << "---------------------------------" << std::endl;
+    logFile << "scatter(x,y,[],[],[0,0,1]);" << std::endl;
+    logFile << "scatter(x,z,[],[],[1,0,0]);" << std::endl;
+    logFile << "scatter(x,e,[],[],[0,1,0]);" << std::endl;
+    //logFile << "scatter(x,i,[],[],[0,1,1]);" << std::endl;
+    logFile << "hold off; pause(0.01)" << std::endl;
+    
     logFile.close();
 }
 
@@ -502,7 +543,7 @@ void Computer::extractAllResults()
     _pBuffer_error->didModifyRange(NS::Range(0, _pBuffer_error->length()));
 
     // Log the extracted results
-    logInformation("log.txt", _pBuffer_x, _pBuffer_y, _pBuffer_error);
+    logInformation("neural-network-training.m", _pBuffer_x, _pBuffer_y, _pBuffer_error);
 }
 
 #pragma endregion Computer
