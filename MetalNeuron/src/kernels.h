@@ -15,7 +15,7 @@ const inline char* nnKernelSrc = R"(
 #include <metal_stdlib>
 using namespace metal;
 
-constant float learning_rate_w = 0.01f;
+constant float learning_rate_w = 0.005f;
 constant float learning_rate_b = 0.001f;
 constant float min_delta = 0.1f;
 //constant float k_decay = 0.01f;

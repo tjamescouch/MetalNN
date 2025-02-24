@@ -40,12 +40,7 @@ _pCompileOptions(),
 areBuffersBuilt(false),
 currentlyComputing(false)
 {
-    std::ofstream logFile(outputFileName, std::ios::trunc); // Open file in truncate mode
-    if (!logFile.is_open()) {
-        std::cerr << "Error opening log file!" << std::endl;
-        return;
-    }
-    logFile << std::endl;
+    clearOutput();
     
     buildComputePipeline();
     
@@ -510,6 +505,16 @@ void Computer::handleKeyStateChange()
             }
         }
     }
+    
+    // 'C' clears existing output
+    {
+        auto it = keyState.find(6); // Key code for 'C'
+        if (it != keyState.end()) {
+            if (it->second) {
+                this->clearOutput();
+            }
+        }
+    }
 }
 
 void Computer::logInformation(const std::string& filename, int remainingIterations)
@@ -595,6 +600,15 @@ void Computer::extractAllResults(int remainingIterations)
     
     // Log the extracted results
     logInformation(outputFileName, remainingIterations);
+}
+
+void Computer::clearOutput() {
+    std::ofstream logFile(outputFileName, std::ios::trunc); // Open file in truncate mode
+    if (!logFile.is_open()) {
+        std::cerr << "Error opening log file!" << std::endl;
+        return;
+    }
+    logFile << std::endl;
 }
 
 #pragma endregion Computer

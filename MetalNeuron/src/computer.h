@@ -56,6 +56,7 @@ public:
     void computeForwardIterations(uint32_t iterations);
     
     void extractAllResults(int interations);
+    void clearOutput();
     void logInformation(const std::string& filename, int remainingIterations);
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();
