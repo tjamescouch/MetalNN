@@ -1,10 +1,3 @@
-//
-//  Computer.h
-//  LearnMetalCPP
-//
-//  Created by James Couch on 2024-12-07.
-//
-
 #ifndef COMPUTER_H
 #define COMPUTER_H
 
@@ -55,8 +48,11 @@ public:
     // Constructor / Destructor
     Computer(MTL::Device* pDevice);
     ~Computer();
+
     void computeForward();
     void computeLearn();
+    void computeApplyUpdates();
+
     void extractResults(MTL::Buffer* pBuffer);
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();
@@ -75,33 +71,39 @@ private:
     DataSource          x;
     DataSource          W;
     DataSource          b;
-    
+
     MTL::Device*        _pDevice;
     MTL::CommandQueue*  _pCommandQueue;
-    
+
     // Pipeline states
     MTL::Library*                 _pComputeLibrary = nullptr;
     MTL::ComputePipelineState*    _pForwardComputePipelineState = nullptr;
     MTL::ComputePipelineState*    _pLearnComputePipelineState = nullptr;
+    MTL::ComputePipelineState*    _pApplyUpdatesComputePipelineState = nullptr;
+    
     MTL::Function*                _pForwardFn = nullptr;
     MTL::Function*                _pLearnFn = nullptr;
-    
+    MTL::Function*                _pApplyUpdatesFn = nullptr;
+
     // Buffers for the argument buffer approach
-    MTL::Buffer* _pBuffer_x     = nullptr;
-    MTL::Buffer* _pBuffer_W     = nullptr;
-    MTL::Buffer* _pBuffer_b     = nullptr;
-    MTL::Buffer* _pBuffer_y     = nullptr;
-    MTL::Buffer* _pBuffer_M     = nullptr;
-    MTL::Buffer* _pBuffer_N     = nullptr;
-        
+    MTL::Buffer* _pBuffer_x            = nullptr;
+    MTL::Buffer* _pBuffer_W            = nullptr;
+    MTL::Buffer* _pBuffer_b            = nullptr;
+    MTL::Buffer* _pBuffer_y            = nullptr;
+    MTL::Buffer* _pBuffer_M            = nullptr;
+    MTL::Buffer* _pBuffer_N            = nullptr;
+    MTL::Buffer* _pBuffer_error        = nullptr;
+    MTL::Buffer* _pBuffer_WAccumulator = nullptr;
+    MTL::Buffer* _pBuffer_bAccumulator = nullptr;
+
     MTL::CompileOptions* _pCompileOptions = nullptr;
-    
+
     // Frame / Synchronization
     bool                    areBuffersBuilt = false;
     bool                    currentlyComputing = false;
     int                     _frame = 0;
     dispatch_semaphore_t    _semaphore;
-    
+
     // User Input
     std::map<long, bool>    keyState;
 };
