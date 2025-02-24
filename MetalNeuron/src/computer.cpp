@@ -27,12 +27,17 @@ const char* outputFileName = "neural-network-training.m";
 
 const int NUM_ITERATIONS = 1000;
 
-double expected2(double in) {
+double input (double in) {
+    return sin(0.050*in) > 0 ? 1.f : -1.f;
+}
+
+double expected(double in) {
     return sin(0.050 * in);
 }
 
 Computer::Computer(MTL::Device* pDevice)
 : x(N, 1),
+y_hat(N, 1),
 W(N, N),
 b(N, 1),
 _pDevice(pDevice->retain()),
@@ -40,18 +45,22 @@ _pCompileOptions(),
 areBuffersBuilt(false),
 currentlyComputing(false)
 {
-    clearOutput();
+    //clearOutput();
     
     buildComputePipeline();
     
     // Initialize data sources asynchronously
-    x.buildAsync(expected2, [this]() {
+    x.buildAsync(input, [this]() {
         dispatch_async(dispatch_get_main_queue(), ^{
-            W.initRandomAsync([this]() {
+            y_hat.buildAsync(input, [this]() {
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    b.initRandomAsync([this]() {
+                    W.initRandomAsync([this]() {
                         dispatch_async(dispatch_get_main_queue(), ^{
-                            this->buildBuffers();
+                            b.initRandomAsync([this]() {
+                                dispatch_async(dispatch_get_main_queue(), ^{
+                                    this->buildBuffers();
+                                });
+                            });
                         });
                     });
                 });
@@ -166,7 +175,7 @@ void Computer::buildBuffers()
     
     // Buffer for y_hat : x for now
     _pBuffer_y_hat = _pDevice->newBuffer(x.get_num_data() * sizeof(float),
-                                     MTL::ResourceStorageModeManaged);
+                                         MTL::ResourceStorageModeManaged);
     std::memcpy(_pBuffer_y_hat->contents(), x.get_data_buffer(),
                 x.get_num_data() * sizeof(float));
     _pBuffer_y_hat->didModifyRange(NS::Range::Make(0, _pBuffer_y_hat->length()));
@@ -292,7 +301,7 @@ void Computer::computeForwardIterations(uint32_t iterations)
 {
     this->computeForward([this, iterations]() {
         printf("Iterations remaining=%d\n", iterations);
-        this->x.build([iterations](double x){ return expected2(x - iterations); });
+        this->x.build([iterations](double x){ return input(x - iterations); });
         std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(),
                     x.get_num_data() * sizeof(float));
         _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
@@ -306,15 +315,17 @@ void Computer::computeForwardIterations(uint32_t iterations)
 
 void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
 {
+    printf("HERE");
     this->computeLearn([this, iterations]() {
         printf("Iterations remaining=%d\n", iterations);
-        this->x.build([iterations](double x){ return expected2(x - iterations); });
+        this->x.build([iterations](double x){ return input(x - iterations); });
         std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(),
                     x.get_num_data() * sizeof(float));
         _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
         
-        std::memcpy(_pBuffer_y_hat->contents(), x.get_data_buffer(),
-                    x.get_num_data() * sizeof(float));
+        this->y_hat.build([iterations](double x){ return expected(x - iterations); });
+        std::memcpy(_pBuffer_y_hat->contents(), y_hat.get_data_buffer(),
+                    y_hat.get_num_data() * sizeof(float));
         _pBuffer_y_hat->didModifyRange(NS::Range::Make(0, _pBuffer_y_hat->length()));
         
         //this->extractAllResults(iterations);
@@ -334,13 +345,10 @@ void Computer::computeLearn(std::function<void()> onComplete)
     
     NS::AutoreleasePool* pPool = NS::AutoreleasePool::alloc()->init();
     
-    // Example: fill _pBuffer_error with CPU-based error calculation
     {
         float* errPtr = reinterpret_cast<float*>(_pBuffer_error->contents());
-        float* yPtr = reinterpret_cast<float*>(_pBuffer_y->contents());
-        // For demonstration, we'll just create some dummy sinusoidal error
         for(int i = 0; i < N; i++) {
-            errPtr[i] = expected2(i) - *yPtr;
+            errPtr[i] = 0;
         }
         _pBuffer_error->didModifyRange(NS::Range::Make(0, _pBuffer_error->length()));
     }

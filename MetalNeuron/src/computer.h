@@ -73,6 +73,7 @@ private:
     //  Data Members
     // ---------------------------------------------------
     DataSource          x;
+    DataSource          y_hat;
     DataSource          W;
     DataSource          b;
 
