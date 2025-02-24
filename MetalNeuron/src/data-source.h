@@ -28,15 +28,15 @@ public:
     float* get_data_buffer();
     float get_data(float x, float y);
     
-    void build();
+    void build(std::function<double(double)> f);
     void initRandom();
     
     // Asynchronous build interface
     template<typename Callback>
-    void buildAsync(Callback onComplete) {
-        std::thread([this, onComplete]() {
+    void buildAsync(std::function<double(double)> f, Callback onComplete) {
+        std::thread([this, onComplete, f]() {
             // 1) Do expensive build on background thread
-            this->build();
+            this->build(f);
             // 2) Inform caller that build is done
             onComplete();
         }).detach();

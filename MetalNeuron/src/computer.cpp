@@ -8,6 +8,7 @@
 #include <iostream>
 #include <cassert>
 #include <fstream>
+#include <algorithm>
 
 #include "computer.h"
 #include "data-source.h"
@@ -23,10 +24,9 @@
 // Example dimension
 const int N = 256;
 
-double expected(double in) {
+double expected2(double in) {
     return sin(0.050 * in);
 }
-
 
 Computer::Computer(MTL::Device* pDevice)
 : x(N, 1),
@@ -40,7 +40,7 @@ currentlyComputing(false)
     buildComputePipeline();
     
     // Initialize data sources asynchronously
-    x.buildAsync([this]() {
+    x.buildAsync(expected2, [this]() {
         dispatch_async(dispatch_get_main_queue(), ^{
             W.initRandomAsync([this]() {
                 dispatch_async(dispatch_get_main_queue(), ^{
@@ -223,6 +223,16 @@ void Computer::computeForward()
     MTL::CommandBuffer* cmdBuf = _pCommandQueue->commandBuffer();
     assert(cmdBuf);
     
+    Computer* self = this;
+    cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
+        dispatch_semaphore_signal(self->_semaphore);
+        // Let Metal know we modified the buffer (required in MTL::ResourceStorageModeManaged)
+        _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
+        
+        std::cout << "Done Forward." << std::endl;
+        currentlyComputing = false;
+    });
+    
     MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
     enc->setComputePipelineState(_pForwardComputePipelineState);
     
@@ -234,17 +244,7 @@ void Computer::computeForward()
     enc->setBuffer(_pBuffer_M, 0, 4);
     enc->setBuffer(_pBuffer_N, 0, 5);
     
-    Computer* self = this;
-    cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
-        dispatch_semaphore_signal(self->_semaphore);
-        this->extractResults(_pBuffer_y);
-        
-        // Let Metal know we modified the buffer (required in MTL::ResourceStorageModeManaged)
-        _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
-        
-        std::cout << "Done Forward." << std::endl;
-        currentlyComputing = false;
-    });
+    
     
     const uint32_t maxThreads = 1024;
     MTL::Size threadsPerThreadgroup = MTL::Size{maxThreads, 1, 1};
@@ -272,14 +272,14 @@ void Computer::computeForward()
 void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
 {
     this->computeLearn([this, iterations]() {
-        this->computeApplyUpdates([this, iterations]() {
-            printf("Iteration=%d\n", iterations);
-            if (iterations == 0) {
-                this->extractAllResults();
-            } else {
-                this->computeLearnAndApplyUpdates(iterations - 1);
-            }
-        });
+        printf("Iterations remaining=%d\n", iterations);
+        this->x.build([iterations](double x){ return expected2(x - iterations); });
+        std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(),
+                    x.get_num_data() * sizeof(float));
+        _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
+        
+        this->extractAllResults(iterations);
+        this->computeLearnAndApplyUpdates(iterations - 1);
     });
 }
 
@@ -299,7 +299,7 @@ void Computer::computeLearn(std::function<void()> onComplete)
         float* yPtr = reinterpret_cast<float*>(_pBuffer_y->contents());
         // For demonstration, we'll just create some dummy sinusoidal error
         for(int i = 0; i < N; i++) {
-            errPtr[i] = expected(i) - *yPtr;
+            errPtr[i] = expected2(i) - *yPtr;
         }
         _pBuffer_error->didModifyRange(NS::Range::Make(0, _pBuffer_error->length()));
     }
@@ -307,26 +307,9 @@ void Computer::computeLearn(std::function<void()> onComplete)
     MTL::CommandBuffer* cmdBuf = _pCommandQueue->commandBuffer();
     assert(cmdBuf);
     
-    MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-    enc->setComputePipelineState(_pLearnComputePipelineState);
-    
-    // Bind arguments
-    enc->setBuffer(_pBuffer_x,            0, 0);
-    enc->setBuffer(_pBuffer_W,            0, 1);
-    enc->setBuffer(_pBuffer_b,            0, 2);
-    enc->setBuffer(_pBuffer_y,            0, 3);
-    enc->setBuffer(_pBuffer_error,        0, 4);
-    enc->setBuffer(_pBuffer_M,            0, 5);
-    enc->setBuffer(_pBuffer_N,            0, 6);
-    enc->setBuffer(_pBuffer_WAccumulator, 0, 7);
-    enc->setBuffer(_pBuffer_bAccumulator, 0, 8);
-    
     Computer* self = this;
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
         dispatch_semaphore_signal(self->_semaphore);
-        // Optionally read any intermediate results from y
-        this->extractResults(_pBuffer_y);
-        
         // Let Metal know we modified the buffer (required in MTL::ResourceStorageModeManaged)
         _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
         
@@ -336,7 +319,7 @@ void Computer::computeLearn(std::function<void()> onComplete)
         onComplete();
     });
     
-    const uint32_t maxThreads = 1024;
+    const uint32_t maxThreads = std::min((int)1024, (int)this->x.get_num_data());
     MTL::Size threadsPerThreadgroup = MTL::Size{maxThreads, 1, 1};
     MTL::Size threadgroups = MTL::Size{
         (unsigned int)ceil(((N * N) / double(maxThreads))),
@@ -344,13 +327,46 @@ void Computer::computeLearn(std::function<void()> onComplete)
         1
     };
     
-    enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
-    enc->endEncoding();
     
-    // Sync the result for debugging
-    MTL::BlitCommandEncoder* blitEncoder = cmdBuf->blitCommandEncoder();
-    blitEncoder->synchronizeResource(_pBuffer_y);
-    blitEncoder->endEncoding();
+    for (int i = 0; i < 1000; i++) {
+        MTL::ComputeCommandEncoder* learnEnc = cmdBuf->computeCommandEncoder();
+        learnEnc->setComputePipelineState(_pLearnComputePipelineState);
+        
+        // Bind arguments
+        learnEnc->setBuffer(_pBuffer_x,            0, 0);
+        learnEnc->setBuffer(_pBuffer_W,            0, 1);
+        learnEnc->setBuffer(_pBuffer_b,            0, 2);
+        learnEnc->setBuffer(_pBuffer_y,            0, 3);
+        learnEnc->setBuffer(_pBuffer_error,        0, 4);
+        learnEnc->setBuffer(_pBuffer_M,            0, 5);
+        learnEnc->setBuffer(_pBuffer_N,            0, 6);
+        learnEnc->setBuffer(_pBuffer_WAccumulator, 0, 7);
+        learnEnc->setBuffer(_pBuffer_bAccumulator, 0, 8);
+        
+        learnEnc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+        learnEnc->endEncoding();
+        
+        
+        MTL::ComputeCommandEncoder* applyEnc = cmdBuf->computeCommandEncoder();
+        applyEnc->setComputePipelineState(_pApplyUpdatesComputePipelineState);
+        
+        // Bind arguments
+        applyEnc->setBuffer(_pBuffer_W,            0, 0);
+        applyEnc->setBuffer(_pBuffer_b,            0, 1);
+        applyEnc->setBuffer(_pBuffer_WAccumulator, 0, 2);
+        applyEnc->setBuffer(_pBuffer_bAccumulator, 0, 3);
+        applyEnc->setBuffer(_pBuffer_M,            0, 4);
+        applyEnc->setBuffer(_pBuffer_N,            0, 5);
+        
+        applyEnc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+        applyEnc->endEncoding();
+        
+        // Sync the result for debugging
+        MTL::BlitCommandEncoder* blitEncoder = cmdBuf->blitCommandEncoder();
+        blitEncoder->synchronizeResource(_pBuffer_y);
+        blitEncoder->endEncoding();
+    }
+    
     
     cmdBuf->commit();
     
@@ -443,30 +459,13 @@ void Computer::handleKeyStateChange()
         auto it = keyState.find(15); // Key code for 'L'
         if (it != keyState.end()) {
             if (it->second) {
-                this->computeLearnAndApplyUpdates(100000);
+                this->computeLearnAndApplyUpdates(1000);
             }
         }
     }
 }
 
-void Computer::extractResults(MTL::Buffer* pBuffer)
-{
-    return;
-    // Example: interpret the result buffer as an array of floats
-    float* result = static_cast<float*>(pBuffer->contents());
-    uint64_t length = pBuffer->length() / sizeof(float);
-    
-    
-    double sum = 0.0;
-    for (unsigned long index = 0; index < length; index++)
-    {
-        sum += result[index];
-    }
-    printf("sum of result = %f\n", sum);
-}
-
-
-void Computer::logInformation(const std::string& filename, MTL::Buffer* pBuffer_x, MTL::Buffer* pBuffer_y, MTL::Buffer* pBuffer_error)
+void Computer::logInformation(const std::string& filename, MTL::Buffer* pBuffer_x, MTL::Buffer* pBuffer_y, MTL::Buffer* pBuffer_error, int remainingIterations)
 {
     std::ofstream logFile(filename, std::ios::app); // Open file in append mode
     if (!logFile.is_open()) {
@@ -476,23 +475,23 @@ void Computer::logInformation(const std::string& filename, MTL::Buffer* pBuffer_
     
     logFile << "clf; hold on;" << std::endl;
     logFile << "ylim([-1 1]);" << std::endl;
-
+    
     float* input = static_cast<float*>(pBuffer_x->contents());
     float* output = static_cast<float*>(pBuffer_y->contents());
     //float* error = static_cast<float*>(pBuffer_error->contents());
-
+    
     uint64_t length = pBuffer_y->length() / sizeof(float);
-
+    
     logFile << "# Logging iteration" << std::endl;
     
     logFile << "x = [ ";
-
+    
     for (int i = 0; i < length; i++)
     {
-      if (i != 0)
-      {
-          logFile << ", ";
-      }
+        if (i != 0)
+        {
+            logFile << ", ";
+        }
         logFile << i;
     }
     logFile << " ]" << std::endl;
@@ -508,7 +507,7 @@ void Computer::logInformation(const std::string& filename, MTL::Buffer* pBuffer_
         logFile << input[i] << " ";
     }
     logFile << "]" << std::endl;
-
+    
     // Write output values
     logFile << "z = [ ";
     for (uint64_t i = 0; i < length; i++) {
@@ -519,36 +518,35 @@ void Computer::logInformation(const std::string& filename, MTL::Buffer* pBuffer_
         logFile << output[i] << " ";
     }
     logFile << "]" << std::endl;
-
-    // Write expected values (error buffer)
+    
     logFile << "e = [ ";
     for (uint64_t i = 0; i < length; i++) {
         if (i != 0)
         {
             logFile << ", ";
         }
-        logFile << expected(i) << " ";
+        logFile << expected2(i - remainingIterations) << " ";
     }
     logFile << "]" << std::endl;
-
+    
     logFile << "scatter(x,y,[],[],[0,0,1]);" << std::endl;
     logFile << "scatter(x,z,[],[],[1,0,0]);" << std::endl;
-    logFile << "scatter(x,e,[],[],[0,1,0]);" << std::endl;
-    //logFile << "scatter(x,i,[],[],[0,1,1]);" << std::endl;
+    logFile << "scatter(x,e,[],[],[0,1,0]);" << std::endl; //FLAT LINE?
+    
     logFile << "hold off; pause(0.01)" << std::endl;
     
     logFile.close();
 }
 
-void Computer::extractAllResults()
+void Computer::extractAllResults(int remainingIterations)
 {
     // Synchronize GPU buffers to CPU
     _pBuffer_x->didModifyRange(NS::Range(0, _pBuffer_x->length()));
     _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
     _pBuffer_error->didModifyRange(NS::Range(0, _pBuffer_error->length()));
-
+    
     // Log the extracted results
-    logInformation("neural-network-training.m", _pBuffer_x, _pBuffer_y, _pBuffer_error);
+    logInformation("neural-network-training.m", _pBuffer_x, _pBuffer_y, _pBuffer_error, remainingIterations);
 }
 
 #pragma endregion Computer

@@ -20,7 +20,7 @@ std::mt19937 gen(rd());
 
 // Create a distribution that maps to [0, 1]
 std::uniform_real_distribution<> uniform_0_to_1(0.0, 1.0);
-
+    
 
 DataSource::DataSource(int width, int height)
 {
@@ -42,15 +42,10 @@ size_t DataSource::get_num_data()
     return data.size();
 }
 
-float DataSource::get_data(float x, float y)
-{
-    const float z = 7;
-    
-    return z;
-}
 
 void DataSource::initRandom()
 {
+    data.resize(0);
     printf("Generating data...\n");
 
     size_t numCellsPerRow = this->width - 1;  // cells in each row
@@ -69,8 +64,9 @@ void DataSource::initRandom()
     printf("Data generation finished. Generated %zu values\n", data.size());
 }
 
-void DataSource::build()
+void DataSource::build(std::function<double(double)> f)
 {
+    data.resize(0);
     printf("Generating data...\n");
 
     size_t numCellsPerRow = this->width - 1;  // cells in each row
@@ -81,8 +77,7 @@ void DataSource::build()
     {
         for(int iy = 0; iy < this->height; ++iy)
         {
-            float x  = sin(ix + iy * this->width);
-            this->data.push_back(x);
+            this->data.push_back(f(ix + iy*this->width));
         }
     }
     
