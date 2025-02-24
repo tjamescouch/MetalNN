@@ -82,9 +82,10 @@ private:
     MTL::Function*                _pComputeFn = nullptr;
     
     // Buffers for the argument buffer approach
-    MTL::Buffer* _pBufferA = nullptr;
-    MTL::Buffer* _pBufferB = nullptr;
-    MTL::Buffer* _pResultBuffer = nullptr;
+    MTL::Buffer* _pBuffer_x     = nullptr;
+    MTL::Buffer* _pBuffer_W     = nullptr;
+    MTL::Buffer* _pBuffer_y     = nullptr;
+    MTL::Buffer* _pBuffer_W_dim = nullptr;
         
     MTL::CompileOptions* _pCompileOptions = nullptr;
     

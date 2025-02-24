@@ -28,7 +28,6 @@ _pCompileOptions(),
 areBuffersBuilt(false),
 currentlyComputing(false)
 {
-    _pCommandQueue = _pDevice->newCommandQueue();
     buildComputePipeline();
     
     // Asynchronous data build; once done, buffers are built on the main queue.
@@ -44,9 +43,11 @@ currentlyComputing(false)
 Computer::~Computer()
 {
     if (_pComputePipelineState) _pComputePipelineState->release();
-    if (_pBufferA) _pBufferA->release();
-    if (_pBufferB) _pBufferB->release();
-    if (_pResultBuffer) _pResultBuffer->release();
+    
+    if (_pBuffer_x)     _pBuffer_x->release();
+    if (_pBuffer_W)     _pBuffer_W->release();
+    if (_pBuffer_y)     _pBuffer_y->release();
+    if (_pBuffer_W_dim) _pBuffer_W_dim->release();
     
     _pCommandQueue->release();
     _pDevice->release();
@@ -55,6 +56,8 @@ Computer::~Computer()
 
 void Computer::buildComputePipeline()
 {
+    _pCommandQueue = _pDevice->newCommandQueue();
+    
     NS::Error* pError = nullptr;
     _pComputeLibrary = _pDevice->newLibrary(NS::String::string(kernels::addArrayKernelSrc, NS::UTF8StringEncoding), _pCompileOptions, &pError);
     
@@ -64,7 +67,7 @@ void Computer::buildComputePipeline()
         assert(false);
     }
     
-    _pComputeFn = _pComputeLibrary->newFunction(NS::String::string("add_arrays", NS::UTF8StringEncoding));
+    _pComputeFn = _pComputeLibrary->newFunction(NS::String::string("forward", NS::UTF8StringEncoding));
     
     NS::Error* pErr2 = nullptr;
     _pComputePipelineState = _pDevice->newComputePipelineState(_pComputeFn, &pErr2);
@@ -84,22 +87,15 @@ void Computer::buildBuffers()
     const size_t numElements = dataSource.get_num_data();
     const size_t dataSize = numElements * sizeof(simd::float3);
     
-    // Create buffer for inA.
-    _pBufferA = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBufferA->contents(), dataSource.get_data_buffer(), dataSize);
-    _pBufferA->didModifyRange(NS::Range::Make(0, dataSize));
+    _pBuffer_x = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_x->contents(), dataSource.get_data_buffer(), dataSize);
+    _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
     
-    // Create buffer for inB.
-    _pBufferB = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBufferB->contents(), dataSource.get_data_buffer(), dataSize);
-    _pBufferB->didModifyRange(NS::Range::Make(0, dataSize));
-    
+
     // Create output buffer for result.
-    _pResultBuffer = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
-    _pResultBuffer->didModifyRange(NS::Range::Make(0, dataSize));
-    
-    std::memcpy(_pResultBuffer->contents(), dataSource.get_data_buffer(), dataSize);
-    
+    _pBuffer_y = _pDevice->newBuffer(dataSize, MTL::ResourceStorageModeManaged);
+    _pBuffer_y->didModifyRange(NS::Range::Make(0, _pBuffer_y->length()));
+        
     areBuffersBuilt = true;
 }
 
@@ -131,13 +127,13 @@ void Computer::compute()
         std::cout << "Done Computing." << std::endl;
         currentlyComputing = false;
     });
-
+    
     
     MTL::Size threadsPerThreadgroup = MTL::Size{1024, 1, 1};
     MTL::Size threadgroups = MTL::Size{
-    (unsigned int)ceil(((DATA_SOURCE_MAX_VECTORS_PER_ROW*DATA_SOURCE_MAX_VECTORS_PER_ROW) / 1024)),
-    1,
-    1
+        (unsigned int)ceil(((DATA_SOURCE_MAX_VECTORS_PER_ROW*DATA_SOURCE_MAX_VECTORS_PER_ROW) / 1024)),
+        1,
+        1
     };
     
     enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
