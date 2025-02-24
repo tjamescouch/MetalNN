@@ -77,7 +77,7 @@ void Computer::buildComputePipeline()
     }
     
     _pComputeLibrary->release();
-    _pComputeFn->release();
+    //_pComputeFn->release();
 }
 
 void Computer::buildBuffers()
@@ -135,6 +135,8 @@ void Computer::compute()
     Computer* self = this;
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
         dispatch_semaphore_signal(self->_semaphore);
+        _pResultBuffer->didModifyRange(NS::Range(0, _pResultBuffer->length()));
+        
         this->extractResults();
         
         std::cout << "Done Computing." << std::endl;
@@ -191,7 +193,7 @@ void Computer::handleKeyStateChange() {
     }
 }
 
-void Computer::extractResults() {
+void Computer::extractResults() {    
     //simd::float3* a = static_cast<simd::float3*>(_pBufferA->contents());
     //simd::float3* b = static_cast<simd::float3*>(_pBufferB->contents());
     simd::float3* result = static_cast<simd::float3*>(_pResultBuffer->contents());
