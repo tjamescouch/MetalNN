@@ -11,7 +11,7 @@
 
 namespace kernels {
 
-const inline char* addArrayKernelSrc = R"(
+const inline char* nnKernelSrc = R"(
 #include <metal_stdlib>
 using namespace metal;
 

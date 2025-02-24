@@ -32,7 +32,7 @@ currentlyComputing(false)
 {
     buildComputePipeline();
     
-    // Callback hell
+    // FIXME - Callback hell
     x.buildAsync([this]() {
         dispatch_async(dispatch_get_main_queue(), ^{
             W.initRandomAsync([this]() {
@@ -72,8 +72,7 @@ void Computer::buildComputePipeline()
     _pCommandQueue = _pDevice->newCommandQueue();
     
     NS::Error* pError = nullptr;
-    _pComputeLibrary = _pDevice->newLibrary(NS::String::string(kernels::addArrayKernelSrc, NS::UTF8StringEncoding), _pCompileOptions, &pError);
-    
+    _pComputeLibrary = _pDevice->newLibrary(NS::String::string(kernels::nnKernelSrc, NS::UTF8StringEncoding), _pCompileOptions, &pError);
     if (!_pComputeLibrary)
     {
         std::cerr << "Compute library error: " << pError->localizedDescription()->utf8String() << std::endl;
@@ -108,7 +107,6 @@ void Computer::buildBuffers()
     int m = N;
     int n = N;
     
-    // Assuming dataSource provides two float arrays for inA and inB.
     _pBuffer_x = _pDevice->newBuffer(x.get_num_data() * sizeof(float), MTL::ResourceStorageModeManaged);
     std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(), x.get_num_data() * sizeof(float));
     _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
@@ -129,11 +127,11 @@ void Computer::buildBuffers()
     std::memcpy(_pBuffer_N->contents(), &n, sizeof(int));
     _pBuffer_N->didModifyRange(NS::Range::Make(0, _pBuffer_N->length()));
     
-
+    
     // Create output buffer for result.
     _pBuffer_y = _pDevice->newBuffer(x.get_num_data() * sizeof(float), MTL::ResourceStorageModeManaged); //FIXME - assumes square
     _pBuffer_y->didModifyRange(NS::Range::Make(0, _pBuffer_y->length()));
-        
+    
     areBuffersBuilt = true;
 }
 
