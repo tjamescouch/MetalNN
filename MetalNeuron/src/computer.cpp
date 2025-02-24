@@ -238,6 +238,10 @@ void Computer::computeForward()
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
         dispatch_semaphore_signal(self->_semaphore);
         this->extractResults(_pBuffer_y);
+        
+        // Let Metal know we modified the buffer (required in MTL::ResourceStorageModeManaged)
+        _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
+        
         std::cout << "Done Forward." << std::endl;
         currentlyComputing = false;
     });
@@ -322,6 +326,10 @@ void Computer::computeLearn(std::function<void()> onComplete)
         dispatch_semaphore_signal(self->_semaphore);
         // Optionally read any intermediate results from y
         this->extractResults(_pBuffer_y);
+        
+        // Let Metal know we modified the buffer (required in MTL::ResourceStorageModeManaged)
+        _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
+        
         std::cout << "Done Learning." << std::endl;
         currentlyComputing = false;
         
@@ -443,6 +451,7 @@ void Computer::handleKeyStateChange()
 
 void Computer::extractResults(MTL::Buffer* pBuffer)
 {
+    return;
     // Example: interpret the result buffer as an array of floats
     float* result = static_cast<float*>(pBuffer->contents());
     uint64_t length = pBuffer->length() / sizeof(float);
@@ -454,10 +463,6 @@ void Computer::extractResults(MTL::Buffer* pBuffer)
         sum += result[index];
     }
     printf("sum of result = %f\n", sum);
-
-    // Let Metal know we modified the buffer (required in MTL::ResourceStorageModeManaged)
-    pBuffer->didModifyRange(NS::Range(0, pBuffer->length()));
-    
 }
 
 
