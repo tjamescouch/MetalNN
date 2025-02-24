@@ -63,7 +63,7 @@ kernel void forward(
     for (uint i = 0; i < M; i++) {
         sum += x[i] * W[i * N + tid];
     }
-    y[tid] = sum;//activationFunction(sum);
+    y[tid] = activationFunction(sum);
 }
 
 kernel void learn(
@@ -71,11 +71,12 @@ kernel void learn(
     device       float* W               [[buffer(1)]],
     device       float* b               [[buffer(2)]],
     device       float* y               [[buffer(3)]],
-    device       float* error           [[buffer(4)]],
-    device       uint* pM               [[buffer(5)]],
-    device       uint* pN               [[buffer(6)]],
-    device       float* W_accumulator   [[buffer(7)]],
-    device       float* b_accumulator   [[buffer(8)]],
+    device       float* y_hat           [[buffer(4)]],
+    device       float* error           [[buffer(5)]],
+    device       uint* pM               [[buffer(6)]],
+    device       uint* pN               [[buffer(7)]],
+    device       float* W_accumulator   [[buffer(8)]],
+    device       float* b_accumulator   [[buffer(9)]],
     uint tid                            [[thread_position_in_grid]])
 {
     uint M = *pM;
@@ -84,10 +85,10 @@ kernel void learn(
     if (tid >= N) return; 
 
     float sum = b[tid];
-    //for (uint i = 0; i < M; i++) {
-    //    sum += x[i] * W[i * N + tid];
-    //}
-    y[tid] = sum;//activationFunction(sum);
+    for (uint i = 0; i < M; i++) {
+        sum += x[i] * W[i * N + tid];
+    }
+    y[tid] = activationFunction(sum);
 
     // Compute weight updates
     float delta_w, abs_delta_w, delta_error;

@@ -66,6 +66,7 @@ Computer::~Computer()
     
     // Release buffers
     if (_pBuffer_x)            _pBuffer_x->release();
+    if (_pBuffer_y_hat)        _pBuffer_y_hat->release();
     if (_pBuffer_W)            _pBuffer_W->release();
     if (_pBuffer_b)            _pBuffer_b->release();
     if (_pBuffer_y)            _pBuffer_y->release();
@@ -155,6 +156,17 @@ void Computer::buildBuffers()
     std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(),
                 x.get_num_data() * sizeof(float));
     _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
+    
+    
+    
+    // Buffer for y_hat : x for now
+    _pBuffer_y_hat = _pDevice->newBuffer(x.get_num_data() * sizeof(float),
+                                     MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_y_hat->contents(), x.get_data_buffer(),
+                x.get_num_data() * sizeof(float));
+    _pBuffer_y_hat->didModifyRange(NS::Range::Make(0, _pBuffer_y_hat->length()));
+    
+    
     
     // Buffer for W
     _pBuffer_W = _pDevice->newBuffer(W.get_num_data() * sizeof(float),
@@ -278,6 +290,10 @@ void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
                     x.get_num_data() * sizeof(float));
         _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
         
+        std::memcpy(_pBuffer_y_hat->contents(), x.get_data_buffer(),
+                    x.get_num_data() * sizeof(float));
+        _pBuffer_y_hat->didModifyRange(NS::Range::Make(0, _pBuffer_y_hat->length()));
+        
         this->extractAllResults(iterations);
         this->computeLearnAndApplyUpdates(iterations - 1);
     });
@@ -337,11 +353,12 @@ void Computer::computeLearn(std::function<void()> onComplete)
         learnEnc->setBuffer(_pBuffer_W,            0, 1);
         learnEnc->setBuffer(_pBuffer_b,            0, 2);
         learnEnc->setBuffer(_pBuffer_y,            0, 3);
-        learnEnc->setBuffer(_pBuffer_error,        0, 4);
-        learnEnc->setBuffer(_pBuffer_M,            0, 5);
-        learnEnc->setBuffer(_pBuffer_N,            0, 6);
-        learnEnc->setBuffer(_pBuffer_WAccumulator, 0, 7);
-        learnEnc->setBuffer(_pBuffer_bAccumulator, 0, 8);
+        learnEnc->setBuffer(_pBuffer_y_hat,        0, 4);
+        learnEnc->setBuffer(_pBuffer_error,        0, 5);
+        learnEnc->setBuffer(_pBuffer_M,            0, 6);
+        learnEnc->setBuffer(_pBuffer_N,            0, 7);
+        learnEnc->setBuffer(_pBuffer_WAccumulator, 0, 8);
+        learnEnc->setBuffer(_pBuffer_bAccumulator, 0, 9);
         
         learnEnc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
         learnEnc->endEncoding();
@@ -478,6 +495,7 @@ void Computer::logInformation(const std::string& filename, MTL::Buffer* pBuffer_
     
     float* input = static_cast<float*>(pBuffer_x->contents());
     float* output = static_cast<float*>(pBuffer_y->contents());
+    float* y_hat = static_cast<float*>(_pBuffer_y_hat->contents());
     //float* error = static_cast<float*>(pBuffer_error->contents());
     
     uint64_t length = pBuffer_y->length() / sizeof(float);
@@ -525,7 +543,7 @@ void Computer::logInformation(const std::string& filename, MTL::Buffer* pBuffer_
         {
             logFile << ", ";
         }
-        logFile << expected2(i - remainingIterations) << " ";
+        logFile << y_hat[i] << " ";
     }
     logFile << "]" << std::endl;
     

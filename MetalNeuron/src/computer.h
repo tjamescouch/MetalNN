@@ -92,6 +92,7 @@ private:
     MTL::Buffer* _pBuffer_W            = nullptr;
     MTL::Buffer* _pBuffer_b            = nullptr;
     MTL::Buffer* _pBuffer_y            = nullptr;
+    MTL::Buffer* _pBuffer_y_hat        = nullptr;
     MTL::Buffer* _pBuffer_M            = nullptr;
     MTL::Buffer* _pBuffer_N            = nullptr;
     MTL::Buffer* _pBuffer_error        = nullptr;
