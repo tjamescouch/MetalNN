@@ -53,8 +53,12 @@ public:
     void computeLearn(std::function<void()> cb);
     void computeApplyUpdates(std::function<void()> cb);
     void computeLearnAndApplyUpdates(uint32_t iterations);
+    
+    void extractAllResults();
+    void logInformation(const std::string& filename, MTL::Buffer* pBuffer_x, MTL::Buffer* pBuffer_y, MTL::Buffer* pBuffer_error);
 
     void extractResults(MTL::Buffer* pBuffer);
+    void logInformation();
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();
     static constexpr int kMaxFramesInFlight = 3;

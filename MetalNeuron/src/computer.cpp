@@ -7,6 +7,7 @@
 #include <cmath>
 #include <iostream>
 #include <cassert>
+#include <fstream>
 
 #include "computer.h"
 #include "data-source.h"
@@ -263,6 +264,9 @@ void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
 {
     this->computeLearn([this, iterations]() {
         this->computeApplyUpdates([this, iterations]() {
+            if (iterations == 0) {
+                this->extractAllResults();
+            }
             this->computeLearnAndApplyUpdates(iterations - 1);
         });
     });
@@ -423,7 +427,7 @@ void Computer::handleKeyStateChange()
         auto it = keyState.find(15); // Key code for 'L'
         if (it != keyState.end()) {
             if (it->second) {
-                this->computeLearnAndApplyUpdates(1000);
+                this->computeLearnAndApplyUpdates(10);
             }
         }
     }
@@ -445,6 +449,60 @@ void Computer::extractResults(MTL::Buffer* pBuffer)
     
     // Let Metal know we modified the buffer (required in MTL::ResourceStorageModeManaged)
     pBuffer->didModifyRange(NS::Range(0, pBuffer->length()));
+    
+}
+
+
+void Computer::logInformation(const std::string& filename, MTL::Buffer* pBuffer_x, MTL::Buffer* pBuffer_y, MTL::Buffer* pBuffer_error)
+{
+    std::ofstream logFile(filename, std::ios::app); // Open file in append mode
+    if (!logFile.is_open()) {
+        std::cerr << "Error opening log file!" << std::endl;
+        return;
+    }
+
+    float* input = static_cast<float*>(pBuffer_x->contents());
+    float* output = static_cast<float*>(pBuffer_y->contents());
+    float* expected = static_cast<float*>(pBuffer_error->contents());
+
+    uint64_t length = pBuffer_y->length() / sizeof(float);
+
+    logFile << "# Logging iteration" << std::endl;
+
+    // Write input values
+    logFile << "Input: [ ";
+    for (uint64_t i = 0; i < length; i++) {
+        logFile << input[i] << " ";
+    }
+    logFile << "]" << std::endl;
+
+    // Write output values
+    logFile << "Output: [ ";
+    for (uint64_t i = 0; i < length; i++) {
+        logFile << output[i] << " ";
+    }
+    logFile << "]" << std::endl;
+
+    // Write expected values (error buffer)
+    logFile << "Expected: [ ";
+    for (uint64_t i = 0; i < length; i++) {
+        logFile << expected[i] << " ";
+    }
+    logFile << "]" << std::endl;
+
+    logFile << "---------------------------------" << std::endl;
+    logFile.close();
+}
+
+void Computer::extractAllResults()
+{
+    // Synchronize GPU buffers to CPU
+    _pBuffer_x->didModifyRange(NS::Range(0, _pBuffer_x->length()));
+    _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
+    _pBuffer_error->didModifyRange(NS::Range(0, _pBuffer_error->length()));
+
+    // Log the extracted results
+    logInformation("log.txt", _pBuffer_x, _pBuffer_y, _pBuffer_error);
 }
 
 #pragma endregion Computer
