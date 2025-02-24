@@ -56,7 +56,7 @@ public:
     Computer(MTL::Device* pDevice);
     ~Computer();
     void compute();
-    void extractResults();
+    void extractResults(MTL::Buffer* pBuffer);
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();
     static constexpr int kMaxFramesInFlight = 3;

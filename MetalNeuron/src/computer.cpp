@@ -125,9 +125,8 @@ void Computer::compute()
     Computer* self = this;
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
         dispatch_semaphore_signal(self->_semaphore);
-        _pResultBuffer->didModifyRange(NS::Range(0, _pResultBuffer->length()));
         
-        this->extractResults();
+        this->extractResults(_pResultBuffer);
         
         std::cout << "Done Computing." << std::endl;
         currentlyComputing = false;
@@ -177,10 +176,8 @@ void Computer::handleKeyStateChange() {
     }
 }
 
-void Computer::extractResults() {    
-    //simd::float3* a = static_cast<simd::float3*>(_pBufferA->contents());
-    //simd::float3* b = static_cast<simd::float3*>(_pBufferB->contents());
-    simd::float3* result = static_cast<simd::float3*>(_pResultBuffer->contents());
+void Computer::extractResults(MTL::Buffer* pBuffer) {
+    simd::float3* result = static_cast<simd::float3*>(pBuffer->contents());
     
     uint64_t length = _pResultBuffer->length() / sizeof(simd::float3);
     

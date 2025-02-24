@@ -21,7 +21,7 @@ kernel void add_arrays(
     device simd::float3* result [[buffer(2)]],
     uint index [[thread_position_in_grid]])
 {
-    result[index] = float3(1.f,2.f,3.f);//inA[index] + inB[index];
+    result[index] = inA[index] + inB[index];
 }
 )";
 

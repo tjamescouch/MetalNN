@@ -35,7 +35,7 @@ size_t DataSource::get_num_data()
 
 float DataSource::get_data(float x, float y)
 {
-    const float z = x + y;
+    const float z = 7;
     
     return z;
 }
