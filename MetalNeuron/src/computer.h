@@ -85,9 +85,7 @@ private:
     MTL::Buffer* _pBufferA = nullptr;
     MTL::Buffer* _pBufferB = nullptr;
     MTL::Buffer* _pResultBuffer = nullptr;
-    
-    MTL::Buffer* _pArgBuffer   = nullptr;
-    
+        
     MTL::CompileOptions* _pCompileOptions = nullptr;
     
     // Frame / Synchronization

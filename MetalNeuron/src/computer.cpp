@@ -35,7 +35,6 @@ currentlyComputing(false)
     dataSource.buildAsync([this]() {
         dispatch_async(dispatch_get_main_queue(), ^{
             this->buildBuffers();
-            areBuffersBuilt = true;
         });
     });
     
@@ -45,7 +44,6 @@ currentlyComputing(false)
 Computer::~Computer()
 {
     if (_pComputePipelineState) _pComputePipelineState->release();
-    if (_pArgBuffer) _pArgBuffer->release();
     if (_pBufferA) _pBufferA->release();
     if (_pBufferB) _pBufferB->release();
     if (_pResultBuffer) _pResultBuffer->release();
@@ -102,21 +100,7 @@ void Computer::buildBuffers()
     
     std::memcpy(_pResultBuffer->contents(), dataSource.get_data_buffer(), dataSize);
     
-    
-
-    // Create an argument encoder for the Buffers struct (defined in the shader) at buffer index 0.
-    MTL::ArgumentEncoder* pArgEncoder = _pComputeFn->newArgumentEncoder(0);
-    _pArgBuffer = _pDevice->newBuffer(pArgEncoder->encodedLength(), MTL::ResourceStorageModeManaged);
-    pArgEncoder->setArgumentBuffer(_pArgBuffer, 0);
-    
-    // Bind the individual buffers into the argument buffer at their designated [[id]] slots.
-    pArgEncoder->setBuffer(_pBufferA, 0, 0);      // inA at [[id(0)]]
-    pArgEncoder->setBuffer(_pBufferB, 0, 1);      // inB at [[id(1)]]
-    pArgEncoder->setBuffer(_pResultBuffer, 0, 2); // result at [[id(2)]]
-    
-    _pArgBuffer->didModifyRange(NS::Range::Make(0, _pArgBuffer->length()));
-    
-    pArgEncoder->release();
+    areBuffersBuilt = true;
 }
 
 void Computer::compute()
@@ -132,6 +116,12 @@ void Computer::compute()
     MTL::CommandBuffer* cmdBuf = _pCommandQueue->commandBuffer();
     assert(cmdBuf);
     
+    MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
+    enc->setComputePipelineState(_pComputePipelineState);
+    enc->setBuffer(_pBufferA, 0, 0);
+    enc->setBuffer(_pBufferB, 0, 1);
+    enc->setBuffer(_pResultBuffer, 0, 2);
+    
     Computer* self = this;
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
         dispatch_semaphore_signal(self->_semaphore);
@@ -142,11 +132,7 @@ void Computer::compute()
         std::cout << "Done Computing." << std::endl;
         currentlyComputing = false;
     });
-    
-    MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-    
-    enc->setComputePipelineState(_pComputePipelineState);
-    enc->setBuffer(_pArgBuffer, 0, 0);  // Bind the argument buffer at index 0
+
     
     MTL::Size threadsPerThreadgroup = MTL::Size{1024, 1, 1};
     MTL::Size threadgroups = MTL::Size{
@@ -154,8 +140,6 @@ void Computer::compute()
     1,
     1
     };
-    
-    extractResults();
     
     enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
     
@@ -198,14 +182,14 @@ void Computer::extractResults() {
     //simd::float3* b = static_cast<simd::float3*>(_pBufferB->contents());
     simd::float3* result = static_cast<simd::float3*>(_pResultBuffer->contents());
     
-    uint64_t length = _pResultBuffer->length() / sizeof(float);
+    uint64_t length = _pResultBuffer->length() / sizeof(simd::float3);
     
     simd::float3 sum = simd::float3{0, 0, 0};
     for (unsigned long index = 0; index < length; index++)
     {
-        sum += *result;
+        sum += result[index];
     }
-    printf("<%f,%f,%f>", result->x, result->y, result->z);
+    printf("<%f,%f,%f>\n", sum.x, sum.y, sum.z);
     
     // Unmap the buffer when done
     _pResultBuffer->didModifyRange(NS::Range(0, _pResultBuffer->length()));
