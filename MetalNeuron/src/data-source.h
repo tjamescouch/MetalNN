@@ -17,15 +17,19 @@
 class DataSource
 {
 public:
-    DataSource(int num_samples_per_row);
+    DataSource(int width, int height);
     ~DataSource();
     
     size_t get_num_data();
-    simd::float3* get_data_buffer();
+    
+    int get_width();
+    int get_height();
+    
+    float* get_data_buffer();
     float get_data(float x, float y);
     
     void build();
-    
+    void initRandom();
     
     // Asynchronous build interface
     template<typename Callback>
@@ -38,11 +42,21 @@ public:
         }).detach();
     }
     
+    // Asynchronous build interface
+    template<typename Callback>
+    void initRandomAsync(Callback onComplete) {
+        std::thread([this, onComplete]() {
+            // 1) Do expensive build on background thread
+            this->initRandom();
+            // 2) Inform caller that build is done
+            onComplete();
+        }).detach();
+    }
+    
 private:
-    std::vector<simd::float3> data;
-    
-    int num_samples_per_row;
-    
+    int width;
+    int height;
+    std::vector<float> data;
 };
 
 #pragma endregion Declarations }

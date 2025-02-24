@@ -12,16 +12,17 @@
 #pragma mark - HeightMap
 #pragma region HeightMap {
 
-DataSource::DataSource(int num_samples_per_row)
+DataSource::DataSource(int width, int height)
 {
-    this->num_samples_per_row = num_samples_per_row;
+    this->width = width;
+    this->height = height;
 }
 
 DataSource::~DataSource()
 {
 }
 
-simd::float3* DataSource::get_data_buffer()
+float* DataSource::get_data_buffer()
 {
     return data.data();
 }
@@ -31,8 +32,6 @@ size_t DataSource::get_num_data()
     return data.size();
 }
 
-
-
 float DataSource::get_data(float x, float y)
 {
     const float z = 7;
@@ -40,26 +39,44 @@ float DataSource::get_data(float x, float y)
     return z;
 }
 
+void DataSource::initRandom()
+{
+    printf("Generating data...\n");
+
+    size_t numCellsPerRow = this->width - 1;  // cells in each row
+    size_t totalNumCells  = numCellsPerRow * numCellsPerRow;
+    data.reserve(totalNumCells * 6);
+
+    for (int ix = 0; ix < this->width; ++ix)
+    {
+        for(int iy = 0; iy < this->height; ++iy)
+        {
+            float x  = rand() * 1.f;
+            this->data.push_back(x);
+        }
+    }
+    
+    printf("Data generation finished. Generated %zu values\n", data.size());
+}
+
 void DataSource::build()
 {
     printf("Generating data...\n");
 
-    size_t numCellsPerRow = this->num_samples_per_row - 1;  // cells in each row
+    size_t numCellsPerRow = this->width - 1;  // cells in each row
     size_t totalNumCells  = numCellsPerRow * numCellsPerRow;
     data.reserve(totalNumCells * 6);
 
-    for (int ix = 0; ix < this->num_samples_per_row; ++ix)
+    for (int ix = 0; ix < this->width; ++ix)
     {
-        printf("%f\n", 100.0*(float)ix / this->num_samples_per_row);
-        for(int iy = 0; iy < this->num_samples_per_row; ++iy)
+        for(int iy = 0; iy < this->height; ++iy)
         {
-            float iz  = this->get_data(ix, iy);
-            
-            this->data.push_back(simd::float3{(float)ix, (float)iy, iz});
+            float x  = sin(ix + iy * this->width);
+            this->data.push_back(x);
         }
     }
     
-    printf("Data generation finished. Generated %zu vectors\n", data.size());
+    printf("Data generation finished. Generated %zu values\n", data.size());
 }
 
 

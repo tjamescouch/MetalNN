@@ -71,7 +71,9 @@ private:
     // ---------------------------------------------------
     //  Data Members
     // ---------------------------------------------------
-    DataSource          dataSource;
+    DataSource          x;
+    DataSource          W;
+    DataSource          b;
     
     MTL::Device*        _pDevice;
     MTL::CommandQueue*  _pCommandQueue;
@@ -84,8 +86,10 @@ private:
     // Buffers for the argument buffer approach
     MTL::Buffer* _pBuffer_x     = nullptr;
     MTL::Buffer* _pBuffer_W     = nullptr;
+    MTL::Buffer* _pBuffer_b     = nullptr;
     MTL::Buffer* _pBuffer_y     = nullptr;
-    MTL::Buffer* _pBuffer_W_dim = nullptr;
+    MTL::Buffer* _pBuffer_M     = nullptr;
+    MTL::Buffer* _pBuffer_N     = nullptr;
         
     MTL::CompileOptions* _pCompileOptions = nullptr;
     
@@ -95,7 +99,7 @@ private:
     int                     _frame = 0;
     dispatch_semaphore_t    _semaphore;
     
-    // Input
+    // User Input
     std::map<long, bool>    keyState;
 };
 

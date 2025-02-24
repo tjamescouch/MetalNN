@@ -27,7 +27,7 @@ inline float tanh_d(float d)
 
 inline float clamp_range(float d)
 {
-  return clamp(d, -1, 1);
+  return clamp(d, -1.f, 1.f);
 }
 
 inline float piecewise(float input)
@@ -49,16 +49,17 @@ inline float activationFunction(float d)
 }
 
 kernel void forward(
-    device const simd::float3* x        [[buffer(0)]],
-    device const simd::float3* W        [[buffer(1)]],
-    device const simd::float3* b        [[buffer(2)]],
-    device       simd::float3* y        [[buffer(3)]],
-    device       simd::uint2*  W_dim    [[buffer(4)]],
+    device const float* x               [[buffer(0)]],
+    device       float* W               [[buffer(1)]],
+    device       float* b               [[buffer(2)]],
+    device       float* y               [[buffer(3)]],
+    device       int* pM              [[buffer(4)]],
+    device       int* pN              [[buffer(5)]],
     uint tid                            [[thread_position_in_grid]])
 {
-    uint M = W_dim.x;
-    uint N = W_dim.y;
-
+    int M = *pM;
+    int N = *pN;
+    
     if (tid >= N) return; 
 
     float sum = b[tid];
