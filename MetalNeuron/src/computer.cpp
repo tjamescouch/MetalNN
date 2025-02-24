@@ -141,12 +141,12 @@ void Computer::compute()
     
     MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
     enc->setComputePipelineState(_pComputePipelineState);
-    enc->setBuffer(_pBuffer_x,     0, 0);
-    enc->setBuffer(_pBuffer_W,     0, 1);
-    enc->setBuffer(_pBuffer_b,     0, 2);
-    enc->setBuffer(_pBuffer_y,     0, 3);
-    enc->setBuffer(_pBuffer_M,     0, 4);
-    enc->setBuffer(_pBuffer_N,     0, 5);
+    enc->setBuffer(_pBuffer_x, 0, 0);
+    enc->setBuffer(_pBuffer_W, 0, 1);
+    enc->setBuffer(_pBuffer_b, 0, 2);
+    enc->setBuffer(_pBuffer_y, 0, 3);
+    enc->setBuffer(_pBuffer_M, 0, 4);
+    enc->setBuffer(_pBuffer_N, 0, 5);
     
     Computer* self = this;
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
