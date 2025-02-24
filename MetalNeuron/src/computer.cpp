@@ -579,7 +579,7 @@ void Computer::logInformation(const std::string& filename, int remainingIteratio
     
     logFile << "scatter(x,y,[],[],[0,0,1]);" << std::endl;
     logFile << "scatter(x,z,[],[],[1,0,0]);" << std::endl;
-    logFile << "scatter(x,e,[],[],[0,1,0]);" << std::endl; //FLAT LINE?
+    //logFile << "scatter(x,e,[],[],[0,1,0]);" << std::endl; //FLAT LINE?
     
     logFile << "hold off; pause(0.01)" << std::endl;
     

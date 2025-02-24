@@ -17,7 +17,6 @@ using namespace metal;
 
 constant float learning_rate_w = 0.01f;
 constant float learning_rate_b = 0.001f;
-constant float plasticity = 1.f; 
 constant float min_delta = 0.1f;
 //constant float k_decay = 0.01f;
 constant float max_de_dw = 0.5f;
@@ -102,7 +101,7 @@ kernel void learn(
         float delta_w_no_zero = abs_delta_w > min_delta ? delta_w : sign(delta_w) * min_delta;
         float de_dw = clamp(delta_error / delta_w_no_zero, -max_de_dw, max_de_dw);
         
-        W_accumulator[i * N + tid] += learning_rate_w * plasticity * error[tid] * x[i] * de_dw * sign(de_dw);
+        W_accumulator[i * N + tid] += learning_rate_w * error[tid] * x[i] * de_dw * sign(de_dw);
         W_accumulator[i * N + tid] = clamp(W_accumulator[i * N + tid], -0.1f, 0.1f);
     }
 
@@ -112,7 +111,7 @@ kernel void learn(
     float delta_b_no_zero = abs_delta_b > min_delta ? delta_b : sign(delta_b) * min_delta;
     float de_db = clamp(error[tid] / delta_b_no_zero, -max_de_db, max_de_db);
 
-    b_accumulator[tid] -= clamp(learning_rate_b * plasticity * error[tid] * de_db * sign(de_db), -0.1f, 0.1f);
+    b_accumulator[tid] -= clamp(learning_rate_b * error[tid] * de_db * sign(de_db), -0.1f, 0.1f);
 }
 
 kernel void apply_updates(
