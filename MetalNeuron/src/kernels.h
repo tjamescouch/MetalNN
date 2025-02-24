@@ -15,19 +15,18 @@ const inline char* nnKernelSrc = R"(
 #include <metal_stdlib>
 using namespace metal;
 
+const float learning_rate_w = 0.01f;
+const float learning_rate_b = 0.001f;
+const float plasticity = 1.f; 
+
 inline float sigmoid(float x)
 {
   return 1 / (1 + exp(-x));
 }
 
-inline float tanh_d(float d)
+inline float clamp_range(float x)
 {
-  return tanh(d);
-}
-
-inline float clamp_range(float d)
-{
-  return clamp(d, -1.f, 1.f);
+  return clamp(x, -1.f, 1.f);
 }
 
 inline float piecewise(float input)
@@ -43,9 +42,9 @@ inline float piecewise(float input)
   return -1;
 }
 
-inline float activationFunction(float d)
+inline float activationFunction(float x)
 {
-  return piecewise(d);
+  return piecewise(x);
 }
 
 inline float expected(float in)
@@ -81,7 +80,8 @@ kernel void learn(
     device       float* y               [[buffer(3)]],
     device       int* pM                [[buffer(4)]],
     device       int* pN                [[buffer(5)]],
-    //device       int* y_hat             [[buffer(6)]],
+    device       float* W_accumulator   [[buffer(6)]],
+    device       float* b_accumulator   [[buffer(6)]],
     uint tid                            [[thread_position_in_grid]])
 {
     int M = *pM;
