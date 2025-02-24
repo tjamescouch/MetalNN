@@ -52,7 +52,8 @@ currentlyComputing(false)
 
 Computer::~Computer()
 {
-    if (_pComputePipelineState) _pComputePipelineState->release();
+    if (_pForwardComputePipelineState) _pForwardComputePipelineState->release();
+    if (_pLearnComputePipelineState) _pLearnComputePipelineState->release();
     
     if (_pBuffer_x)     _pBuffer_x->release();
     if (_pBuffer_W)     _pBuffer_W->release();
@@ -62,7 +63,8 @@ Computer::~Computer()
     
     _pCommandQueue->release();
     _pDevice->release();
-    _pComputeFn->release();
+    _pForwardFn->release();
+    _pLearnFn->release();
 }
 
 void Computer::buildComputePipeline()
@@ -78,18 +80,27 @@ void Computer::buildComputePipeline()
         assert(false);
     }
     
-    _pComputeFn = _pComputeLibrary->newFunction(NS::String::string("forward", NS::UTF8StringEncoding));
+    _pForwardFn = _pComputeLibrary->newFunction(NS::String::string("forward", NS::UTF8StringEncoding));
+    _pLearnFn = _pComputeLibrary->newFunction(NS::String::string("learn", NS::UTF8StringEncoding));
     
-    NS::Error* pErr2 = nullptr;
-    _pComputePipelineState = _pDevice->newComputePipelineState(_pComputeFn, &pErr2);
-    if (!_pComputePipelineState)
+    assert(_pForwardFn);
+    assert(_pLearnFn);
+    
+    _pForwardComputePipelineState = _pDevice->newComputePipelineState(_pForwardFn, &pError);
+    if (!_pForwardComputePipelineState)
     {
-        std::cerr << "Compute pipeline error: " << pErr2->localizedDescription()->utf8String() << std::endl;
+        std::cerr << "Compute pipeline error: " << pError->localizedDescription()->utf8String() << std::endl;
+        assert(false);
+    }
+    
+    _pLearnComputePipelineState = _pDevice->newComputePipelineState(_pLearnFn, &pError);
+    if (!_pLearnComputePipelineState)
+    {
+        std::cerr << "Compute pipeline error: " << pError->localizedDescription()->utf8String() << std::endl;
         assert(false);
     }
     
     _pComputeLibrary->release();
-    //_pComputeFn->release();
 }
 
 void Computer::buildBuffers()
@@ -126,13 +137,13 @@ void Computer::buildBuffers()
     areBuffersBuilt = true;
 }
 
-void Computer::compute()
+void Computer::computeForward()
 {
     if (!areBuffersBuilt) return;
     if (currentlyComputing) return;
     
     currentlyComputing = true;
-    std::cout << "Computing..." << std::endl;
+    std::cout << "Forward..." << std::endl;
     
     NS::AutoreleasePool* pPool = NS::AutoreleasePool::alloc()->init();
     
@@ -140,7 +151,7 @@ void Computer::compute()
     assert(cmdBuf);
     
     MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-    enc->setComputePipelineState(_pComputePipelineState);
+    enc->setComputePipelineState(_pForwardComputePipelineState);
     enc->setBuffer(_pBuffer_x, 0, 0);
     enc->setBuffer(_pBuffer_W, 0, 1);
     enc->setBuffer(_pBuffer_b, 0, 2);
@@ -154,7 +165,61 @@ void Computer::compute()
         
         this->extractResults(_pBuffer_y);
         
-        std::cout << "Done Computing." << std::endl;
+        std::cout << "Done Forward." << std::endl;
+        currentlyComputing = false;
+    });
+    
+    const uint32_t maxThreads = 1024;
+    MTL::Size threadsPerThreadgroup = MTL::Size{maxThreads, 1, 1};
+    MTL::Size threadgroups = MTL::Size{
+        (unsigned int)ceil(((N*N) / maxThreads)),
+        1,
+        1
+    };
+    
+    enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+    enc->endEncoding();
+    
+    MTL::BlitCommandEncoder* blitEncoder = cmdBuf->blitCommandEncoder();
+    blitEncoder->synchronizeResource(_pBuffer_y);
+    blitEncoder->endEncoding();
+    
+    cmdBuf->commit();
+    
+    dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
+    
+    pPool->release();
+}
+
+void Computer::computeLearn()
+{
+    if (!areBuffersBuilt) return;
+    if (currentlyComputing) return;
+    
+    currentlyComputing = true;
+    std::cout << "Learning..." << std::endl;
+    
+    NS::AutoreleasePool* pPool = NS::AutoreleasePool::alloc()->init();
+    
+    MTL::CommandBuffer* cmdBuf = _pCommandQueue->commandBuffer();
+    assert(cmdBuf);
+    
+    MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
+    enc->setComputePipelineState(_pLearnComputePipelineState);
+    enc->setBuffer(_pBuffer_x, 0, 0);
+    enc->setBuffer(_pBuffer_W, 0, 1);
+    enc->setBuffer(_pBuffer_b, 0, 2);
+    enc->setBuffer(_pBuffer_y, 0, 3);
+    enc->setBuffer(_pBuffer_M, 0, 4);
+    enc->setBuffer(_pBuffer_N, 0, 5);
+    
+    Computer* self = this;
+    cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
+        dispatch_semaphore_signal(self->_semaphore);
+        
+        this->extractResults(_pBuffer_y);
+        
+        std::cout << "Done Learning." << std::endl;
         currentlyComputing = false;
     });
     
@@ -193,10 +258,21 @@ void Computer::keyPress(KeyPress* kp)
 }
 
 void Computer::handleKeyStateChange() {
-    auto it = keyState.find(6); // Key: C
-    if (it != keyState.end()) {
-        if (it->second) {
-            this->compute();
+    {
+        auto it = keyState.find(9); // Key: F
+        if (it != keyState.end()) {
+            if (it->second) {
+                this->computeForward();
+            }
+        }
+    }
+    
+    {
+        auto it = keyState.find(15); // Key: L
+        if (it != keyState.end()) {
+            if (it->second) {
+                this->computeLearn();
+            }
         }
     }
 }

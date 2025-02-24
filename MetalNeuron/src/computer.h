@@ -55,7 +55,8 @@ public:
     // Constructor / Destructor
     Computer(MTL::Device* pDevice);
     ~Computer();
-    void compute();
+    void computeForward();
+    void computeLearn();
     void extractResults(MTL::Buffer* pBuffer);
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();
@@ -80,8 +81,10 @@ private:
     
     // Pipeline states
     MTL::Library*                 _pComputeLibrary = nullptr;
-    MTL::ComputePipelineState*    _pComputePipelineState = nullptr;
-    MTL::Function*                _pComputeFn = nullptr;
+    MTL::ComputePipelineState*    _pForwardComputePipelineState = nullptr;
+    MTL::ComputePipelineState*    _pLearnComputePipelineState = nullptr;
+    MTL::Function*                _pForwardFn = nullptr;
+    MTL::Function*                _pLearnFn = nullptr;
     
     // Buffers for the argument buffer approach
     MTL::Buffer* _pBuffer_x     = nullptr;
