@@ -45,8 +45,6 @@ _pCompileOptions(),
 areBuffersBuilt(false),
 currentlyComputing(false)
 {
-    //clearOutput();
-    
     buildComputePipeline();
     
     // Initialize data sources asynchronously
@@ -58,7 +56,8 @@ currentlyComputing(false)
                         dispatch_async(dispatch_get_main_queue(), ^{
                             b.initRandomAsync([this]() {
                                 dispatch_async(dispatch_get_main_queue(), ^{
-                                    this->buildBuffers();
+                                    clearOutput();
+                                    buildBuffers();
                                 });
                             });
                         });
@@ -102,6 +101,7 @@ Computer::~Computer()
 
 void Computer::buildComputePipeline()
 {
+    printf("build compute pipeline\n");
     _pCommandQueue = _pDevice->newCommandQueue();
     
     NS::Error* pError = nullptr;
@@ -161,6 +161,8 @@ void Computer::buildComputePipeline()
 
 void Computer::buildBuffers()
 {
+    printf("buildBuffers\n");
+    
     uint m = N;
     uint n = N;
     
@@ -238,6 +240,8 @@ void Computer::buildBuffers()
 
 void Computer::computeForward(std::function<void()> onComplete)
 {
+    printf("computeForward\n");
+    
     if (!areBuffersBuilt) return;
     if (currentlyComputing) return;
     
@@ -299,6 +303,7 @@ void Computer::computeForward(std::function<void()> onComplete)
 
 void Computer::computeForwardIterations(uint32_t iterations)
 {
+    printf("computeForwardIterations\n");
     this->computeForward([this, iterations]() {
         printf("Iterations remaining=%d\n", iterations);
         this->x.build([iterations](double x){ return input(x - iterations); });
@@ -315,7 +320,7 @@ void Computer::computeForwardIterations(uint32_t iterations)
 
 void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
 {
-    printf("HERE");
+    printf("computeLearnAndApplyUpdates\n");
     this->computeLearn([this, iterations]() {
         printf("Iterations remaining=%d\n", iterations);
         this->x.build([iterations](double x){ return input(x - iterations); });
@@ -337,6 +342,8 @@ void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
 
 void Computer::computeLearn(std::function<void()> onComplete)
 {
+    printf("computeLearn\n");
+    
     if (!areBuffersBuilt) return;
     if (currentlyComputing) return;
     
@@ -426,6 +433,8 @@ void Computer::computeLearn(std::function<void()> onComplete)
 
 void Computer::computeApplyUpdates(std::function<void()> onComplete)
 {
+    printf("computeLearn\n");
+    
     if (!areBuffersBuilt) return;
     if (currentlyComputing) return;
     
@@ -494,6 +503,7 @@ void Computer::keyPress(KeyPress* kp)
 
 void Computer::handleKeyStateChange()
 {
+    printf("handleKeyStateChange\n");
     // 'F' triggers forward
     {
         auto it = keyState.find(9); // Key code for 'F'
@@ -527,6 +537,7 @@ void Computer::handleKeyStateChange()
 
 void Computer::logInformation(const std::string& filename, int remainingIterations)
 {
+    printf("logInformation");
     std::ofstream logFile(filename, std::ios::app); // Open file in append mode
     if (!logFile.is_open()) {
         std::cerr << "Error opening log file!" << std::endl;
@@ -601,6 +612,7 @@ void Computer::logInformation(const std::string& filename, int remainingIteratio
 
 void Computer::extractAllResults(int remainingIterations)
 {
+    printf("extractAllResults\n");
     // Synchronize GPU buffers to CPU
     _pBuffer_x->didModifyRange(NS::Range(0, _pBuffer_x->length()));
     _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
@@ -611,6 +623,7 @@ void Computer::extractAllResults(int remainingIterations)
 }
 
 void Computer::clearOutput() {
+    printf("clearOutput\n");
     std::ofstream logFile(outputFileName, std::ios::trunc); // Open file in truncate mode
     if (!logFile.is_open()) {
         std::cerr << "Error opening log file!" << std::endl;
