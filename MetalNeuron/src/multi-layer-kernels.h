@@ -11,11 +11,14 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.01f;
+constant float learning_rate_w = 0.005f;
 constant float learning_rate_b = 0.001f;
 constant float min_delta      = 0.1f;
 constant float max_de_dw      = 0.5f;
 constant float max_de_db      = 0.1f;
+
+constant float plasticity = 0.8;
+//constant float output_plasticity = 1;
 
 // Activation function and its derivative
 inline float activationFunction(float x) {
@@ -33,7 +36,6 @@ float sign_of(float in) {
 
 float zero_nan(float in) {
     return isnan(in) ? 0 : in;
-    //return in; 
 }
 
 inline float random(uint seed) {
@@ -50,8 +52,8 @@ inline float random(uint seed) {
 //   - pM: pointer to M, pN: pointer to N
 //
 kernel void forward_layer(
-    device const float* x        [[buffer(0)]],
-    device       float* y       [[buffer(1)]],
+    device const float* x            [[buffer(0)]],
+    device       float* y            [[buffer(1)]],
     device const float* W            [[buffer(2)]],
     device const float* b            [[buffer(3)]],
     device const uint* pM            [[buffer(4)]],
@@ -67,7 +69,7 @@ kernel void forward_layer(
     for (uint i = 0; i < M; i++) {
         sum += x[i] * W[i * N + tid];
     }
-    y[tid] = zero_nan(activationFunction(clamp(sum, -10.f, 10.f)));
+    y[tid] = plasticity * activationFunction(clamp(sum, -10.f, 10.f)) + (1 - plasticity) * y[tid];
 }
 
 //
@@ -99,13 +101,13 @@ kernel void learn_output_layer(
     for (uint i = 0; i < M; i++) {
         sum += x[i] * W[i * N + tid];
     }
-    y[tid] = zero_nan(activationFunction(sum));
+    y[tid] = plasticity * (activationFunction(sum)) + (1 - plasticity) * y[tid];
 
 
     // Compute weight updates
-    prev_error[tid] = zero_nan(error[tid]);
+    prev_error[tid] = error[tid];
 
-    float y_hat_minus_y = zero_nan(y[tid] - y_hat[tid]);
+    float y_hat_minus_y = y[tid] - y_hat[tid];
     error[tid] = y_hat_minus_y * y_hat_minus_y * y_hat_minus_y;
     float delta_error = error[tid] - prev_error[tid];
 
@@ -118,7 +120,7 @@ kernel void learn_output_layer(
         float de_dw = clamp(delta_error / delta_w_no_zero, -max_de_dw, max_de_dw);
         
         W_accumulator[i * N + tid] -= learning_rate_w * error[tid] * x[i] * de_dw * sign_of(de_dw);
-        W_accumulator[i * N + tid] = zero_nan(clamp(W_accumulator[i * N + tid], -0.1f, 0.1f));
+        W_accumulator[i * N + tid] = clamp(W_accumulator[i * N + tid], -0.1f, 0.1f);
     }
 
     // Compute bias updates
@@ -127,7 +129,7 @@ kernel void learn_output_layer(
     float delta_b_no_zero = abs_delta_b > min_delta ? delta_b : sign(delta_b) * min_delta;
     float de_db = clamp(error[tid] / delta_b_no_zero, -max_de_db, max_de_db);
 
-    b_accumulator[tid] -= zero_nan(clamp(learning_rate_b * error[tid] * de_db, -0.1f, 0.1f));
+    b_accumulator[tid] -= clamp(learning_rate_b * error[tid] * de_db, -0.1f, 0.1f);
 }
 
 //
@@ -162,18 +164,18 @@ kernel void learn_hidden_layer(
     for (uint i = 0; i < M; i++) {
         sum += x[i] * W[i * N + tid];
     }
-    y[tid] = zero_nan(activationFunction(sum));
+    y[tid] = plasticity * activationFunction(sum) + (1 - plasticity) * y[tid];
 
 
-    prev_error[tid] = zero_nan(error[tid]);
+    prev_error[tid] = error[tid];
     
     // Backpropagate the error from the next layer:
     float error_sum = 0.0f;
     for (uint j = 0; j < N_next; j++) {
         // For current neuron 'tid', weight connecting it to neuron 'j' in next layer:
-        error_sum += (sign_of(W_next[tid * N_next + j]) * error_next[j]);
+        error_sum += ((W_next[tid * N_next + j]) * error_next[j]);
     }
-    error[tid] = activationFunction(error_sum / N_next);
+    error[tid] = (error_sum / N_next);
 
     // Compute weight updates
     float delta_w, abs_delta_w, delta_error;
@@ -186,7 +188,7 @@ kernel void learn_hidden_layer(
         float de_dw = clamp(delta_error / delta_w_no_zero, -max_de_dw, max_de_dw);
         
         W_accumulator[i * N + tid] -= learning_rate_w * error[tid] * x[i] * de_dw * sign_of(de_dw);
-        W_accumulator[i * N + tid] = zero_nan(clamp(W_accumulator[i * N + tid], -0.1f, 0.1f));
+        W_accumulator[i * N + tid] = clamp(W_accumulator[i * N + tid], -0.1f, 0.1f);
     }
 
     // Compute bias updates
@@ -195,7 +197,7 @@ kernel void learn_hidden_layer(
     float delta_b_no_zero = abs_delta_b > min_delta ? delta_b : sign(delta_b) * min_delta;
     float de_db = clamp(error[tid] / delta_b_no_zero, -max_de_db, max_de_db);
 
-    b_accumulator[tid] -= zero_nan(clamp(learning_rate_b * error[tid] * de_db * sign_of(de_db), -0.1f, 0.1f));
+    b_accumulator[tid] -= clamp(learning_rate_b * error[tid] * de_db * sign_of(de_db), -0.1f, 0.1f);
 }
 
 //
@@ -225,7 +227,7 @@ kernel void apply_updates(
     
     // Update each weight for the current neuron
     for (uint i = 0; i < M; i++) {
-        W[i * N + tid] += zero_nan(W_accumulator[i * N + tid]);
+        W[i * N + tid] += W_accumulator[i * N + tid];
         W_accumulator[i * N + tid] = 0.0f;
     }
     
