@@ -11,9 +11,9 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.001f;
-constant float learning_rate_b = 0.00001f;
-constant float min_delta      = 0.01f;
+constant float learning_rate_w = 0.01f;
+constant float learning_rate_b = 0.001f;
+constant float min_delta      = 0.1f;
 constant float max_de_dw      = 0.5f;
 constant float max_de_db      = 0.1f;
 
@@ -171,7 +171,7 @@ kernel void learn_hidden_layer(
     float error_sum = 0.0f;
     for (uint j = 0; j < N_next; j++) {
         // For current neuron 'tid', weight connecting it to neuron 'j' in next layer:
-        error_sum += ((W_next[tid * N_next + j]) * error_next[j]);
+        error_sum += (sign_of(W_next[tid * N_next + j]) * error_next[j]);
     }
     error[tid] = activationFunction(error_sum / N_next);
 
@@ -214,7 +214,7 @@ kernel void apply_updates(
     uint tid                       [[thread_position_in_grid]]
 ) {
 
-    //if (randomness[tid] > 0.10f) return;
+    if (randomness[tid] > 0.80f) return;
     
     uint M = *pM;
     uint N = *pN;
