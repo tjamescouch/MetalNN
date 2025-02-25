@@ -57,6 +57,7 @@ public:
     
     void extractAllResults(int iterations);
     void clearOutput();
+    void logError();
     void logInformation(const std::string& filename, int remainingIterations);
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();
@@ -81,6 +82,9 @@ private:
     DataSource          b1;        // Layer 1 biases
     DataSource          W2;        // Layer 2: Hidden -> Output weights
     DataSource          b2;        // Layer 2 biases
+    
+    DataSource          rand1;
+    DataSource          rand2;  
 
     // ---------------------------------------------------
     //  Metal Device, Command Queue, and Compute Pipeline States
@@ -116,9 +120,13 @@ private:
     // Buffers for weights and biases for Layer 1.
     MTL::Buffer* _pBuffer_W1      = nullptr;
     MTL::Buffer* _pBuffer_b1      = nullptr;
+    MTL::Buffer* _pBuffer_prev_W1      = nullptr;
+    MTL::Buffer* _pBuffer_prev_b1      = nullptr;
     // Buffers for weights and biases for Layer 2.
     MTL::Buffer* _pBuffer_W2      = nullptr;
     MTL::Buffer* _pBuffer_b2      = nullptr;
+    MTL::Buffer* _pBuffer_prev_W2      = nullptr;
+    MTL::Buffer* _pBuffer_prev_b2      = nullptr;
 
     // Dimension buffers for Layer 1.
     MTL::Buffer* _pBuffer_M1      = nullptr; // Input dimension for Layer 1
@@ -126,10 +134,14 @@ private:
     // Dimension buffers for Layer 2.
     MTL::Buffer* _pBuffer_M2      = nullptr; // Hidden layer dimension for Layer 2 input
     MTL::Buffer* _pBuffer_N2      = nullptr; // Output layer dimension
+    MTL::Buffer* _pBuffer_randomness1 = nullptr;
+    MTL::Buffer* _pBuffer_randomness2 = nullptr;
 
     // Error buffers for backpropagation.
-    MTL::Buffer* _pBuffer_error_output = nullptr;
+    MTL::Buffer* _pBuffer_error = nullptr;
+    MTL::Buffer* _pBuffer_prev_error = nullptr;
     MTL::Buffer* _pBuffer_error_hidden = nullptr;
+    MTL::Buffer* _pBuffer_prev_error_hidden = nullptr;
 
     // Accumulator buffers for gradient updates.
     // For Layer 1.

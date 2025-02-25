@@ -26,13 +26,12 @@
 #include "stb_image.h"
 
 // Multi-layer dimensions (adjust as needed)
-const int input_dim  = 1024;
-const int hidden_dim = 1024;
-const int output_dim = 1024;
+const int input_dim  = 256;
+const int hidden_dim = 256;
+const int output_dim = 256;
 
 const char* outputFileName = "multilayer_nn_training.m";
-const int NUM_ITERATIONS = 1000;
-const int NUM_REPITITIONS = 10;
+const int NUM_ITERATIONS = 10000;
 
 // Example functions for data source initialization.
 double inputFunction(double in) {
@@ -52,6 +51,8 @@ W1(input_dim, hidden_dim),
 b1(hidden_dim, 1),
 W2(hidden_dim, output_dim),
 b2(output_dim, 1),
+rand1(hidden_dim, 1),
+rand2(output_dim, 1),
 _pDevice(pDevice->retain()),
 _pCompileOptions(nullptr),
 areBuffersBuilt(false),
@@ -60,20 +61,28 @@ currentlyComputing(false)
     buildComputePipeline();
     
     // Initialize data sources asynchronously.
-    x.buildAsync(inputFunction, [this]() {
+    rand1.initRandomAsync([this]() {
         dispatch_async(dispatch_get_main_queue(), ^{
-            y_hat.buildAsync(expectedOutput, [this]() {
+            rand2.initRandomAsync([this]() {
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    W1.initRandomAsync([this]() {
+                    x.buildAsync(inputFunction, [this]() {
                         dispatch_async(dispatch_get_main_queue(), ^{
-                            b1.initRandomAsync([this]() {
+                            y_hat.buildAsync(expectedOutput, [this]() {
                                 dispatch_async(dispatch_get_main_queue(), ^{
-                                    W2.initRandomAsync([this]() {
+                                    W1.initRandomAsync([this]() {
                                         dispatch_async(dispatch_get_main_queue(), ^{
-                                            b2.initRandomAsync([this]() {
+                                            b1.initRandomAsync([this]() {
                                                 dispatch_async(dispatch_get_main_queue(), ^{
-                                                    clearOutput();
-                                                    buildBuffers();
+                                                    W2.initRandomAsync([this]() {
+                                                        dispatch_async(dispatch_get_main_queue(), ^{
+                                                            b2.initRandomAsync([this]() {
+                                                                dispatch_async(dispatch_get_main_queue(), ^{
+                                                                    clearOutput();
+                                                                    buildBuffers();
+                                                                });
+                                                            });
+                                                        });
+                                                    });
                                                 });
                                             });
                                         });
@@ -107,16 +116,24 @@ Computer::~Computer()
     
     if (_pBuffer_W1)              _pBuffer_W1->release();
     if (_pBuffer_b1)              _pBuffer_b1->release();
+    if (_pBuffer_prev_W1)         _pBuffer_prev_W1->release();
+    if (_pBuffer_prev_b1)         _pBuffer_prev_b1->release();
     if (_pBuffer_W2)              _pBuffer_W2->release();
     if (_pBuffer_b2)              _pBuffer_b2->release();
+    if (_pBuffer_prev_W2)         _pBuffer_prev_W2->release();
+    if (_pBuffer_prev_b2)         _pBuffer_prev_b2->release();
     
     if (_pBuffer_M1)              _pBuffer_M1->release();
     if (_pBuffer_N1)              _pBuffer_N1->release();
     if (_pBuffer_M2)              _pBuffer_M2->release();
     if (_pBuffer_N2)              _pBuffer_N2->release();
     
-    if (_pBuffer_error_output)    _pBuffer_error_output->release();
+    if (_pBuffer_randomness1)     _pBuffer_randomness1->release();
+    if (_pBuffer_randomness2)     _pBuffer_randomness2->release();
+    
+    if (_pBuffer_error)           _pBuffer_error->release();
     if (_pBuffer_error_hidden)    _pBuffer_error_hidden->release();
+    if (_pBuffer_prev_error_hidden)_pBuffer_prev_error_hidden->release();
     
     if (_pBuffer_WAccumulator1)   _pBuffer_WAccumulator1->release();
     if (_pBuffer_bAccumulator1)   _pBuffer_bAccumulator1->release();
@@ -236,6 +253,18 @@ void Computer::buildBuffers()
     std::memcpy(_pBuffer_b1->contents(), b1.get_data_buffer(), b1.get_num_data() * sizeof(float));
     _pBuffer_b1->didModifyRange(NS::Range::Make(0, _pBuffer_b1->length()));
     
+    
+    _pBuffer_prev_W1 = _pDevice->newBuffer(W1.get_num_data() * sizeof(float),
+                                           MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_prev_W1->contents(), W1.get_data_buffer(), W1.get_num_data() * sizeof(float));
+    _pBuffer_prev_W1->didModifyRange(NS::Range::Make(0, _pBuffer_prev_W1->length()));
+    
+    _pBuffer_prev_b1 = _pDevice->newBuffer(b1.get_num_data() * sizeof(float),
+                                           MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_prev_b1->contents(), b1.get_data_buffer(), b1.get_num_data() * sizeof(float));
+    _pBuffer_prev_b1->didModifyRange(NS::Range::Make(0, _pBuffer_prev_b1->length()));
+    
+    
     // Buffers for Layer 2 weights and biases.
     _pBuffer_W2 = _pDevice->newBuffer(W2.get_num_data() * sizeof(float),
                                       MTL::ResourceStorageModeManaged);
@@ -246,6 +275,18 @@ void Computer::buildBuffers()
                                       MTL::ResourceStorageModeManaged);
     std::memcpy(_pBuffer_b2->contents(), b2.get_data_buffer(), b2.get_num_data() * sizeof(float));
     _pBuffer_b2->didModifyRange(NS::Range::Make(0, _pBuffer_b2->length()));
+    
+    
+    _pBuffer_prev_W2 = _pDevice->newBuffer(W2.get_num_data() * sizeof(float),
+                                           MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_prev_W2->contents(), W2.get_data_buffer(), W2.get_num_data() * sizeof(float));
+    _pBuffer_prev_W2->didModifyRange(NS::Range::Make(0, _pBuffer_prev_W2->length()));
+    
+    _pBuffer_prev_b2 = _pDevice->newBuffer(b2.get_num_data() * sizeof(float),
+                                           MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_prev_b2->contents(), b2.get_data_buffer(), b2.get_num_data() * sizeof(float));
+    _pBuffer_prev_b2->didModifyRange(NS::Range::Make(0, _pBuffer_prev_b2->length()));
+    
     
     // Dimension buffers for Layer 1.
     _pBuffer_M1 = _pDevice->newBuffer(sizeof(uint),
@@ -270,15 +311,25 @@ void Computer::buildBuffers()
     _pBuffer_N2->didModifyRange(NS::Range::Make(0, _pBuffer_N2->length()));
     
     // Error buffers for backpropagation.
-    _pBuffer_error_output = _pDevice->newBuffer(output_dim * sizeof(float),
-                                                MTL::ResourceStorageModeManaged);
-    std::memset(_pBuffer_error_output->contents(), 0, output_dim * sizeof(float));
-    _pBuffer_error_output->didModifyRange(NS::Range::Make(0, _pBuffer_error_output->length()));
+    _pBuffer_error = _pDevice->newBuffer(output_dim * sizeof(float),
+                                         MTL::ResourceStorageModeManaged);
+    std::memset(_pBuffer_error->contents(), 0, output_dim * sizeof(float));
+    _pBuffer_error->didModifyRange(NS::Range::Make(0, _pBuffer_error->length()));
+    
+    _pBuffer_prev_error = _pDevice->newBuffer(output_dim * sizeof(float),
+                                              MTL::ResourceStorageModeManaged);
+    std::memset(_pBuffer_prev_error->contents(), 0, output_dim * sizeof(float));
+    _pBuffer_prev_error->didModifyRange(NS::Range::Make(0, _pBuffer_prev_error->length()));
     
     _pBuffer_error_hidden = _pDevice->newBuffer(hidden_dim * sizeof(float),
                                                 MTL::ResourceStorageModeManaged);
     std::memset(_pBuffer_error_hidden->contents(), 0, hidden_dim * sizeof(float));
     _pBuffer_error_hidden->didModifyRange(NS::Range::Make(0, _pBuffer_error_hidden->length()));
+    
+    _pBuffer_prev_error_hidden = _pDevice->newBuffer(hidden_dim * sizeof(float),
+                                                     MTL::ResourceStorageModeManaged);
+    std::memset(_pBuffer_prev_error_hidden->contents(), 0, hidden_dim * sizeof(float));
+    _pBuffer_prev_error_hidden->didModifyRange(NS::Range::Make(0, _pBuffer_prev_error_hidden->length()));
     
     // Accumulator buffers for gradient updates.
     // For Layer 1.
@@ -302,6 +353,17 @@ void Computer::buildBuffers()
                                                  MTL::ResourceStorageModeManaged);
     std::memset(_pBuffer_bAccumulator2->contents(), 0, b2.get_num_data() * sizeof(float));
     _pBuffer_bAccumulator2->didModifyRange(NS::Range::Make(0, _pBuffer_bAccumulator2->length()));
+    
+    
+    _pBuffer_randomness1 = _pDevice->newBuffer(rand1.get_num_data() * sizeof(float),
+                                               MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_randomness1->contents(), rand1.get_data_buffer(), sizeof(uint));
+    _pBuffer_randomness1->didModifyRange(NS::Range::Make(0, _pBuffer_randomness1->length()));
+    
+    _pBuffer_randomness2 = _pDevice->newBuffer(rand2.get_num_data() * sizeof(float),
+                                               MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_randomness2->contents(), rand2.get_data_buffer(), sizeof(uint));
+    _pBuffer_randomness2->didModifyRange(NS::Range::Make(0, _pBuffer_randomness2->length()));
     
     areBuffersBuilt = true;
 }
@@ -389,133 +451,139 @@ void Computer::computeForward(std::function<void()> onComplete)
 // 3. Then, apply_updates kernel is invoked for each layer.
 void Computer::computeLearn(std::function<void()> onComplete)
 {
-    printf("computeLearn (multi-layer)\n");
-    
-    if (!areBuffersBuilt) return;
-    if (currentlyComputing) return;
-    
-    currentlyComputing = true;
-    std::cout << "Performing learning (backpropagation)..." << std::endl;
-    
-    NS::AutoreleasePool* pPool = NS::AutoreleasePool::alloc()->init();
-    
-    // Clear error buffers.
-    {
-        float* errOut = reinterpret_cast<float*>(_pBuffer_error_output->contents());
-        for (int i = 0; i < output_dim; i++) { errOut[i] = 0; }
-        _pBuffer_error_output->didModifyRange(NS::Range::Make(0, _pBuffer_error_output->length()));
+    this->computeForward([this, onComplete](){
+        printf("computeLearn (multi-layer)\n");
         
-        float* errHidden = reinterpret_cast<float*>(_pBuffer_error_hidden->contents());
-        for (int i = 0; i < hidden_dim; i++) { errHidden[i] = 0; }
-        _pBuffer_error_hidden->didModifyRange(NS::Range::Make(0, _pBuffer_error_hidden->length()));
-    }
-    
-    MTL::CommandBuffer* cmdBuf = _pCommandQueue->commandBuffer();
-    assert(cmdBuf);
-    
-    for(int i = 0; i < NUM_REPITITIONS; i++) {
-        // --- Output Layer Backpropagation ---
-        {
-            MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-            enc->setComputePipelineState(_pLearnOutputPipelineState);
-            // Bind: input = hidden activations, W2, b2, output activation y,
-            // target y_hat, error buffer for output, dimensions (M2,N2), accumulators.
-            enc->setBuffer(_pBuffer_hidden,         0, 0);
-            enc->setBuffer(_pBuffer_W2,             0, 1);
-            enc->setBuffer(_pBuffer_b2,             0, 2);
-            enc->setBuffer(_pBuffer_y,              0, 3);
-            enc->setBuffer(_pBuffer_y_hat,          0, 4);
-            enc->setBuffer(_pBuffer_error_output,   0, 5);
-            enc->setBuffer(_pBuffer_M2,             0, 6);
-            enc->setBuffer(_pBuffer_N2,             0, 7);
-            enc->setBuffer(_pBuffer_WAccumulator2,  0, 8);
-            enc->setBuffer(_pBuffer_bAccumulator2,  0, 9);
+        if (!areBuffersBuilt) return;
+        if (currentlyComputing) return;
+        
+        currentlyComputing = true;
+        std::cout << "Performing learning (backpropagation)..." << std::endl;
+        
+        NS::AutoreleasePool* pPool = NS::AutoreleasePool::alloc()->init();
+        
+        MTL::CommandBuffer* cmdBuf = _pCommandQueue->commandBuffer();
+        assert(cmdBuf);
+        
+        
+            // --- Output Layer Backpropagation ---
+            {
+                MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
+                enc->setComputePipelineState(_pLearnOutputPipelineState);
+                // Bind: input = hidden activations, W2, b2, output activation y,
+                // target y_hat, error buffer for output, dimensions (M2,N2), accumulators.
+                enc->setBuffer(_pBuffer_hidden,         0, 0);
+                enc->setBuffer(_pBuffer_W2,             0, 1);
+                enc->setBuffer(_pBuffer_b2,             0, 2);
+                enc->setBuffer(_pBuffer_y,              0, 3);
+                enc->setBuffer(_pBuffer_y_hat,          0, 4);
+                enc->setBuffer(_pBuffer_error,          0, 5);
+                enc->setBuffer(_pBuffer_prev_error,     0, 6);
+                enc->setBuffer(_pBuffer_M2,             0, 7);
+                enc->setBuffer(_pBuffer_N2,             0, 8);
+                enc->setBuffer(_pBuffer_WAccumulator2,  0, 9);
+                enc->setBuffer(_pBuffer_bAccumulator2,  0, 10);
+                enc->setBuffer(_pBuffer_prev_W2,             0, 11);
+                enc->setBuffer(_pBuffer_prev_b2,             0, 12);
+                
+                uint32_t threads = output_dim;
+                MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
+                MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
+                enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+                enc->endEncoding();
+            }
             
-            uint32_t threads = output_dim;
-            MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
-            MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
-            enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
-            enc->endEncoding();
-        }
-        
-        // --- Hidden Layer Backpropagation ---
-        {
-            MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-            enc->setComputePipelineState(_pLearnHiddenPipelineState);
-            // Bind: input = x, W1, b1, output = hidden activations,
-            // error output for hidden layer, next layer error (output layer),
-            // next layer weights (W2), dimensions for hidden layer (M1,N1) and output layer (N2),
-            // accumulators for Layer 1.
-            enc->setBuffer(_pBuffer_x,               0, 0);
-            enc->setBuffer(_pBuffer_W1,              0, 1);
-            enc->setBuffer(_pBuffer_b1,              0, 2);
-            enc->setBuffer(_pBuffer_hidden,          0, 3);
-            enc->setBuffer(_pBuffer_error_hidden,    0, 4);
-            enc->setBuffer(_pBuffer_error_output,    0, 5);
-            enc->setBuffer(_pBuffer_W2,              0, 6);
-            enc->setBuffer(_pBuffer_M1,              0, 7);
-            enc->setBuffer(_pBuffer_N1,              0, 8);
-            enc->setBuffer(_pBuffer_N2,              0, 9);
-            enc->setBuffer(_pBuffer_WAccumulator1,   0, 10);
-            enc->setBuffer(_pBuffer_bAccumulator1,   0, 11);
+            // --- Hidden Layer Backpropagation ---
+            {
+                MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
+                enc->setComputePipelineState(_pLearnHiddenPipelineState);
+                // Bind: input = x, W1, b1, output = hidden activations,
+                // error output for hidden layer, next layer error (output layer),
+                // next layer weights (W2), dimensions for hidden layer (M1,N1) and output layer (N2),
+                // accumulators for Layer 1.
+                enc->setBuffer(_pBuffer_x,               0, 0);
+                enc->setBuffer(_pBuffer_W1,              0, 1);
+                enc->setBuffer(_pBuffer_b1,              0, 2);
+                enc->setBuffer(_pBuffer_hidden,          0, 3);
+                enc->setBuffer(_pBuffer_error_hidden,    0, 4);
+                enc->setBuffer(_pBuffer_prev_error_hidden,    0, 5);
+                enc->setBuffer(_pBuffer_error,           0, 6);
+                enc->setBuffer(_pBuffer_W2,              0, 7);
+                enc->setBuffer(_pBuffer_M1,              0, 8);
+                enc->setBuffer(_pBuffer_N1,              0, 9);
+                enc->setBuffer(_pBuffer_N2,              0, 10);
+                enc->setBuffer(_pBuffer_WAccumulator1,   0, 11);
+                enc->setBuffer(_pBuffer_bAccumulator1,   0, 12);
+                enc->setBuffer(_pBuffer_prev_W1,              0, 13);
+                enc->setBuffer(_pBuffer_prev_b1,              0, 14);
+                
+                uint32_t threads = hidden_dim;
+                MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
+                MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
+                enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+                enc->endEncoding();
+            }
             
-            uint32_t threads = hidden_dim;
-            MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
-            MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
-            enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
-            enc->endEncoding();
-        }
-        
-        
-        // --- Apply Updates for Layer 2 ---
-        {
-            MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-            enc->setComputePipelineState(_pApplyUpdatesPipelineState);
-            // Bind: W2, b2, accumulators for Layer 2, dimensions M2 and N2.
-            enc->setBuffer(_pBuffer_W2,             0, 0);
-            enc->setBuffer(_pBuffer_b2,             0, 1);
-            enc->setBuffer(_pBuffer_WAccumulator2,  0, 2);
-            enc->setBuffer(_pBuffer_bAccumulator2,  0, 3);
-            enc->setBuffer(_pBuffer_M2,             0, 4);
-            enc->setBuffer(_pBuffer_N2,             0, 5);
             
-            uint32_t threads = output_dim;
-            MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
-            MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
-            enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
-            enc->endEncoding();
-        }
-        
-        // --- Apply Updates for Layer 1 ---
-        {
-            MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-            enc->setComputePipelineState(_pApplyUpdatesPipelineState);
-            // Bind: W1, b1, accumulators for Layer 1, dimensions M1 and N1.
-            enc->setBuffer(_pBuffer_W1,            0, 0);
-            enc->setBuffer(_pBuffer_b1,            0, 1);
-            enc->setBuffer(_pBuffer_WAccumulator1, 0, 2);
-            enc->setBuffer(_pBuffer_bAccumulator1, 0, 3);
-            enc->setBuffer(_pBuffer_M1,            0, 4);
-            enc->setBuffer(_pBuffer_N1,            0, 5);
+            // --- Apply Updates for Layer 2 ---
+            {
+                MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
+                enc->setComputePipelineState(_pApplyUpdatesPipelineState);
+                // Bind: W2, b2, accumulators for Layer 2, dimensions M2 and N2.
+                enc->setBuffer(_pBuffer_W2,             0, 0);
+                enc->setBuffer(_pBuffer_b2,             0, 1);
+                enc->setBuffer(_pBuffer_prev_W2,             0, 2);
+                enc->setBuffer(_pBuffer_prev_b2,             0, 3);
+                enc->setBuffer(_pBuffer_WAccumulator2,  0, 4);
+                enc->setBuffer(_pBuffer_bAccumulator2,  0, 5);
+                enc->setBuffer(_pBuffer_M2,             0, 6);
+                enc->setBuffer(_pBuffer_N2,             0, 7);
+                enc->setBuffer(_pBuffer_randomness1,    0, 8);
+                
+                uint32_t threads = output_dim;
+                MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
+                MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
+                enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+                enc->endEncoding();
+            }
             
-            uint32_t threads = hidden_dim;
-            MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
-            MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
-            enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
-            enc->endEncoding();
-        }
-    }
-    
-    cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
-        dispatch_semaphore_signal(this->_semaphore);
-        std::cout << "Learning complete." << std::endl;
-        currentlyComputing = false;
-        onComplete();
+            // --- Apply Updates for Layer 1 ---
+            {
+                MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
+                enc->setComputePipelineState(_pApplyUpdatesPipelineState);
+                // Bind: W1, b1, accumulators for Layer 1, dimensions M1 and N1.
+                enc->setBuffer(_pBuffer_W1,            0, 0);
+                enc->setBuffer(_pBuffer_b1,            0, 1);
+                enc->setBuffer(_pBuffer_prev_W1,            0, 2);
+                enc->setBuffer(_pBuffer_prev_b1,            0, 3);
+                enc->setBuffer(_pBuffer_WAccumulator1, 0, 4);
+                enc->setBuffer(_pBuffer_bAccumulator1, 0, 5);
+                enc->setBuffer(_pBuffer_M1,            0, 6);
+                enc->setBuffer(_pBuffer_N1,            0, 7);
+                enc->setBuffer(_pBuffer_randomness2,   0, 8);
+                
+                uint32_t threads = hidden_dim;
+                MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
+                MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
+                enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+                enc->endEncoding();
+            }
+        
+        
+        cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
+            dispatch_semaphore_signal(this->_semaphore);
+            std::cout << "Learning complete." << std::endl;
+            currentlyComputing = false;
+            logError();
+            
+            onComplete();
+        });
+        
+        cmdBuf->commit();
+        dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
+        pPool->release();
     });
     
-    cmdBuf->commit();
-    dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
-    pPool->release();
 }
 
 void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
@@ -524,8 +592,13 @@ void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
     this->computeLearn([this, iterations]() {
         // Update input data for the next iteration.
         this->x.build([iterations](double x){ return inputFunction(x - iterations); });
+        this->y_hat.build([iterations](double x){ return inputFunction(x - iterations); });
+        
         std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(), x.get_num_data() * sizeof(float));
         _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
+        
+        std::memcpy(_pBuffer_y_hat->contents(), y_hat.get_data_buffer(), y_hat.get_num_data() * sizeof(float));
+        _pBuffer_y_hat->didModifyRange(NS::Range::Make(0, _pBuffer_y_hat->length()));
         
         if (iterations > 0) {
             this->computeLearnAndApplyUpdates(iterations - 1);
@@ -540,10 +613,17 @@ void Computer::computeForwardIterations(uint32_t iterations)
         printf("Forward Iterations remaining=%d\n", iterations);
         this->x.build([iterations](double x){ return inputFunction(x - iterations); });
         std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(), x.get_num_data() * sizeof(float));
-        _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
-        _pBuffer_hidden->didModifyRange(NS::Range::Make(0, _pBuffer_hidden->length()));
+
+        // Synchronize GPU buffers to CPU.
+        _pBuffer_x->didModifyRange(NS::Range(0, _pBuffer_x->length()));
+        _pBuffer_hidden->didModifyRange(NS::Range(0, _pBuffer_hidden->length()));
+        _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
+        _pBuffer_error->didModifyRange(NS::Range(0, _pBuffer_error->length()));
+        _pBuffer_error_hidden->didModifyRange(NS::Range(0, _pBuffer_error_hidden->length()));
         
         this->extractAllResults(iterations);
+        
+
         if (iterations > 0) {
             this->computeForwardIterations(iterations - 1);
         }
@@ -551,6 +631,27 @@ void Computer::computeForwardIterations(uint32_t iterations)
 }
 
 #pragma mark - Logging & Output
+
+void Computer::logError()
+{
+    float* error = static_cast<float*>(_pBuffer_error->contents());
+    
+    float avg_error = 0.0f;
+    for (int i = 0; i < _pBuffer_error->length(); i++) {
+        avg_error += error[i];
+    }
+    avg_error /= _pBuffer_error->length();
+    printf("AVG OUTPUT ERROR: %f\n", avg_error);
+    
+    float* error_hidden = static_cast<float*>(_pBuffer_error_hidden->contents());
+    
+    float avg_error_hidden = 0.0f;
+    for (int i = 0; i < _pBuffer_error_hidden->length(); i++) {
+        avg_error_hidden += error_hidden[i];
+    }
+    avg_error_hidden /= _pBuffer_error_hidden->length();
+    printf("AVG HIDDEN ERROR: %f\n", avg_error_hidden);
+}
 
 void Computer::logInformation(const std::string& filename, int remainingIterations)
 {
@@ -569,6 +670,15 @@ void Computer::logInformation(const std::string& filename, int remainingIteratio
     float* hiddenPtr = static_cast<float*>(_pBuffer_hidden->contents());
     float* outputPtr = static_cast<float*>(_pBuffer_y->contents());
     float* targetPtr = static_cast<float*>(_pBuffer_y_hat->contents());
+    
+    float* error = static_cast<float*>(_pBuffer_error->contents());
+    
+    float avg_error = 0.0f;
+    for (int i = 0; i < _pBuffer_error->length(); i++) {
+        avg_error += error[i];
+    }
+    avg_error /= _pBuffer_error->length();
+    printf("AVG ERROR: %f\n", avg_error);
     
     uint64_t length = _pBuffer_y->length() / sizeof(float);
     
@@ -623,12 +733,6 @@ void Computer::logInformation(const std::string& filename, int remainingIteratio
 void Computer::extractAllResults(int remainingIterations)
 {
     printf("extractAllResults\n");
-    // Synchronize GPU buffers to CPU.
-    _pBuffer_x->didModifyRange(NS::Range(0, _pBuffer_x->length()));
-    _pBuffer_hidden->didModifyRange(NS::Range(0, _pBuffer_hidden->length()));
-    _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
-    _pBuffer_error_output->didModifyRange(NS::Range(0, _pBuffer_error_output->length()));
-    
     // Log the results.
     logInformation(outputFileName, remainingIterations);
 }
@@ -662,6 +766,7 @@ void Computer::handleKeyStateChange()
     {
         auto it = keyState.find(9); // Key code for 'F'
         if (it != keyState.end() && it->second) {
+            this->clearOutput();
             this->computeForwardIterations(NUM_ITERATIONS);
         }
     }
