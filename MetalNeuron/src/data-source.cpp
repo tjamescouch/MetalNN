@@ -20,6 +20,7 @@ std::mt19937 gen(rd());
 
 // Create a distribution that maps to [0, 1]
 std::uniform_real_distribution<> uniform_0_to_1(0.0, 1.0);
+std::uniform_real_distribution<> uniform_n_1_to_p_1(-1.0, 1.0);
     
 
 DataSource::DataSource(int width, int height)
@@ -56,7 +57,7 @@ void DataSource::initRandom()
     {
         for(int iy = 0; iy < this->height; ++iy)
         {
-            float x  = uniform_0_to_1(gen);
+            float x  = uniform_n_1_to_p_1(gen);
             this->data.push_back(x);
         }
     }
