@@ -58,6 +58,9 @@ _pCompileOptions(nullptr),
 areBuffersBuilt(false),
 currentlyComputing(false)
 {
+    plasticity1 = 0.98;
+    plasticity2 = 0.90;
+    
     buildComputePipeline();
     
     // Initialize data sources asynchronously.
@@ -122,6 +125,8 @@ Computer::~Computer()
     if (_pBuffer_b2)              _pBuffer_b2->release();
     if (_pBuffer_prev_W2)         _pBuffer_prev_W2->release();
     if (_pBuffer_prev_b2)         _pBuffer_prev_b2->release();
+    if (_pBuffer_age1)            _pBuffer_age1->release();
+    if (_pBuffer_age2)            _pBuffer_age2->release();
     
     if (_pBuffer_M1)              _pBuffer_M1->release();
     if (_pBuffer_N1)              _pBuffer_N1->release();
@@ -217,6 +222,7 @@ void Computer::buildBuffers()
     uint n1 = hidden_dim;
     uint m2 = hidden_dim;
     uint n2 = output_dim;
+    uint age = 0;
     
     // Buffer for input x.
     _pBuffer_x = _pDevice->newBuffer(x.get_num_data() * sizeof(float),
@@ -310,6 +316,19 @@ void Computer::buildBuffers()
     std::memcpy(_pBuffer_N2->contents(), &n2, sizeof(uint));
     _pBuffer_N2->didModifyRange(NS::Range::Make(0, _pBuffer_N2->length()));
     
+    
+    _pBuffer_plasticity1 = _pDevice->newBuffer(sizeof(float),
+                                      MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_plasticity1->contents(), &plasticity1, sizeof(uint));
+    _pBuffer_plasticity1->didModifyRange(NS::Range::Make(0, _pBuffer_plasticity1->length()));
+    
+    _pBuffer_plasticity2 = _pDevice->newBuffer(sizeof(float),
+                                      MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_plasticity2->contents(), &plasticity2, sizeof(uint));
+    _pBuffer_plasticity2->didModifyRange(NS::Range::Make(0, _pBuffer_plasticity2->length()));
+    
+    
+    
     // Error buffers for backpropagation.
     _pBuffer_error = _pDevice->newBuffer(output_dim * sizeof(float),
                                          MTL::ResourceStorageModeManaged);
@@ -365,6 +384,18 @@ void Computer::buildBuffers()
     std::memcpy(_pBuffer_randomness2->contents(), rand2.get_data_buffer(), sizeof(uint));
     _pBuffer_randomness2->didModifyRange(NS::Range::Make(0, _pBuffer_randomness2->length()));
     
+    
+    _pBuffer_age1 = _pDevice->newBuffer(sizeof(uint),
+                                      MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_age1->contents(), &age, sizeof(uint));
+    _pBuffer_age1->didModifyRange(NS::Range::Make(0, _pBuffer_age1->length()));
+    
+    
+    _pBuffer_age2 = _pDevice->newBuffer(sizeof(uint),
+                                      MTL::ResourceStorageModeManaged);
+    std::memcpy(_pBuffer_age2->contents(), &age, sizeof(uint));
+    _pBuffer_age2->didModifyRange(NS::Range::Make(0, _pBuffer_age2->length()));
+    
     areBuffersBuilt = true;
 }
 
@@ -398,6 +429,7 @@ void Computer::computeForward(std::function<void()> onComplete)
         enc->setBuffer(_pBuffer_b1,   0, 3);
         enc->setBuffer(_pBuffer_M1,   0, 4);
         enc->setBuffer(_pBuffer_N1,   0, 5);
+        enc->setBuffer(_pBuffer_plasticity1,     0, 6);
         
         uint32_t threads = hidden_dim;
         MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
@@ -417,6 +449,7 @@ void Computer::computeForward(std::function<void()> onComplete)
         enc->setBuffer(_pBuffer_b2,     0, 3);
         enc->setBuffer(_pBuffer_M2,     0, 4);
         enc->setBuffer(_pBuffer_N2,     0, 5);
+        enc->setBuffer(_pBuffer_plasticity2,     0, 6);
         
         uint32_t threads = output_dim;
         MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
@@ -485,6 +518,8 @@ void Computer::computeLearn(std::function<void()> onComplete)
                 enc->setBuffer(_pBuffer_bAccumulator2,  0, 10);
                 enc->setBuffer(_pBuffer_prev_W2,             0, 11);
                 enc->setBuffer(_pBuffer_prev_b2,             0, 12);
+                enc->setBuffer(_pBuffer_plasticity1,     0, 13);
+                enc->setBuffer(_pBuffer_age1,            0, 14);
                 
                 uint32_t threads = output_dim;
                 MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
@@ -514,8 +549,10 @@ void Computer::computeLearn(std::function<void()> onComplete)
                 enc->setBuffer(_pBuffer_N2,              0, 10);
                 enc->setBuffer(_pBuffer_WAccumulator1,   0, 11);
                 enc->setBuffer(_pBuffer_bAccumulator1,   0, 12);
-                enc->setBuffer(_pBuffer_prev_W1,              0, 13);
-                enc->setBuffer(_pBuffer_prev_b1,              0, 14);
+                enc->setBuffer(_pBuffer_prev_W1,         0, 13);
+                enc->setBuffer(_pBuffer_prev_b1,         0, 14);
+                enc->setBuffer(_pBuffer_plasticity2,     0, 15);
+                enc->setBuffer(_pBuffer_age2,            0, 16);
                 
                 uint32_t threads = hidden_dim;
                 MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
@@ -641,7 +678,7 @@ void Computer::logError()
         avg_error += error[i];
     }
     avg_error /= _pBuffer_error->length();
-    printf("AVG OUTPUT ERROR: %f\n", avg_error);
+    printf("AVG OUTPUT ERROR: %f\n", abs(avg_error));
     
     float* error_hidden = static_cast<float*>(_pBuffer_error_hidden->contents());
     
@@ -650,7 +687,7 @@ void Computer::logError()
         avg_error_hidden += error_hidden[i];
     }
     avg_error_hidden /= _pBuffer_error_hidden->length();
-    printf("AVG HIDDEN ERROR: %f\n", avg_error_hidden);
+    printf("AVG HIDDEN ERROR: %f\n", abs(avg_error_hidden));
 }
 
 void Computer::logInformation(const std::string& filename, int remainingIterations)
@@ -678,7 +715,7 @@ void Computer::logInformation(const std::string& filename, int remainingIteratio
         avg_error += error[i];
     }
     avg_error /= _pBuffer_error->length();
-    printf("AVG ERROR: %f\n", avg_error);
+    printf("AVG ERROR: %f\n", abs(avg_error));
     
     uint64_t length = _pBuffer_y->length() / sizeof(float);
     

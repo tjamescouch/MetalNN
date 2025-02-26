@@ -84,7 +84,9 @@ private:
     DataSource          b2;        // Layer 2 biases
     
     DataSource          rand1;
-    DataSource          rand2;  
+    DataSource          rand2;
+    
+    float plasticity1, plasticity2;
 
     // ---------------------------------------------------
     //  Metal Device, Command Queue, and Compute Pipeline States
@@ -134,6 +136,13 @@ private:
     // Dimension buffers for Layer 2.
     MTL::Buffer* _pBuffer_M2      = nullptr; // Hidden layer dimension for Layer 2 input
     MTL::Buffer* _pBuffer_N2      = nullptr; // Output layer dimension
+    
+    MTL::Buffer* _pBuffer_plasticity1      = nullptr;
+    MTL::Buffer* _pBuffer_plasticity2      = nullptr;
+    
+    MTL::Buffer* _pBuffer_age1      = nullptr;
+    MTL::Buffer* _pBuffer_age2      = nullptr;
+    
     MTL::Buffer* _pBuffer_randomness1 = nullptr;
     MTL::Buffer* _pBuffer_randomness2 = nullptr;
 
