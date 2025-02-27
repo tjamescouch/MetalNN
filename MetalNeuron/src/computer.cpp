@@ -51,8 +51,8 @@ W1(input_dim, hidden_dim),
 b1(hidden_dim, 1),
 W2(hidden_dim, output_dim),
 b2(output_dim, 1),
-rand1(hidden_dim, 1),
-rand2(output_dim, 1),
+rand1(input_dim, hidden_dim),
+rand2(hidden_dim, output_dim),
 _pDevice(pDevice->retain()),
 _pCompileOptions(nullptr),
 areBuffersBuilt(false),
@@ -222,7 +222,7 @@ void Computer::buildBuffers()
     uint n1 = hidden_dim;
     uint m2 = hidden_dim;
     uint n2 = output_dim;
-    uint age = 0;
+    float age = 0.f;
     
     // Buffer for input x.
     _pBuffer_x = _pDevice->newBuffer(x.get_num_data() * sizeof(float),
@@ -385,15 +385,15 @@ void Computer::buildBuffers()
     _pBuffer_randomness2->didModifyRange(NS::Range::Make(0, _pBuffer_randomness2->length()));
     
     
-    _pBuffer_age1 = _pDevice->newBuffer(sizeof(uint),
+    _pBuffer_age1 = _pDevice->newBuffer(input_dim * sizeof(float),
                                       MTL::ResourceStorageModeManaged);
     std::memcpy(_pBuffer_age1->contents(), &age, sizeof(uint));
     _pBuffer_age1->didModifyRange(NS::Range::Make(0, _pBuffer_age1->length()));
     
     
-    _pBuffer_age2 = _pDevice->newBuffer(sizeof(uint),
+    _pBuffer_age2 = _pDevice->newBuffer(input_dim * sizeof(float),
                                       MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBuffer_age2->contents(), &age, sizeof(uint));
+    std::memcpy(_pBuffer_age2->contents(), &age, sizeof(float));
     _pBuffer_age2->didModifyRange(NS::Range::Make(0, _pBuffer_age2->length()));
     
     areBuffersBuilt = true;
@@ -628,8 +628,8 @@ void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
     printf("computeLearnAndApplyUpdates (multi-layer) - iterations remaining = %d\n", (int)iterations);
     this->computeLearn([this, iterations]() {
         // Update input data for the next iteration.
-        this->x.build([iterations](double x){ return inputFunction(x - iterations); });
-        this->y_hat.build([iterations](double x){ return inputFunction(x - iterations); });
+        this->x.build([iterations](double x){ return inputFunction(x); });
+        this->y_hat.build([iterations](double x){ return inputFunction(x); });
         
         std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(), x.get_num_data() * sizeof(float));
         _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
@@ -648,7 +648,7 @@ void Computer::computeForwardIterations(uint32_t iterations)
     printf("computeForwardIterations (multi-layer)\n");
     this->computeForward([this, iterations]() {
         printf("Forward Iterations remaining=%d\n", iterations);
-        this->x.build([iterations](double x){ return inputFunction(x - iterations); });
+        this->x.build([iterations](double x){ return inputFunction(x); });
         std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(), x.get_num_data() * sizeof(float));
 
         // Synchronize GPU buffers to CPU.
@@ -674,19 +674,19 @@ void Computer::logError()
     float* error = static_cast<float*>(_pBuffer_error->contents());
     
     float avg_error = 0.0f;
-    for (int i = 0; i < _pBuffer_error->length(); i++) {
+    for (int i = 0; i < input_dim; i++) {
         avg_error += error[i];
     }
-    avg_error /= _pBuffer_error->length();
+    avg_error /= input_dim;
     printf("AVG OUTPUT ERROR: %f\n", abs(avg_error));
     
     float* error_hidden = static_cast<float*>(_pBuffer_error_hidden->contents());
     
     float avg_error_hidden = 0.0f;
-    for (int i = 0; i < _pBuffer_error_hidden->length(); i++) {
+    for (int i = 0; i < input_dim; i++) {
         avg_error_hidden += error_hidden[i];
     }
-    avg_error_hidden /= _pBuffer_error_hidden->length();
+    avg_error_hidden /= input_dim;
     printf("AVG HIDDEN ERROR: %f\n", abs(avg_error_hidden));
 }
 
@@ -707,15 +707,7 @@ void Computer::logInformation(const std::string& filename, int remainingIteratio
     float* hiddenPtr = static_cast<float*>(_pBuffer_hidden->contents());
     float* outputPtr = static_cast<float*>(_pBuffer_y->contents());
     float* targetPtr = static_cast<float*>(_pBuffer_y_hat->contents());
-    
-    float* error = static_cast<float*>(_pBuffer_error->contents());
-    
-    float avg_error = 0.0f;
-    for (int i = 0; i < _pBuffer_error->length(); i++) {
-        avg_error += error[i];
-    }
-    avg_error /= _pBuffer_error->length();
-    printf("AVG ERROR: %f\n", abs(avg_error));
+
     
     uint64_t length = _pBuffer_y->length() / sizeof(float);
     

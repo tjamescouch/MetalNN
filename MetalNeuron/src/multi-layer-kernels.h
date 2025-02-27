@@ -11,7 +11,7 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.001f;
+constant float learning_rate_w = 0.01f;
 constant float learning_rate_b = 0.001f;
 constant float min_delta      = 0.01f;
 constant float max_de_dw      = 1.0f;
@@ -41,8 +41,7 @@ inline float random(uint seed) {
     return float(seed & 0x00FFFFFF) / float(0x01000000);
 }
 
-inline float decay(uint age) {
-    float lambda = 0.000001;
+inline float decay(float age, float lambda = 0.01) {
     return clamp(exp(-age * lambda), 0.f, 1.f);
 }
 
@@ -66,7 +65,6 @@ kernel void forward_layer(
 ) {
     uint M = *pM;
     uint N = *pN;
-    float p = *plasticity;
 
     if (tid >= N) return;
 
@@ -75,8 +73,7 @@ kernel void forward_layer(
         sum += x[i] * W[i * N + tid];
     }
     float activated = activationFunction(clamp(sum, -10.f, 10.f));
-    float swing = abs(y[tid] - activated) / 2.0f;
-    y[tid] = p * activated + (1 - p) * y[tid];
+    y[tid] = activated;
 }
 
 //
@@ -98,7 +95,7 @@ kernel void learn_output_layer(
     device       float* prev_W       [[buffer(11)]],
     device       float* prev_b       [[buffer(12)]],
     device const float* plasticity   [[buffer(13)]],
-    device       uint* age           [[buffer(14)]],
+    device       float* age          [[buffer(14)]],
     uint tid                         [[thread_position_in_grid]]
 ) {
 
@@ -108,14 +105,14 @@ kernel void learn_output_layer(
 
     if (tid >= N) return;
 
-    uint age_now = age[tid]++;
+    age[tid] += 0.01;
+    float age_now = age[tid];
 
     float sum = b[tid];
     for (uint i = 0; i < M; i++) {
         sum += x[i] * W[i * N + tid];
     }
-    y[tid] = p * (activationFunction(sum)) + (1 - p) * y[tid];
-
+    y[tid] = activationFunction(sum);//p * (activationFunction(sum)) + (1 - p) * y[tid];
 
     // Compute weight updates
     prev_error[tid] = error[tid];
@@ -132,8 +129,8 @@ kernel void learn_output_layer(
         float delta_w_no_zero = abs_delta_w > min_delta ? delta_w : sign_of(delta_w) * min_delta;
         float de_dw = clamp(delta_error / delta_w_no_zero, -max_de_dw, max_de_dw);
         
-        W_accumulator[i * N + tid] -= learning_rate_w * error[tid] * x[i] * de_dw * sign_of(de_dw) * decay(age_now);
-        W_accumulator[i * N + tid] = clamp(W_accumulator[i * N + tid], -0.1f, 0.1f);
+        W_accumulator[i * N + tid] -= learning_rate_w * error[tid] * x[i] * abs(de_dw) * decay(age_now);
+        W_accumulator[i * N + tid] = clamp(W_accumulator[i * N + tid], -0.01f, 0.01f);
     }
 
     // Compute bias updates
@@ -142,7 +139,7 @@ kernel void learn_output_layer(
     float delta_b_no_zero = abs_delta_b > min_delta ? delta_b : sign(delta_b) * min_delta;
     float de_db = clamp(error[tid] / delta_b_no_zero, -max_de_db, max_de_db);
 
-    b_accumulator[tid] -= clamp(learning_rate_b * error[tid] * de_db * sign_of(de_db) * decay(age_now), -0.1f, 0.1f);
+    b_accumulator[tid] -= clamp(learning_rate_b * error[tid] * de_db * sign_of(de_db) * decay(age_now), -0.01f, 0.01f);
 }
 
 //
@@ -166,7 +163,7 @@ kernel void learn_hidden_layer(
     device       float* prev_W        [[buffer(13)]],
     device       float* prev_b        [[buffer(14)]],
     device const float* plasticity    [[buffer(15)]],
-    device       uint*  age           [[buffer(16)]],
+    device       float*  age          [[buffer(16)]],
     uint tid                          [[thread_position_in_grid]]
 ) {
     uint M = *pM;
@@ -176,26 +173,25 @@ kernel void learn_hidden_layer(
     uint N_next = *pN_next;
     if (tid >= N) return;
 
-    uint age_now = age[tid]++;
+    age[tid] += 0.01;
+    float age_now = age[tid];
     
     float sum = b[tid];
     for (uint i = 0; i < M; i++) {
         sum += x[i] * W[i * N + tid];
     }
-    y[tid] = p * activationFunction(sum) + (1 - p) * y[tid];
+    y[tid] = activationFunction(sum); //p * activationFunction(sum) + (1 - p) * y[tid];
 
 
     prev_error[tid] = error[tid];
     
     // Backpropagate the error from the next layer:
     float error_sum = 0.0f;
-    float W_sum = 0.0f;
     for (uint j = 0; j < N_next; j++) {
         // For current neuron 'tid', weight connecting it to neuron 'j' in next layer:
-        error_sum += (abs(W_next[tid * N_next + j]) * error_next[j]);
-        W_sum += abs(W_next[tid * N_next + j]);
+        error_sum += ((W_next[tid * N_next + j]) * error_next[j]);
     }
-    error[tid] = error_sum / W_sum;
+    error[tid] = error_sum / N_next;
 
     // Compute weight updates
     float delta_w, abs_delta_w, delta_error;
@@ -207,8 +203,8 @@ kernel void learn_hidden_layer(
         float delta_w_no_zero = abs_delta_w > min_delta ? delta_w : sign_of(delta_w) * min_delta;
         float de_dw = clamp(delta_error / delta_w_no_zero, -max_de_dw, max_de_dw);
         
-        W_accumulator[i * N + tid] -= learning_rate_w * error[tid] * x[i] * de_dw * sign_of(de_dw) * decay(age_now);
-        W_accumulator[i * N + tid] = clamp(W_accumulator[i * N + tid], -0.1f, 0.1f);
+        W_accumulator[i * N + tid] -= learning_rate_w * error[tid] * x[i] * abs(de_dw) * decay(age_now);
+        W_accumulator[i * N + tid] = clamp(W_accumulator[i * N + tid], -0.01f, 0.01f);
     }
 
     // Compute bias updates
@@ -217,7 +213,7 @@ kernel void learn_hidden_layer(
     float delta_b_no_zero = abs_delta_b > min_delta ? delta_b : sign(delta_b) * min_delta;
     float de_db = clamp(error[tid] / delta_b_no_zero, -max_de_db, max_de_db);
 
-    b_accumulator[tid] -= clamp(learning_rate_b * error[tid] * de_db * sign_of(de_db) * decay(age_now), -0.1f, 0.1f);
+    b_accumulator[tid] -= clamp(learning_rate_b * error[tid] * abs(de_db) * decay(age_now), -0.01f, 0.01f);
 }
 
 //
@@ -236,7 +232,7 @@ kernel void apply_updates(
     uint tid                       [[thread_position_in_grid]]
 ) {
 
-    if (randomness[tid] > 0.5f) return;
+    
     
     uint M = *pM;
     uint N = *pN;
