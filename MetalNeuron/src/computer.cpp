@@ -1,14 +1,15 @@
 /*
  * computer.cpp
- * Created by James Couch on 2025-02-24.
+ * Created by James Couch on 2025–02–24.
  *
- * This version extends the original single–layer implementation to support
- * a two–layer network:
- *   - Layer 1: Input (dimension: input_dim) → Hidden (hidden_dim neurons)
- *   - Layer 2: Hidden (hidden_dim) → Output (output_dim neurons)
+ * This version extends the original implementation to support a two–layer network
+ * with a recurrent (RNN) hidden layer and a feedforward output layer:
+ *   - Layer 1 (RNN): Input (input_dim) → Hidden (hidden_dim neurons)
+ *         Uses forward_rnn and learn_rnn kernels.
+ *   - Layer 2 (Output): Hidden (hidden_dim) → Output (output_dim neurons)
+ *         Uses forward_output_layer and learn_output_layer kernels.
  *
- * It preserves original functionality such as asynchronous initialization,
- * key bindings (F for forward, L for learn, C for clear), logging, etc.
+ * All keyboard functionality (F for forward, L for learn, C for clear) remains unchanged.
  */
 
 #include <simd/simd.h>
@@ -35,29 +36,30 @@ const int NUM_ITERATIONS = 10000;
 
 // Example functions for data source initialization.
 double inputFunction(double in) {
-    return sin(0.050 * in);// > 0 ? 1.0f : -1.0f;
+    return sin(0.050 * in);
 }
 
 double expectedOutput(double in) {
     return sin(0.050 * in);
 }
 
-#pragma mark - Computer Constructor / Destructor
+#pragma mark – Computer Constructor / Destructor
 
 Computer::Computer(MTL::Device* pDevice)
 : x(input_dim, 1),
-y_hat(output_dim, 1),
-W1(input_dim, hidden_dim),
-b1(hidden_dim, 1),
-W2(hidden_dim, output_dim),
-b2(output_dim, 1),
-rand1(input_dim, hidden_dim),
-rand2(hidden_dim, output_dim),
-_pDevice(pDevice->retain()),
-_pCompileOptions(nullptr),
-areBuffersBuilt(false),
-currentlyComputing(false)
+  y_hat(output_dim, 1),
+  W1(input_dim, hidden_dim),        // Now used as input–to–hidden weights (W_xh)
+  b1(hidden_dim, 1),
+  W2(hidden_dim, output_dim),
+  b2(output_dim, 1),
+  rand1(input_dim, hidden_dim),
+  rand2(hidden_dim, output_dim),
+  _pDevice(pDevice->retain()),
+  _pCompileOptions(nullptr),
+  areBuffersBuilt(false),
+  currentlyComputing(false)
 {
+    // Plasticity values remain (though not passed to kernels in this updated version)
     plasticity1 = 0.98;
     plasticity2 = 0.90;
     
@@ -105,123 +107,111 @@ currentlyComputing(false)
 Computer::~Computer()
 {
     // Release pipeline states.
-    if (_pForwardLayerPipelineState)      _pForwardLayerPipelineState->release();
-    if (_pForwardLayerPipelineState2)     _pForwardLayerPipelineState2->release();
-    if (_pLearnOutputPipelineState)       _pLearnOutputPipelineState->release();
-    if (_pLearnHiddenPipelineState)       _pLearnHiddenPipelineState->release();
-    if (_pApplyUpdatesPipelineState)      _pApplyUpdatesPipelineState->release();
+    if (_pForwardRnnPipelineState)       _pForwardRnnPipelineState->release();
+    if (_pForwardOutputPipelineState)    _pForwardOutputPipelineState->release();
+    if (_pLearnOutputPipelineState)      _pLearnOutputPipelineState->release();
+    if (_pLearnRnnPipelineState)         _pLearnRnnPipelineState->release();
     
     // Release buffers.
     if (_pBuffer_x)               _pBuffer_x->release();
     if (_pBuffer_hidden)          _pBuffer_hidden->release();
+    if (_pBuffer_hidden_prev)     _pBuffer_hidden_prev->release();
     if (_pBuffer_y)               _pBuffer_y->release();
     if (_pBuffer_y_hat)           _pBuffer_y_hat->release();
     
     if (_pBuffer_W1)              _pBuffer_W1->release();
     if (_pBuffer_b1)              _pBuffer_b1->release();
-    if (_pBuffer_prev_W1)         _pBuffer_prev_W1->release();
-    if (_pBuffer_prev_b1)         _pBuffer_prev_b1->release();
     if (_pBuffer_W2)              _pBuffer_W2->release();
     if (_pBuffer_b2)              _pBuffer_b2->release();
-    if (_pBuffer_prev_W2)         _pBuffer_prev_W2->release();
-    if (_pBuffer_prev_b2)         _pBuffer_prev_b2->release();
-    if (_pBuffer_age1)            _pBuffer_age1->release();
-    if (_pBuffer_age2)            _pBuffer_age2->release();
+    
+    if (_pBuffer_W_hh)            _pBuffer_W_hh->release();
     
     if (_pBuffer_M1)              _pBuffer_M1->release();
     if (_pBuffer_N1)              _pBuffer_N1->release();
     if (_pBuffer_M2)              _pBuffer_M2->release();
     if (_pBuffer_N2)              _pBuffer_N2->release();
     
-    if (_pBuffer_randomness1)     _pBuffer_randomness1->release();
-    if (_pBuffer_randomness2)     _pBuffer_randomness2->release();
-    
     if (_pBuffer_error)           _pBuffer_error->release();
     if (_pBuffer_error_hidden)    _pBuffer_error_hidden->release();
-    if (_pBuffer_prev_error_hidden)_pBuffer_prev_error_hidden->release();
+    if (_pBuffer_prev_error)      _pBuffer_prev_error->release();
     
-    if (_pBuffer_WAccumulator1)   _pBuffer_WAccumulator1->release();
-    if (_pBuffer_bAccumulator1)   _pBuffer_bAccumulator1->release();
     if (_pBuffer_WAccumulator2)   _pBuffer_WAccumulator2->release();
     if (_pBuffer_bAccumulator2)   _pBuffer_bAccumulator2->release();
+    if (_pBuffer_WAccumulator1)   _pBuffer_WAccumulator1->release();
+    if (_pBuffer_bAccumulator1)   _pBuffer_bAccumulator1->release();
     
-    // Release functions.
-    if (_pForwardLayerFn)         _pForwardLayerFn->release();
-    if (_pForwardLayerFn2)        _pForwardLayerFn2->release();
+    // Release function objects.
+    if (_pForwardRnnFn)           _pForwardRnnFn->release();
+    if (_pForwardOutputFn)        _pForwardOutputFn->release();
     if (_pLearnOutputFn)          _pLearnOutputFn->release();
-    if (_pLearnHiddenFn)          _pLearnHiddenFn->release();
-    if (_pApplyUpdatesFn)         _pApplyUpdatesFn->release();
+    if (_pLearnRnnFn)             _pLearnRnnFn->release();
     
     // Release command queue & device.
     if (_pCommandQueue)           _pCommandQueue->release();
     if (_pDevice)                 _pDevice->release();
 }
 
-#pragma mark - Compute Pipeline Setup
+#pragma mark – Compute Pipeline Setup
 
 void Computer::buildComputePipeline()
 {
-    printf("build compute pipeline (multi-layer)\n");
+    printf("build compute pipeline (RNN-based multi-layer)\n");
     _pCommandQueue = _pDevice->newCommandQueue();
     
     NS::Error* pError = nullptr;
     // Build library from kernel source.
     _pComputeLibrary = _pDevice->newLibrary(
-                                            NS::String::string(multilayerkernels::nnKernelSrc, NS::UTF8StringEncoding),
-                                            _pCompileOptions,
-                                            &pError
-                                            );
+        NS::String::string(multilayerkernels::nnKernelSrc, NS::UTF8StringEncoding),
+        _pCompileOptions,
+        &pError
+    );
     if (!_pComputeLibrary)
     {
         std::cerr << "Compute library error: "
-        << pError->localizedDescription()->utf8String()
-        << std::endl;
+                  << pError->localizedDescription()->utf8String()
+                  << std::endl;
         assert(false);
     }
     
-    // Build function objects for each kernel.
-    _pForwardLayerFn  = _pComputeLibrary->newFunction(NS::String::string("forward_layer", NS::UTF8StringEncoding));
-    _pForwardLayerFn2 = _pComputeLibrary->newFunction(NS::String::string("forward_layer", NS::UTF8StringEncoding));
-    _pLearnOutputFn   = _pComputeLibrary->newFunction(NS::String::string("learn_output_layer", NS::UTF8StringEncoding));
-    _pLearnHiddenFn   = _pComputeLibrary->newFunction(NS::String::string("learn_hidden_layer", NS::UTF8StringEncoding));
-    _pApplyUpdatesFn  = _pComputeLibrary->newFunction(NS::String::string("apply_updates", NS::UTF8StringEncoding));
+    // Build function objects for each kernel using the updated names.
+    _pForwardRnnFn = _pComputeLibrary->newFunction(NS::String::string("forward_rnn", NS::UTF8StringEncoding));
+    _pForwardOutputFn = _pComputeLibrary->newFunction(NS::String::string("forward_output_layer", NS::UTF8StringEncoding));
+    _pLearnOutputFn = _pComputeLibrary->newFunction(NS::String::string("learn_output_layer", NS::UTF8StringEncoding));
+    _pLearnRnnFn = _pComputeLibrary->newFunction(NS::String::string("learn_rnn", NS::UTF8StringEncoding));
     
-    assert(_pForwardLayerFn);
-    assert(_pForwardLayerFn2);
+    assert(_pForwardRnnFn);
+    assert(_pForwardOutputFn);
     assert(_pLearnOutputFn);
-    assert(_pLearnHiddenFn);
-    assert(_pApplyUpdatesFn);
+    assert(_pLearnRnnFn);
     
     // Build pipeline states.
-    _pForwardLayerPipelineState  = _pDevice->newComputePipelineState(_pForwardLayerFn,  &pError);
-    _pForwardLayerPipelineState2 = _pDevice->newComputePipelineState(_pForwardLayerFn2, &pError);
-    _pLearnOutputPipelineState   = _pDevice->newComputePipelineState(_pLearnOutputFn,   &pError);
-    _pLearnHiddenPipelineState   = _pDevice->newComputePipelineState(_pLearnHiddenFn,   &pError);
-    _pApplyUpdatesPipelineState  = _pDevice->newComputePipelineState(_pApplyUpdatesFn,  &pError);
+    _pForwardRnnPipelineState = _pDevice->newComputePipelineState(_pForwardRnnFn, &pError);
+    _pForwardOutputPipelineState = _pDevice->newComputePipelineState(_pForwardOutputFn, &pError);
+    _pLearnOutputPipelineState = _pDevice->newComputePipelineState(_pLearnOutputFn, &pError);
+    _pLearnRnnPipelineState = _pDevice->newComputePipelineState(_pLearnRnnFn, &pError);
     
-    if (!_pForwardLayerPipelineState ||
-        !_pForwardLayerPipelineState2 ||
+    if (!_pForwardRnnPipelineState ||
+        !_pForwardOutputPipelineState ||
         !_pLearnOutputPipelineState ||
-        !_pLearnHiddenPipelineState ||
-        !_pApplyUpdatesPipelineState) {
-        std::cerr << "Error building multi-layer pipeline state." << pError->localizedDescription()->utf8String() << std::endl;
+        !_pLearnRnnPipelineState) {
+        std::cerr << "Error building RNN–based pipeline state." << pError->localizedDescription()->utf8String() << std::endl;
         assert(false);
     }
     
     _pComputeLibrary->release();
 }
 
-#pragma mark - Buffer Setup
+#pragma mark – Buffer Setup
 
 void Computer::buildBuffers()
 {
-    printf("buildBuffers (multi-layer)\n");
+    printf("buildBuffers (RNN-based multi-layer)\n");
     
     // Define dimension values.
-    uint m1 = input_dim;
-    uint n1 = hidden_dim;
-    uint m2 = hidden_dim;
-    uint n2 = output_dim;
+    uint m1 = input_dim;    // For input->hidden (W_xh)
+    uint n1 = hidden_dim;   // Hidden dimension
+    uint m2 = hidden_dim;   // For hidden->output
+    uint n2 = output_dim;   // Output dimension
     float age = 0.f;
     
     // Buffer for input x.
@@ -236,6 +226,12 @@ void Computer::buildBuffers()
     std::memset(_pBuffer_hidden->contents(), 0, hidden_dim * sizeof(float));
     _pBuffer_hidden->didModifyRange(NS::Range::Make(0, _pBuffer_hidden->length()));
     
+    // Buffer for previous hidden state (for recurrence).
+    _pBuffer_hidden_prev = _pDevice->newBuffer(hidden_dim * sizeof(float),
+                                               MTL::ResourceStorageModeManaged);
+    std::memset(_pBuffer_hidden_prev->contents(), 0, hidden_dim * sizeof(float));
+    _pBuffer_hidden_prev->didModifyRange(NS::Range::Make(0, _pBuffer_hidden_prev->length()));
+    
     // Buffer for output activations y.
     _pBuffer_y = _pDevice->newBuffer(output_dim * sizeof(float),
                                      MTL::ResourceStorageModeManaged);
@@ -248,7 +244,8 @@ void Computer::buildBuffers()
     std::memcpy(_pBuffer_y_hat->contents(), y_hat.get_data_buffer(), y_hat.get_num_data() * sizeof(float));
     _pBuffer_y_hat->didModifyRange(NS::Range::Make(0, _pBuffer_y_hat->length()));
     
-    // Buffers for Layer 1 weights and biases.
+    // Buffers for recurrent layer weights and biases.
+    // W1 now serves as the input-to–hidden weight matrix (W_xh).
     _pBuffer_W1 = _pDevice->newBuffer(W1.get_num_data() * sizeof(float),
                                       MTL::ResourceStorageModeManaged);
     std::memcpy(_pBuffer_W1->contents(), W1.get_data_buffer(), W1.get_num_data() * sizeof(float));
@@ -259,19 +256,7 @@ void Computer::buildBuffers()
     std::memcpy(_pBuffer_b1->contents(), b1.get_data_buffer(), b1.get_num_data() * sizeof(float));
     _pBuffer_b1->didModifyRange(NS::Range::Make(0, _pBuffer_b1->length()));
     
-    
-    _pBuffer_prev_W1 = _pDevice->newBuffer(W1.get_num_data() * sizeof(float),
-                                           MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBuffer_prev_W1->contents(), W1.get_data_buffer(), W1.get_num_data() * sizeof(float));
-    _pBuffer_prev_W1->didModifyRange(NS::Range::Make(0, _pBuffer_prev_W1->length()));
-    
-    _pBuffer_prev_b1 = _pDevice->newBuffer(b1.get_num_data() * sizeof(float),
-                                           MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBuffer_prev_b1->contents(), b1.get_data_buffer(), b1.get_num_data() * sizeof(float));
-    _pBuffer_prev_b1->didModifyRange(NS::Range::Make(0, _pBuffer_prev_b1->length()));
-    
-    
-    // Buffers for Layer 2 weights and biases.
+    // Buffer for output layer weights and biases.
     _pBuffer_W2 = _pDevice->newBuffer(W2.get_num_data() * sizeof(float),
                                       MTL::ResourceStorageModeManaged);
     std::memcpy(_pBuffer_W2->contents(), W2.get_data_buffer(), W2.get_num_data() * sizeof(float));
@@ -282,19 +267,7 @@ void Computer::buildBuffers()
     std::memcpy(_pBuffer_b2->contents(), b2.get_data_buffer(), b2.get_num_data() * sizeof(float));
     _pBuffer_b2->didModifyRange(NS::Range::Make(0, _pBuffer_b2->length()));
     
-    
-    _pBuffer_prev_W2 = _pDevice->newBuffer(W2.get_num_data() * sizeof(float),
-                                           MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBuffer_prev_W2->contents(), W2.get_data_buffer(), W2.get_num_data() * sizeof(float));
-    _pBuffer_prev_W2->didModifyRange(NS::Range::Make(0, _pBuffer_prev_W2->length()));
-    
-    _pBuffer_prev_b2 = _pDevice->newBuffer(b2.get_num_data() * sizeof(float),
-                                           MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBuffer_prev_b2->contents(), b2.get_data_buffer(), b2.get_num_data() * sizeof(float));
-    _pBuffer_prev_b2->didModifyRange(NS::Range::Make(0, _pBuffer_prev_b2->length()));
-    
-    
-    // Dimension buffers for Layer 1.
+    // Dimension buffers for recurrent layer.
     _pBuffer_M1 = _pDevice->newBuffer(sizeof(uint),
                                       MTL::ResourceStorageModeManaged);
     std::memcpy(_pBuffer_M1->contents(), &m1, sizeof(uint));
@@ -305,7 +278,7 @@ void Computer::buildBuffers()
     std::memcpy(_pBuffer_N1->contents(), &n1, sizeof(uint));
     _pBuffer_N1->didModifyRange(NS::Range::Make(0, _pBuffer_N1->length()));
     
-    // Dimension buffers for Layer 2.
+    // Dimension buffers for output layer.
     _pBuffer_M2 = _pDevice->newBuffer(sizeof(uint),
                                       MTL::ResourceStorageModeManaged);
     std::memcpy(_pBuffer_M2->contents(), &m2, sizeof(uint));
@@ -316,18 +289,14 @@ void Computer::buildBuffers()
     std::memcpy(_pBuffer_N2->contents(), &n2, sizeof(uint));
     _pBuffer_N2->didModifyRange(NS::Range::Make(0, _pBuffer_N2->length()));
     
-    
-    _pBuffer_plasticity1 = _pDevice->newBuffer(sizeof(float),
-                                      MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBuffer_plasticity1->contents(), &plasticity1, sizeof(uint));
-    _pBuffer_plasticity1->didModifyRange(NS::Range::Make(0, _pBuffer_plasticity1->length()));
-    
-    _pBuffer_plasticity2 = _pDevice->newBuffer(sizeof(float),
-                                      MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBuffer_plasticity2->contents(), &plasticity2, sizeof(uint));
-    _pBuffer_plasticity2->didModifyRange(NS::Range::Make(0, _pBuffer_plasticity2->length()));
-    
-    
+    // Allocate buffer for recurrent weights (W_hh) with shape [hidden_dim x hidden_dim].
+    _pBuffer_W_hh = _pDevice->newBuffer(hidden_dim * hidden_dim * sizeof(float),
+                                        MTL::ResourceStorageModeManaged);
+    float* W_hh_data = static_cast<float*>(_pBuffer_W_hh->contents());
+    for (int i = 0; i < hidden_dim * hidden_dim; i++) {
+        W_hh_data[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f; // Initialize randomly between -1 and 1.
+    }
+    _pBuffer_W_hh->didModifyRange(NS::Range::Make(0, _pBuffer_W_hh->length()));
     
     // Error buffers for backpropagation.
     _pBuffer_error = _pDevice->newBuffer(output_dim * sizeof(float),
@@ -335,23 +304,12 @@ void Computer::buildBuffers()
     std::memset(_pBuffer_error->contents(), 0, output_dim * sizeof(float));
     _pBuffer_error->didModifyRange(NS::Range::Make(0, _pBuffer_error->length()));
     
-    _pBuffer_prev_error = _pDevice->newBuffer(output_dim * sizeof(float),
-                                              MTL::ResourceStorageModeManaged);
-    std::memset(_pBuffer_prev_error->contents(), 0, output_dim * sizeof(float));
-    _pBuffer_prev_error->didModifyRange(NS::Range::Make(0, _pBuffer_prev_error->length()));
-    
     _pBuffer_error_hidden = _pDevice->newBuffer(hidden_dim * sizeof(float),
                                                 MTL::ResourceStorageModeManaged);
     std::memset(_pBuffer_error_hidden->contents(), 0, hidden_dim * sizeof(float));
     _pBuffer_error_hidden->didModifyRange(NS::Range::Make(0, _pBuffer_error_hidden->length()));
     
-    _pBuffer_prev_error_hidden = _pDevice->newBuffer(hidden_dim * sizeof(float),
-                                                     MTL::ResourceStorageModeManaged);
-    std::memset(_pBuffer_prev_error_hidden->contents(), 0, hidden_dim * sizeof(float));
-    _pBuffer_prev_error_hidden->didModifyRange(NS::Range::Make(0, _pBuffer_prev_error_hidden->length()));
-    
-    // Accumulator buffers for gradient updates.
-    // For Layer 1.
+    // Accumulator buffers for gradient updates (if used).
     _pBuffer_WAccumulator1 = _pDevice->newBuffer(W1.get_num_data() * sizeof(float),
                                                  MTL::ResourceStorageModeManaged);
     std::memset(_pBuffer_WAccumulator1->contents(), 0, W1.get_num_data() * sizeof(float));
@@ -362,7 +320,6 @@ void Computer::buildBuffers()
     std::memset(_pBuffer_bAccumulator1->contents(), 0, b1.get_num_data() * sizeof(float));
     _pBuffer_bAccumulator1->didModifyRange(NS::Range::Make(0, _pBuffer_bAccumulator1->length()));
     
-    // For Layer 2.
     _pBuffer_WAccumulator2 = _pDevice->newBuffer(W2.get_num_data() * sizeof(float),
                                                  MTL::ResourceStorageModeManaged);
     std::memset(_pBuffer_WAccumulator2->contents(), 0, W2.get_num_data() * sizeof(float));
@@ -373,40 +330,18 @@ void Computer::buildBuffers()
     std::memset(_pBuffer_bAccumulator2->contents(), 0, b2.get_num_data() * sizeof(float));
     _pBuffer_bAccumulator2->didModifyRange(NS::Range::Make(0, _pBuffer_bAccumulator2->length()));
     
-    
-    _pBuffer_randomness1 = _pDevice->newBuffer(rand1.get_num_data() * sizeof(float),
-                                               MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBuffer_randomness1->contents(), rand1.get_data_buffer(), sizeof(uint));
-    _pBuffer_randomness1->didModifyRange(NS::Range::Make(0, _pBuffer_randomness1->length()));
-    
-    _pBuffer_randomness2 = _pDevice->newBuffer(rand2.get_num_data() * sizeof(float),
-                                               MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBuffer_randomness2->contents(), rand2.get_data_buffer(), sizeof(uint));
-    _pBuffer_randomness2->didModifyRange(NS::Range::Make(0, _pBuffer_randomness2->length()));
-    
-    
-    _pBuffer_age1 = _pDevice->newBuffer(input_dim * sizeof(float),
-                                      MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBuffer_age1->contents(), &age, sizeof(uint));
-    _pBuffer_age1->didModifyRange(NS::Range::Make(0, _pBuffer_age1->length()));
-    
-    
-    _pBuffer_age2 = _pDevice->newBuffer(input_dim * sizeof(float),
-                                      MTL::ResourceStorageModeManaged);
-    std::memcpy(_pBuffer_age2->contents(), &age, sizeof(float));
-    _pBuffer_age2->didModifyRange(NS::Range::Make(0, _pBuffer_age2->length()));
-    
     areBuffersBuilt = true;
 }
 
-#pragma mark - Forward Pass
+#pragma mark – Forward Pass
 
 // The forward pass now consists of two kernel dispatches:
-//   1. Compute hidden layer activations: forward_layer kernel (Layer 1)
-//   2. Compute output activations: forward_layer kernel (Layer 2)
+//  1. RNN Layer: Compute hidden activations using forward_rnn.
+//  2. Output Layer: Compute output activations using forward_output_layer.
+// After the forward pass, the computed hidden state is copied to the hidden_prev buffer.
 void Computer::computeForward(std::function<void()> onComplete)
 {
-    printf("computeForward (multi-layer)\n");
+    printf("computeForward (RNN-based multi-layer)\n");
     
     if (!areBuffersBuilt) return;
     if (currentlyComputing) return;
@@ -418,19 +353,27 @@ void Computer::computeForward(std::function<void()> onComplete)
     MTL::CommandBuffer* cmdBuf = _pCommandQueue->commandBuffer();
     assert(cmdBuf);
     
-    // --- Layer 1: Input -> Hidden ---
+    // --- Layer 1: RNN Layer (Input -> Hidden) ---
     {
         MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-        enc->setComputePipelineState(_pForwardLayerPipelineState);
-        // Bind: input x, output hidden, W1, b1, dimensions M1 and N1.
-        enc->setBuffer(_pBuffer_x,    0, 0);
-        enc->setBuffer(_pBuffer_hidden, 0, 1);
-        enc->setBuffer(_pBuffer_W1,   0, 2);
-        enc->setBuffer(_pBuffer_b1,   0, 3);
-        enc->setBuffer(_pBuffer_M1,   0, 4);
-        enc->setBuffer(_pBuffer_N1,   0, 5);
-        enc->setBuffer(_pBuffer_plasticity1,     0, 6);
-        
+        enc->setComputePipelineState(_pForwardRnnPipelineState);
+        // Bind buffers:
+        //   0: Input x
+        //   1: Previous hidden state
+        //   2: Output hidden state (current)
+        //   3: Input-to–hidden weights (W_xh)
+        //   4: Recurrent weights (W_hh)
+        //   5: Bias for hidden layer
+        //   6: Input dimension (input_dim)
+        //   7: Hidden dimension (hidden_dim)
+        enc->setBuffer(_pBuffer_x, 0, 0);
+        enc->setBuffer(_pBuffer_hidden_prev, 0, 1);
+        enc->setBuffer(_pBuffer_hidden, 0, 2);
+        enc->setBuffer(_pBuffer_W1, 0, 3);
+        enc->setBuffer(_pBuffer_W_hh, 0, 4);
+        enc->setBuffer(_pBuffer_b1, 0, 5);
+        enc->setBuffer(_pBuffer_M1, 0, 6); // input_dim
+        enc->setBuffer(_pBuffer_N1, 0, 7); // hidden_dim
         uint32_t threads = hidden_dim;
         MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
         MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
@@ -438,19 +381,23 @@ void Computer::computeForward(std::function<void()> onComplete)
         enc->endEncoding();
     }
     
-    // --- Layer 2: Hidden -> Output ---
+    // --- Layer 2: Output Layer (Hidden -> Output) ---
     {
         MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-        enc->setComputePipelineState(_pForwardLayerPipelineState2);
-        // Bind: input hidden, output y, W2, b2, dimensions M2 and N2.
+        enc->setComputePipelineState(_pForwardOutputPipelineState);
+        // Bind buffers:
+        //   0: Hidden state from RNN layer
+        //   1: Output activation y
+        //   2: Output layer weights (W2)
+        //   3: Output layer bias (b2)
+        //   4: Hidden dimension (hidden_dim)
+        //   5: Output dimension (output_dim)
         enc->setBuffer(_pBuffer_hidden, 0, 0);
-        enc->setBuffer(_pBuffer_y,      0, 1);
-        enc->setBuffer(_pBuffer_W2,     0, 2);
-        enc->setBuffer(_pBuffer_b2,     0, 3);
-        enc->setBuffer(_pBuffer_M2,     0, 4);
-        enc->setBuffer(_pBuffer_N2,     0, 5);
-        enc->setBuffer(_pBuffer_plasticity2,     0, 6);
-        
+        enc->setBuffer(_pBuffer_y, 0, 1);
+        enc->setBuffer(_pBuffer_W2, 0, 2);
+        enc->setBuffer(_pBuffer_b2, 0, 3);
+        enc->setBuffer(_pBuffer_N1, 0, 4); // hidden_dim
+        enc->setBuffer(_pBuffer_N2, 0, 5); // output_dim
         uint32_t threads = output_dim;
         MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
         MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
@@ -458,10 +405,14 @@ void Computer::computeForward(std::function<void()> onComplete)
         enc->endEncoding();
     }
     
-    // Synchronize the output buffer for CPU access.
-    MTL::BlitCommandEncoder* blitEncoder = cmdBuf->blitCommandEncoder();
-    blitEncoder->synchronizeResource(_pBuffer_y);
-    blitEncoder->endEncoding();
+    // --- Copy Hidden State to Hidden_prev for next iteration ---
+    {
+        MTL::BlitCommandEncoder* blitEncoder = cmdBuf->blitCommandEncoder();
+        blitEncoder->copyFromBuffer(_pBuffer_hidden, 0, _pBuffer_hidden_prev, 0, _pBuffer_hidden->length());
+        // Synchronize output buffer for CPU access.
+        blitEncoder->synchronizeResource(_pBuffer_y);
+        blitEncoder->endEncoding();
+    }
     
     Computer* self = this;
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
@@ -476,16 +427,15 @@ void Computer::computeForward(std::function<void()> onComplete)
     pPool->release();
 }
 
-#pragma mark - Learning (Backpropagation) & Apply Updates
+#pragma mark – Learning (Backpropagation) & Apply Updates
 
 // This method performs one iteration of backpropagation and then applies weight updates.
-// 1. Output layer: learn_output_layer kernel computes output error and accumulates updates.
-// 2. Hidden layer: learn_hidden_layer kernel backpropagates error and accumulates updates.
-// 3. Then, apply_updates kernel is invoked for each layer.
+// 1. Output layer: learn_output_layer kernel updates output weights/biases based on output error.
+// 2. RNN layer: learn_rnn kernel updates the recurrent layer weights (both W_xh and W_hh) based on hidden error.
 void Computer::computeLearn(std::function<void()> onComplete)
 {
     this->computeForward([this, onComplete](){
-        printf("computeLearn (multi-layer)\n");
+        printf("computeLearn (RNN-based multi-layer)\n");
         
         if (!areBuffersBuilt) return;
         if (currentlyComputing) return;
@@ -498,121 +448,69 @@ void Computer::computeLearn(std::function<void()> onComplete)
         MTL::CommandBuffer* cmdBuf = _pCommandQueue->commandBuffer();
         assert(cmdBuf);
         
+        // --- Output Layer Learning ---
+        {
+            MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
+            enc->setComputePipelineState(_pLearnOutputPipelineState);
+            // Bind buffers:
+            //   0: Hidden state (input to output layer)
+            //   1: Output layer weights (W2)
+            //   2: Output layer bias (b2)
+            //   3: Output activation y
+            //   4: Target output y_hat
+            //   5: Output error buffer
+            //   6: Hidden dimension (hidden_dim)
+            //   7: Output dimension (output_dim)
+            enc->setBuffer(_pBuffer_hidden, 0, 0);
+            enc->setBuffer(_pBuffer_W2, 0, 1);
+            enc->setBuffer(_pBuffer_b2, 0, 2);
+            enc->setBuffer(_pBuffer_y, 0, 3);
+            enc->setBuffer(_pBuffer_y_hat, 0, 4);
+            enc->setBuffer(_pBuffer_error, 0, 5);
+            enc->setBuffer(_pBuffer_N1, 0, 6); // hidden_dim
+            enc->setBuffer(_pBuffer_N2, 0, 7); // output_dim
+            uint32_t threads = output_dim;
+            MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
+            MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
+            enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+            enc->endEncoding();
+        }
         
-            // --- Output Layer Backpropagation ---
-            {
-                MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-                enc->setComputePipelineState(_pLearnOutputPipelineState);
-                // Bind: input = hidden activations, W2, b2, output activation y,
-                // target y_hat, error buffer for output, dimensions (M2,N2), accumulators.
-                enc->setBuffer(_pBuffer_hidden,         0, 0);
-                enc->setBuffer(_pBuffer_W2,             0, 1);
-                enc->setBuffer(_pBuffer_b2,             0, 2);
-                enc->setBuffer(_pBuffer_y,              0, 3);
-                enc->setBuffer(_pBuffer_y_hat,          0, 4);
-                enc->setBuffer(_pBuffer_error,          0, 5);
-                enc->setBuffer(_pBuffer_prev_error,     0, 6);
-                enc->setBuffer(_pBuffer_M2,             0, 7);
-                enc->setBuffer(_pBuffer_N2,             0, 8);
-                enc->setBuffer(_pBuffer_WAccumulator2,  0, 9);
-                enc->setBuffer(_pBuffer_bAccumulator2,  0, 10);
-                enc->setBuffer(_pBuffer_prev_W2,             0, 11);
-                enc->setBuffer(_pBuffer_prev_b2,             0, 12);
-                enc->setBuffer(_pBuffer_plasticity1,     0, 13);
-                enc->setBuffer(_pBuffer_age1,            0, 14);
-                
-                uint32_t threads = output_dim;
-                MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
-                MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
-                enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
-                enc->endEncoding();
-            }
-            
-            // --- Hidden Layer Backpropagation ---
-            {
-                MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-                enc->setComputePipelineState(_pLearnHiddenPipelineState);
-                // Bind: input = x, W1, b1, output = hidden activations,
-                // error output for hidden layer, next layer error (output layer),
-                // next layer weights (W2), dimensions for hidden layer (M1,N1) and output layer (N2),
-                // accumulators for Layer 1.
-                enc->setBuffer(_pBuffer_x,               0, 0);
-                enc->setBuffer(_pBuffer_W1,              0, 1);
-                enc->setBuffer(_pBuffer_b1,              0, 2);
-                enc->setBuffer(_pBuffer_hidden,          0, 3);
-                enc->setBuffer(_pBuffer_error_hidden,    0, 4);
-                enc->setBuffer(_pBuffer_prev_error_hidden,    0, 5);
-                enc->setBuffer(_pBuffer_error,           0, 6);
-                enc->setBuffer(_pBuffer_W2,              0, 7);
-                enc->setBuffer(_pBuffer_M1,              0, 8);
-                enc->setBuffer(_pBuffer_N1,              0, 9);
-                enc->setBuffer(_pBuffer_N2,              0, 10);
-                enc->setBuffer(_pBuffer_WAccumulator1,   0, 11);
-                enc->setBuffer(_pBuffer_bAccumulator1,   0, 12);
-                enc->setBuffer(_pBuffer_prev_W1,         0, 13);
-                enc->setBuffer(_pBuffer_prev_b1,         0, 14);
-                enc->setBuffer(_pBuffer_plasticity2,     0, 15);
-                enc->setBuffer(_pBuffer_age2,            0, 16);
-                
-                uint32_t threads = hidden_dim;
-                MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
-                MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
-                enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
-                enc->endEncoding();
-            }
-            
-            
-            // --- Apply Updates for Layer 2 ---
-            {
-                MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-                enc->setComputePipelineState(_pApplyUpdatesPipelineState);
-                // Bind: W2, b2, accumulators for Layer 2, dimensions M2 and N2.
-                enc->setBuffer(_pBuffer_W2,             0, 0);
-                enc->setBuffer(_pBuffer_b2,             0, 1);
-                enc->setBuffer(_pBuffer_prev_W2,             0, 2);
-                enc->setBuffer(_pBuffer_prev_b2,             0, 3);
-                enc->setBuffer(_pBuffer_WAccumulator2,  0, 4);
-                enc->setBuffer(_pBuffer_bAccumulator2,  0, 5);
-                enc->setBuffer(_pBuffer_M2,             0, 6);
-                enc->setBuffer(_pBuffer_N2,             0, 7);
-                enc->setBuffer(_pBuffer_randomness1,    0, 8);
-                
-                uint32_t threads = output_dim;
-                MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
-                MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
-                enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
-                enc->endEncoding();
-            }
-            
-            // --- Apply Updates for Layer 1 ---
-            {
-                MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
-                enc->setComputePipelineState(_pApplyUpdatesPipelineState);
-                // Bind: W1, b1, accumulators for Layer 1, dimensions M1 and N1.
-                enc->setBuffer(_pBuffer_W1,            0, 0);
-                enc->setBuffer(_pBuffer_b1,            0, 1);
-                enc->setBuffer(_pBuffer_prev_W1,            0, 2);
-                enc->setBuffer(_pBuffer_prev_b1,            0, 3);
-                enc->setBuffer(_pBuffer_WAccumulator1, 0, 4);
-                enc->setBuffer(_pBuffer_bAccumulator1, 0, 5);
-                enc->setBuffer(_pBuffer_M1,            0, 6);
-                enc->setBuffer(_pBuffer_N1,            0, 7);
-                enc->setBuffer(_pBuffer_randomness2,   0, 8);
-                
-                uint32_t threads = hidden_dim;
-                MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
-                MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
-                enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
-                enc->endEncoding();
-            }
-        
+        // --- RNN Layer Learning ---
+        {
+            MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
+            enc->setComputePipelineState(_pLearnRnnPipelineState);
+            // Bind buffers:
+            //   0: Input x
+            //   1: Previous hidden state (from previous time step)
+            //   2: Input-to–hidden weights (W_xh) [W1]
+            //   3: Recurrent weights (W_hh)
+            //   4: Hidden bias (b1)
+            //   5: Hidden state (current, computed by forward_rnn)
+            //   6: Hidden error buffer (error_hidden)
+            //   7: Input dimension (input_dim)
+            //   8: Hidden dimension (hidden_dim)
+            enc->setBuffer(_pBuffer_x, 0, 0);
+            enc->setBuffer(_pBuffer_hidden_prev, 0, 1);
+            enc->setBuffer(_pBuffer_W1, 0, 2);
+            enc->setBuffer(_pBuffer_W_hh, 0, 3);
+            enc->setBuffer(_pBuffer_b1, 0, 4);
+            enc->setBuffer(_pBuffer_hidden, 0, 5);
+            enc->setBuffer(_pBuffer_error_hidden, 0, 6);
+            enc->setBuffer(_pBuffer_M1, 0, 7); // input_dim
+            enc->setBuffer(_pBuffer_N1, 0, 8); // hidden_dim
+            uint32_t threads = hidden_dim;
+            MTL::Size threadsPerThreadgroup = MTL::Size{ std::min(threads, 1024u), 1, 1 };
+            MTL::Size threadgroups = MTL::Size{ (threads + 1023) / 1024, 1, 1 };
+            enc->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+            enc->endEncoding();
+        }
         
         cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
             dispatch_semaphore_signal(this->_semaphore);
             std::cout << "Learning complete." << std::endl;
             currentlyComputing = false;
             logError();
-            
             onComplete();
         });
         
@@ -620,16 +518,15 @@ void Computer::computeLearn(std::function<void()> onComplete)
         dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
         pPool->release();
     });
-    
 }
 
 void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
 {
-    printf("computeLearnAndApplyUpdates (multi-layer) - iterations remaining = %d\n", (int)iterations);
+    printf("computeLearnAndApplyUpdates (RNN-based multi-layer) - iterations remaining = %d\n", (int)iterations);
     this->computeLearn([this, iterations]() {
         // Update input data for the next iteration.
-        this->x.build([iterations](double x){ return inputFunction(x); });
-        this->y_hat.build([iterations](double x){ return inputFunction(x); });
+        this->x.build([iterations](double x){ return inputFunction(x - iterations); });
+        this->y_hat.build([iterations](double x){ return inputFunction(x - iterations); });
         
         std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(), x.get_num_data() * sizeof(float));
         _pBuffer_x->didModifyRange(NS::Range::Make(0, _pBuffer_x->length()));
@@ -645,13 +542,11 @@ void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
 
 void Computer::computeForwardIterations(uint32_t iterations)
 {
-    printf("computeForwardIterations (multi-layer)\n");
+    printf("computeForwardIterations (RNN-based multi-layer)\n");
     this->computeForward([this, iterations]() {
         printf("Forward Iterations remaining=%d\n", iterations);
-        this->x.build([iterations](double x){ return inputFunction(x); });
+        this->x.build([iterations](double x){ return inputFunction(x - iterations); });
         std::memcpy(_pBuffer_x->contents(), x.get_data_buffer(), x.get_num_data() * sizeof(float));
-
-        // Synchronize GPU buffers to CPU.
         _pBuffer_x->didModifyRange(NS::Range(0, _pBuffer_x->length()));
         _pBuffer_hidden->didModifyRange(NS::Range(0, _pBuffer_hidden->length()));
         _pBuffer_y->didModifyRange(NS::Range(0, _pBuffer_y->length()));
@@ -660,14 +555,13 @@ void Computer::computeForwardIterations(uint32_t iterations)
         
         this->extractAllResults(iterations);
         
-
         if (iterations > 0) {
             this->computeForwardIterations(iterations - 1);
         }
     });
 }
 
-#pragma mark - Logging & Output
+#pragma mark – Logging & Output
 
 void Computer::logError()
 {
@@ -707,7 +601,6 @@ void Computer::logInformation(const std::string& filename, int remainingIteratio
     float* hiddenPtr = static_cast<float*>(_pBuffer_hidden->contents());
     float* outputPtr = static_cast<float*>(_pBuffer_y->contents());
     float* targetPtr = static_cast<float*>(_pBuffer_y_hat->contents());
-
     
     uint64_t length = _pBuffer_y->length() / sizeof(float);
     
@@ -777,7 +670,7 @@ void Computer::clearOutput()
     logFile << std::endl;
 }
 
-#pragma mark - User Input Handling
+#pragma mark – User Input Handling
 
 void Computer::keyPress(KeyPress* kp)
 {

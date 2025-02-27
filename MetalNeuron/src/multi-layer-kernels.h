@@ -17,7 +17,6 @@ constant float min_delta      = 0.01f;
 constant float max_de_dw      = 1.0f;
 constant float max_de_db      = 0.5f;
 
-
 // Activation function and its derivative
 inline float activationFunction(float x) {
   return tanh(x);
@@ -45,213 +44,128 @@ inline float decay(float age, float lambda = 0.01) {
     return clamp(exp(-age * lambda), 0.f, 1.f);
 }
 
-//
-// Forward pass for a single layer
-//   - input: activation vector from previous layer
-//   - output: activation vector for current layer
-//   - W: weight matrix of shape [M x N] (M: number of inputs, N: neurons)
-//   - b: bias vector for the current layer
-//   - pM: pointer to M, pN: pointer to N
-//
-kernel void forward_layer(
+//-------------------------------------------------------------------
+// Forward pass for the recurrent layer (RNN cell)
+// Computes the hidden state using the current input and the previous hidden state.
+kernel void forward_rnn(
     device const float* x            [[buffer(0)]],
-    device       float* y            [[buffer(1)]],
-    device const float* W            [[buffer(2)]],
-    device const float* b            [[buffer(3)]],
-    device const uint* pM            [[buffer(4)]],
-    device const uint* pN            [[buffer(5)]],
-    device const float* plasticity   [[buffer(6)]],
+    device const float* h_prev       [[buffer(1)]],
+    device       float* h            [[buffer(2)]],
+    device const float* W_xh         [[buffer(3)]],
+    device const float* W_hh         [[buffer(4)]],
+    device const float* b            [[buffer(5)]],
+    device const uint* pX            [[buffer(6)]],
+    device const uint* pH            [[buffer(7)]],
     uint tid                         [[thread_position_in_grid]]
 ) {
-    uint M = *pM;
-    uint N = *pN;
-
-    if (tid >= N) return;
-
+    uint input_dim = *pX;
+    uint hidden_dim = *pH;
+    
+    if (tid >= hidden_dim) return;
+    
     float sum = b[tid];
-    for (uint i = 0; i < M; i++) {
-        sum += x[i] * W[i * N + tid];
+    
+    // Contribution from current input: x * W_xh
+    for (uint i = 0; i < input_dim; i++) {
+        sum += x[i] * W_xh[i * hidden_dim + tid];
     }
-    float activated = activationFunction(clamp(sum, -10.f, 10.f));
-    y[tid] = activated;
+    
+    // Recurrent contribution from previous hidden state: h_prev * W_hh
+    for (uint j = 0; j < hidden_dim; j++) {
+        sum += h_prev[j] * W_hh[j * hidden_dim + tid];
+    }
+    
+    h[tid] = activationFunction(clamp(sum, -10.f, 10.f));
 }
 
-//
-// Learning kernel for the output layer
-//   - Computes the error and accumulates weight and bias updates.
-//   - y: actual output; y_hat: target output.
-kernel void learn_output_layer(
+//-------------------------------------------------------------------
+// Forward pass for the output layer (feedforward)
+// Computes the output activation from the hidden state produced by the RNN.
+kernel void forward_output_layer(
+    device const float* h            [[buffer(0)]],  // hidden state from RNN layer
+    device       float* y            [[buffer(1)]],  // output activation
+    device const float* W            [[buffer(2)]],  // weight matrix (hidden_dim x output_dim)
+    device const float* b            [[buffer(3)]],  // bias vector for output layer
+    device const uint* pH            [[buffer(4)]],  // hidden state dimension
+    device const uint* pN            [[buffer(5)]],  // number of output neurons
+    uint tid                         [[thread_position_in_grid]]
+) {
+    uint hidden_dim = *pH;
+    uint output_dim = *pN;
+    
+    if (tid >= output_dim) return;
+    
+    float sum = b[tid];
+    for (uint i = 0; i < hidden_dim; i++) {
+        sum += h[i] * W[i * output_dim + tid];
+    }
+    y[tid] = activationFunction(clamp(sum, -10.f, 10.f));
+}
+
+//-------------------------------------------------------------------
+// Learning kernel for the recurrent layer (RNN cell)
+// Updates both the input-to-hidden and recurrent weight matrices based on the error signal.
+kernel void learn_rnn(
     device const float* x            [[buffer(0)]],
+    device const float* h_prev       [[buffer(1)]],
+    device       float* W_xh         [[buffer(2)]],
+    device       float* W_hh         [[buffer(3)]],
+    device       float* b            [[buffer(4)]],
+    device const float* h            [[buffer(5)]],
+    device       float* error        [[buffer(6)]],
+    device const uint* pX            [[buffer(7)]],
+    device const uint* pH            [[buffer(8)]],
+    uint tid                         [[thread_position_in_grid]]
+) {
+    uint input_dim = *pX;
+    uint hidden_dim = *pH;
+    
+    if (tid >= hidden_dim) return;
+    
+    // Update input-to-hidden weights
+    for (uint i = 0; i < input_dim; i++) {
+        W_xh[i * hidden_dim + tid] -= learning_rate_w * error[tid] * x[i];
+    }
+    
+    // Update recurrent weights
+    for (uint j = 0; j < hidden_dim; j++) {
+        W_hh[j * hidden_dim + tid] -= learning_rate_w * error[tid] * h_prev[j];
+    }
+    
+    // Update bias for the hidden state
+    b[tid] -= learning_rate_b * error[tid];
+}
+
+//-------------------------------------------------------------------
+// Learning kernel for the output layer
+// Updates the output layer weights and biases based on the error signal.
+kernel void learn_output_layer(
+    device const float* h            [[buffer(0)]],  // hidden state from RNN layer
     device       float* W            [[buffer(1)]],
     device       float* b            [[buffer(2)]],
     device       float* y            [[buffer(3)]],
     device const float* y_hat        [[buffer(4)]],
     device       float* error        [[buffer(5)]],
-    device       float* prev_error   [[buffer(6)]],
-    device const uint* pM            [[buffer(7)]],
-    device const uint* pN            [[buffer(8)]],
-    device       float* W_accumulator[[buffer(9)]],
-    device       float* b_accumulator[[buffer(10)]],
-    device       float* prev_W       [[buffer(11)]],
-    device       float* prev_b       [[buffer(12)]],
-    device const float* plasticity   [[buffer(13)]],
-    device       float* age          [[buffer(14)]],
+    device const uint* pH            [[buffer(6)]],  // hidden state dimension (input to output layer)
+    device const uint* pN            [[buffer(7)]],  // number of output neurons
     uint tid                         [[thread_position_in_grid]]
 ) {
-
-    uint M = *pM;
-    uint N = *pN;
-    float p = *plasticity;
-
-    if (tid >= N) return;
-
-    age[tid] += 0.01;
-    float age_now = age[tid];
-
-    float sum = b[tid];
-    for (uint i = 0; i < M; i++) {
-        sum += x[i] * W[i * N + tid];
-    }
-    y[tid] = activationFunction(sum);//p * (activationFunction(sum)) + (1 - p) * y[tid];
-
-    // Compute weight updates
-    prev_error[tid] = error[tid];
-
+    uint hidden_dim = *pH;
+    uint output_dim = *pN;
+    
+    if (tid >= output_dim) return;
+    
+    // Compute error for this output neuron
     float y_hat_minus_y = y[tid] - y_hat[tid];
-    error[tid] = (y_hat_minus_y * y_hat_minus_y * y_hat_minus_y);
-    float delta_error = error[tid] - prev_error[tid];
-
-    float delta_w, abs_delta_w;
-    for (uint i = 0; i < M; i++) {
-        delta_w = W[i * N + tid] - prev_W[i * N + tid];
-        abs_delta_w = fabs(delta_w);
-        
-        float delta_w_no_zero = abs_delta_w > min_delta ? delta_w : sign_of(delta_w) * min_delta;
-        float de_dw = clamp(delta_error / delta_w_no_zero, -max_de_dw, max_de_dw);
-        
-        W_accumulator[i * N + tid] -= learning_rate_w * error[tid] * x[i] * abs(de_dw) * decay(age_now);
-        W_accumulator[i * N + tid] = clamp(W_accumulator[i * N + tid], -0.01f, 0.01f);
+    error[tid] = y_hat_minus_y;
+    
+    // Update weights and bias for the output layer
+    for (uint i = 0; i < hidden_dim; i++) {
+        W[i * output_dim + tid] -= learning_rate_w * error[tid] * h[i];
     }
-
-    // Compute bias updates
-    float delta_b = b[tid] - prev_b[tid];
-    float abs_delta_b = fabs(delta_b);
-    float delta_b_no_zero = abs_delta_b > min_delta ? delta_b : sign(delta_b) * min_delta;
-    float de_db = clamp(error[tid] / delta_b_no_zero, -max_de_db, max_de_db);
-
-    b_accumulator[tid] -= clamp(learning_rate_b * error[tid] * de_db * sign_of(de_db) * decay(age_now), -0.01f, 0.01f);
+    b[tid] -= learning_rate_b * error[tid];
 }
 
-//
-// Learning kernel for a hidden layer
-//   - Propagates error from the next layer back into the current layer.
-//   - error_next: error from the layer ahead; W_next: weights from the current layer to next layer.
-kernel void learn_hidden_layer(
-    device const float* x             [[buffer(0)]],  // activation from previous layer
-    device       float* W             [[buffer(1)]],
-    device       float* b             [[buffer(2)]],
-    device       float* y             [[buffer(3)]],  // current layer activation
-    device       float* error         [[buffer(4)]],
-    device       float* prev_error    [[buffer(5)]],  // current layers old error
-    device const float* error_next    [[buffer(6)]],
-    device const float* W_next        [[buffer(7)]],
-    device const uint* pM             [[buffer(8)]],  // input size for current layer
-    device const uint* pN             [[buffer(9)]],  // number of neurons in current layer
-    device const uint* pN_next        [[buffer(10)]],  // number of neurons in next layer
-    device       float* W_accumulator [[buffer(11)]],
-    device       float* b_accumulator [[buffer(12)]],
-    device       float* prev_W        [[buffer(13)]],
-    device       float* prev_b        [[buffer(14)]],
-    device const float* plasticity    [[buffer(15)]],
-    device       float*  age          [[buffer(16)]],
-    uint tid                          [[thread_position_in_grid]]
-) {
-    uint M = *pM;
-    uint N = *pN;
-    float p = *plasticity;
-
-    uint N_next = *pN_next;
-    if (tid >= N) return;
-
-    age[tid] += 0.01;
-    float age_now = age[tid];
-    
-    float sum = b[tid];
-    for (uint i = 0; i < M; i++) {
-        sum += x[i] * W[i * N + tid];
-    }
-    y[tid] = activationFunction(sum); //p * activationFunction(sum) + (1 - p) * y[tid];
-
-
-    prev_error[tid] = error[tid];
-    
-    // Backpropagate the error from the next layer:
-    float error_sum = 0.0f;
-    for (uint j = 0; j < N_next; j++) {
-        // For current neuron 'tid', weight connecting it to neuron 'j' in next layer:
-        error_sum += ((W_next[tid * N_next + j]) * error_next[j]);
-    }
-    error[tid] = error_sum / N_next;
-
-    // Compute weight updates
-    float delta_w, abs_delta_w, delta_error;
-    for (uint i = 0; i < M; i++) {
-        delta_w = W[i * N + tid] - prev_W[i * N + tid];
-        abs_delta_w = fabs(delta_w);
-        delta_error = error[tid] - prev_error[tid];
-        
-        float delta_w_no_zero = abs_delta_w > min_delta ? delta_w : sign_of(delta_w) * min_delta;
-        float de_dw = clamp(delta_error / delta_w_no_zero, -max_de_dw, max_de_dw);
-        
-        W_accumulator[i * N + tid] -= learning_rate_w * error[tid] * x[i] * abs(de_dw) * decay(age_now);
-        W_accumulator[i * N + tid] = clamp(W_accumulator[i * N + tid], -0.01f, 0.01f);
-    }
-
-    // Compute bias updates
-    float delta_b = b[tid] - prev_b[tid];
-    float abs_delta_b = fabs(delta_b);
-    float delta_b_no_zero = abs_delta_b > min_delta ? delta_b : sign(delta_b) * min_delta;
-    float de_db = clamp(error[tid] / delta_b_no_zero, -max_de_db, max_de_db);
-
-    b_accumulator[tid] -= clamp(learning_rate_b * error[tid] * abs(de_db) * decay(age_now), -0.01f, 0.01f);
-}
-
-//
-// Apply updates kernel (can be used for each layer)
-//   - Applies accumulated weight and bias updates to the network parameters.
-kernel void apply_updates(
-    device       float* W             [[buffer(0)]],
-    device       float* b             [[buffer(1)]],
-    device       float* prev_W        [[buffer(2)]],
-    device       float* prev_b        [[buffer(3)]],
-    device       float* W_accumulator [[buffer(4)]],
-    device       float* b_accumulator [[buffer(5)]],
-    device const uint* pM            [[buffer(6)]],
-    device const uint* pN            [[buffer(7)]],
-    device const float* randomness   [[buffer(8)]],
-    uint tid                       [[thread_position_in_grid]]
-) {
-
-    
-    
-    uint M = *pM;
-    uint N = *pN;
-    if (tid >= N) return;
-
-    prev_W[tid] = W[tid];
-    prev_b[tid] = b[tid];
-    
-    // Update each weight for the current neuron
-    for (uint i = 0; i < M; i++) {
-        W[i * N + tid] += W_accumulator[i * N + tid];
-        W_accumulator[i * N + tid] = 0.0f;
-    }
-    
-    // Update bias and reset accumulator
-    b[tid] += b_accumulator[tid];
-    b[tid] = clamp(b[tid], -1.0f, 1.0f);
-    b_accumulator[tid] = 0.0f;
-}
 )";
 
 } // namespace kernels
