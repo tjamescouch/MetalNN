@@ -63,6 +63,19 @@ Computer::Computer(MTL::Device* pDevice)
     plasticity1 = 0.98;
     plasticity2 = 0.90;
     
+    _pKeyboardController = new KeyboardController();
+    _pKeyboardController->setForwardCallback([this]() {
+        this->clearOutput();
+        this->computeForwardIterations(NUM_ITERATIONS);
+    });
+    _pKeyboardController->setLearnCallback([this]() {
+        this->computeLearnAndApplyUpdates(NUM_ITERATIONS);
+    });
+    _pKeyboardController->setClearCallback([this]() {
+        this->clearOutput();
+    });
+
+    
     buildComputePipeline();
     
     // Initialize data sources asynchronously.
@@ -212,7 +225,6 @@ void Computer::buildBuffers()
     uint n1 = hidden_dim;   // Hidden dimension
     uint m2 = hidden_dim;   // For hidden->output
     uint n2 = output_dim;   // Output dimension
-    float age = 0.f;
     
     // Buffer for input x.
     _pBuffer_x = _pDevice->newBuffer(x.get_num_data() * sizeof(float),
@@ -671,41 +683,10 @@ void Computer::clearOutput()
 }
 
 #pragma mark – User Input Handling
-
-void Computer::keyPress(KeyPress* kp)
-{
-    if (kp->pressed) {
-        keyState[kp->code] = true;
-    } else {
-        keyState.erase(kp->code);
-    }
+void Computer::keyPress(KeyPress* kp) {
+    _pKeyboardController->keyPress(kp);
 }
 
-void Computer::handleKeyStateChange()
-{
-    printf("handleKeyStateChange\n");
-    // 'F' triggers forward pass.
-    {
-        auto it = keyState.find(9); // Key code for 'F'
-        if (it != keyState.end() && it->second) {
-            this->clearOutput();
-            this->computeForwardIterations(NUM_ITERATIONS);
-        }
-    }
-    
-    // 'L' triggers learn.
-    {
-        auto it = keyState.find(15); // Key code for 'L'
-        if (it != keyState.end() && it->second) {
-            this->computeLearnAndApplyUpdates(NUM_ITERATIONS);
-        }
-    }
-    
-    // 'C' clears output.
-    {
-        auto it = keyState.find(6); // Key code for 'C'
-        if (it != keyState.end() && it->second) {
-            this->clearOutput();
-        }
-    }
+void Computer::handleKeyStateChange() {
+    _pKeyboardController->handleKeyStateChange();
 }

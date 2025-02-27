@@ -1,6 +1,7 @@
 #ifndef COMPUTER_H
 #define COMPUTER_H
 
+#include "keyboard-controller.h"
 #include "data-source.h"
 #include "common.h"
 #include "key-press.h"
@@ -87,6 +88,8 @@ private:
     DataSource          rand1;
     DataSource          rand2;
     
+    KeyboardController* _pKeyboardController = nullptr;
+    
     float plasticity1, plasticity2;
 
     // ---------------------------------------------------
@@ -162,6 +165,7 @@ private:
     MTL::Buffer* _pBuffer_bAccumulator2 = nullptr;
 
     MTL::CompileOptions* _pCompileOptions = nullptr;
+    
 
     // ---------------------------------------------------
     //  Frame / Synchronization
