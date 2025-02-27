@@ -12,7 +12,7 @@
 #include <cassert>
 #include <fstream>
 #include <algorithm>
-#include "computer.h"
+#include "neural-engine.h"
 #include "data-source.h"
 #include "multi-layer-kernels.h"
 #include "keyboard-controller.h"
@@ -41,9 +41,9 @@ double expectedOutput(double in) {
     return sin(0.050 * in);
 }
 
-#pragma mark – Computer Constructor / Destructor
+#pragma mark – NeuralEngine Constructor / Destructor
 
-Computer::Computer(MTL::Device* pDevice)
+NeuralEngine::NeuralEngine(MTL::Device* pDevice)
 : _pDataSourceManager(new DataSourceManager(input_dim, hidden_dim, output_dim)),
   _pDevice(pDevice->retain()),
   _pCompileOptions(nullptr),
@@ -78,10 +78,10 @@ Computer::Computer(MTL::Device* pDevice)
     });
 
     
-    _semaphore = dispatch_semaphore_create(Computer::kMaxFramesInFlight);
+    _semaphore = dispatch_semaphore_create(NeuralEngine::kMaxFramesInFlight);
 }
 
-Computer::~Computer()
+NeuralEngine::~NeuralEngine()
 {
     // Release pipeline states.
     if (_pForwardRnnPipelineState)       _pForwardRnnPipelineState->release();
@@ -154,7 +154,7 @@ Computer::~Computer()
 
 #pragma mark – Compute Pipeline Setup
 
-void Computer::buildComputePipeline()
+void NeuralEngine::buildComputePipeline()
 {
     std::cout << "build compute pipeline (RNN–based multi-layer)" << std::endl;
     _pCommandQueue = _pDevice->newCommandQueue();
@@ -203,7 +203,7 @@ void Computer::buildComputePipeline()
 
 #pragma mark – Buffer Setup
 
-void Computer::buildBuffers()
+void NeuralEngine::buildBuffers()
 {
     std::cout << "buildBuffers (RNN–based multi-layer)" << std::endl;
     
@@ -333,7 +333,7 @@ void Computer::buildBuffers()
 
 #pragma mark – Forward Pass
 
-void Computer::computeForward(std::function<void()> onComplete)
+void NeuralEngine::computeForward(std::function<void()> onComplete)
 {
     printf("computeForward (RNN–based multi-layer)\n");
     
@@ -391,7 +391,7 @@ void Computer::computeForward(std::function<void()> onComplete)
         blitEncoder->endEncoding();
     }
     
-    Computer* self = this;
+    NeuralEngine* self = this;
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
         dispatch_semaphore_signal(self->_semaphore);
         std::cout << "Forward pass complete." << std::endl;
@@ -406,7 +406,7 @@ void Computer::computeForward(std::function<void()> onComplete)
 
 #pragma mark – Learning
 
-void Computer::computeLearn(std::function<void()> onComplete)
+void NeuralEngine::computeLearn(std::function<void()> onComplete)
 {
     computeForward([this, onComplete](){
         printf("computeLearn (RNN–based multi-layer)\n");
@@ -477,7 +477,7 @@ void Computer::computeLearn(std::function<void()> onComplete)
     });
 }
 
-void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
+void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations)
 {
     printf("computeLearnAndApplyUpdates (RNN–based multi-layer) - iterations remaining = %d\n", iterations);
     computeLearn([this, iterations]() {
@@ -497,7 +497,7 @@ void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
     });
 }
 
-void Computer::computeForwardIterations(uint32_t iterations)
+void NeuralEngine::computeForwardIterations(uint32_t iterations)
 {
     printf("computeForwardIterations (RNN–based multi-layer)\n");
     computeForward([this, iterations]() {
@@ -533,12 +533,12 @@ void Computer::computeForwardIterations(uint32_t iterations)
 
 #pragma mark – User Input Handling
 
-void Computer::keyPress(KeyPress* kp)
+void NeuralEngine::keyPress(KeyPress* kp)
 {
     _pKeyboardController->keyPress(kp);
 }
 
-void Computer::handleKeyStateChange()
+void NeuralEngine::handleKeyStateChange()
 {
     _pKeyboardController->handleKeyStateChange();
 }

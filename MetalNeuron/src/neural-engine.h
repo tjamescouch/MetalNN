@@ -1,5 +1,5 @@
-#ifndef COMPUTER_H
-#define COMPUTER_H
+#ifndef NEURAL_ENGINE_H
+#define NEURAL_ENGINE_H
 
 #include "data-source.h"
 #include "common.h"
@@ -22,12 +22,12 @@ namespace MTL {
     class ComputeCommandEncoder;
 }
 
-class Computer
+class NeuralEngine
 {
 public:
     // Constructor / Destructor
-    Computer(MTL::Device* pDevice);
-    ~Computer();
+    NeuralEngine(MTL::Device* pDevice);
+    ~NeuralEngine();
 
     void computeForward(std::function<void()> onComplete);
     void computeLearn(std::function<void()> cb);
@@ -109,4 +109,4 @@ private:
     Logger* _pLogger = nullptr;
 };
 
-#endif // COMPUTER_H
+#endif // NEURAL_ENGINE_H
