@@ -1,11 +1,13 @@
 #ifndef COMPUTER_H
 #define COMPUTER_H
 
-#include "keyboard-controller.h"
 #include "data-source.h"
 #include "common.h"
 #include "key-press.h"
+#include "data-source-manager.h"
+#include "keyboard-controller.h"
 #include <map>
+#include <functional>
 
 // Forward declarations for Metal classes
 namespace MTL {
@@ -73,24 +75,8 @@ private:
     // ---------------------------------------------------
     //  Data Members: RNN–Based Multi-Layer Architecture
     // ---------------------------------------------------
-    // Data sources for network activations and targets.
-    DataSource          x;         // Input data
-    DataSource          y_hat;     // Target output for the output layer
-
-    // Weight matrices and bias vectors.
-    // For the RNN hidden layer:
-    DataSource          W1;        // Input-to–hidden weights (W_xh)
-    DataSource          b1;        // Hidden layer biases
-    // For the output layer:
-    DataSource          W2;        // Hidden-to–output weights
-    DataSource          b2;        // Output layer biases
-    
-    DataSource          rand1;
-    DataSource          rand2;
-    
-    KeyboardController* _pKeyboardController = nullptr;
-    
-    float plasticity1, plasticity2;
+    // DataSourceManager encapsulates all DataSources.
+    DataSourceManager* _pDataSourceManager = nullptr;
 
     // ---------------------------------------------------
     //  Metal Device, Command Queue, and Compute Pipeline States
@@ -165,7 +151,6 @@ private:
     MTL::Buffer* _pBuffer_bAccumulator2 = nullptr;
 
     MTL::CompileOptions* _pCompileOptions = nullptr;
-    
 
     // ---------------------------------------------------
     //  Frame / Synchronization
@@ -178,7 +163,8 @@ private:
     // ---------------------------------------------------
     //  User Input
     // ---------------------------------------------------
-    std::map<long, bool>    keyState;
+    // Keyboard functionality now handled by a separate class.
+    KeyboardController* _pKeyboardController = nullptr;
 };
 
 #endif // COMPUTER_H
