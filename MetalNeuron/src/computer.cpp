@@ -3,11 +3,10 @@
  * Created by James Couch on 2025–02–24.
  *
  * This version now uses an RNN–based two–layer network, delegates all
- * DataSource–related functionality to the DataSourceManager class, and
- * delegates keyboard handling to the KeyboardController.
+ * DataSource–related functionality to the DataSourceManager class, keyboard
+ * handling to the KeyboardController, and logging to the Logger class.
  */
 
-#include <simd/simd.h>
 #include <cmath>
 #include <iostream>
 #include <cassert>
@@ -17,8 +16,9 @@
 #include "data-source.h"
 #include "multi-layer-kernels.h"
 #include "keyboard-controller.h"
+#include "logger.h"
 
-// stb_image for loading PNG/JPG
+// stb_image for loading PNG/JPG (removed if not used)
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -27,7 +27,7 @@ const int input_dim  = 256;
 const int hidden_dim = 256;
 const int output_dim = 256;
 
-// Define NUM_ITERATIONS for training as before.
+// Define NUM_ITERATIONS for training.
 const int NUM_ITERATIONS = 10000;
 
 const char* outputFileName = "multilayer_nn_training.m";
@@ -53,10 +53,13 @@ Computer::Computer(MTL::Device* pDevice)
     // Build the compute pipeline.
     buildComputePipeline();
     
+    // Create the Logger with the output file.
+    _pLogger = new Logger(outputFileName);
+    
     // Asynchronously initialize the DataSourceManager.
     _pDataSourceManager->initialize([this]() {
         dispatch_async(dispatch_get_main_queue(), ^{
-            clearOutput();
+            _pLogger->clear();
             buildBuffers();
         });
     }, inputFunction, expectedOutput);
@@ -64,15 +67,16 @@ Computer::Computer(MTL::Device* pDevice)
     // Create the KeyboardController and set its callbacks.
     _pKeyboardController = new KeyboardController();
     _pKeyboardController->setForwardCallback([this]() {
-        this->clearOutput();
-        this->computeForwardIterations(NUM_ITERATIONS);
+        _pLogger->clear();
+        computeForwardIterations(NUM_ITERATIONS);
     });
     _pKeyboardController->setLearnCallback([this]() {
-        this->computeLearnAndApplyUpdates(NUM_ITERATIONS);
+        computeLearnAndApplyUpdates(NUM_ITERATIONS);
     });
     _pKeyboardController->setClearCallback([this]() {
-        this->clearOutput();
+        _pLogger->clear();
     });
+
     
     _semaphore = dispatch_semaphore_create(Computer::kMaxFramesInFlight);
 }
@@ -141,13 +145,18 @@ Computer::~Computer()
         delete _pKeyboardController;
         _pKeyboardController = nullptr;
     }
+    
+    if (_pLogger) {
+        delete _pLogger;
+        _pLogger = nullptr;
+    }
 }
 
 #pragma mark – Compute Pipeline Setup
 
 void Computer::buildComputePipeline()
 {
-    printf("build compute pipeline (RNN–based multi-layer)\n");
+    std::cout << "build compute pipeline (RNN–based multi-layer)" << std::endl;
     _pCommandQueue = _pDevice->newCommandQueue();
     
     NS::Error* pError = nullptr;
@@ -184,7 +193,8 @@ void Computer::buildComputePipeline()
         !_pForwardOutputPipelineState ||
         !_pLearnOutputPipelineState ||
         !_pLearnRnnPipelineState) {
-        std::cerr << "Error building RNN–based pipeline state." << pError->localizedDescription()->utf8String() << std::endl;
+        std::cerr << "Error building RNN–based pipeline state: "
+                  << pError->localizedDescription()->utf8String() << std::endl;
         assert(false);
     }
     
@@ -195,7 +205,7 @@ void Computer::buildComputePipeline()
 
 void Computer::buildBuffers()
 {
-    printf("buildBuffers (RNN–based multi-layer)\n");
+    std::cout << "buildBuffers (RNN–based multi-layer)" << std::endl;
     
     // Define dimension values.
     uint m1 = input_dim;    // For input->hidden (W_xh)
@@ -323,10 +333,6 @@ void Computer::buildBuffers()
 
 #pragma mark – Forward Pass
 
-// The forward pass now consists of two kernel dispatches:
-//  1. RNN Layer: Compute hidden activations using forward_rnn.
-//  2. Output Layer: Compute output activations using forward_output_layer.
-// After the forward pass, the computed hidden state is copied to the hidden_prev buffer.
 void Computer::computeForward(std::function<void()> onComplete)
 {
     printf("computeForward (RNN–based multi-layer)\n");
@@ -341,7 +347,7 @@ void Computer::computeForward(std::function<void()> onComplete)
     MTL::CommandBuffer* cmdBuf = _pCommandQueue->commandBuffer();
     assert(cmdBuf);
     
-    // --- Layer 1: RNN Layer (Input -> Hidden) ---
+    // --- RNN Layer (Input -> Hidden) ---
     {
         MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
         enc->setComputePipelineState(_pForwardRnnPipelineState);
@@ -360,7 +366,7 @@ void Computer::computeForward(std::function<void()> onComplete)
         enc->endEncoding();
     }
     
-    // --- Layer 2: Output Layer (Hidden -> Output) ---
+    // --- Output Layer (Hidden -> Output) ---
     {
         MTL::ComputeCommandEncoder* enc = cmdBuf->computeCommandEncoder();
         enc->setComputePipelineState(_pForwardOutputPipelineState);
@@ -377,7 +383,7 @@ void Computer::computeForward(std::function<void()> onComplete)
         enc->endEncoding();
     }
     
-    // --- Copy Hidden State to Hidden_prev for next iteration ---
+    // --- Copy current hidden state to previous hidden state ---
     {
         MTL::BlitCommandEncoder* blitEncoder = cmdBuf->blitCommandEncoder();
         blitEncoder->copyFromBuffer(_pBuffer_hidden, 0, _pBuffer_hidden_prev, 0, _pBuffer_hidden->length());
@@ -398,12 +404,11 @@ void Computer::computeForward(std::function<void()> onComplete)
     pPool->release();
 }
 
-#pragma mark – Learning (Backpropagation) & Apply Updates
+#pragma mark – Learning
 
-// This method performs one iteration of backpropagation and then applies weight updates.
 void Computer::computeLearn(std::function<void()> onComplete)
 {
-    this->computeForward([this, onComplete](){
+    computeForward([this, onComplete](){
         printf("computeLearn (RNN–based multi-layer)\n");
         
         if (!areBuffersBuilt) return;
@@ -413,7 +418,6 @@ void Computer::computeLearn(std::function<void()> onComplete)
         std::cout << "Performing learning (backpropagation)..." << std::endl;
         
         NS::AutoreleasePool* pPool = NS::AutoreleasePool::alloc()->init();
-        
         MTL::CommandBuffer* cmdBuf = _pCommandQueue->commandBuffer();
         assert(cmdBuf);
         
@@ -460,7 +464,10 @@ void Computer::computeLearn(std::function<void()> onComplete)
             dispatch_semaphore_signal(this->_semaphore);
             std::cout << "Learning complete." << std::endl;
             currentlyComputing = false;
-            logError();
+            // Log errors via Logger with proper arguments.
+            float* outputError = static_cast<float*>(_pBuffer_error->contents());
+            float* hiddenError = static_cast<float*>(_pBuffer_error_hidden->contents());
+            _pLogger->logErrors(outputError, output_dim, hiddenError, hidden_dim);
             onComplete();
         });
         
@@ -472,8 +479,8 @@ void Computer::computeLearn(std::function<void()> onComplete)
 
 void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
 {
-    printf("computeLearnAndApplyUpdates (RNN–based multi-layer) - iterations remaining = %d\n", (int)iterations);
-    this->computeLearn([this, iterations]() {
+    printf("computeLearnAndApplyUpdates (RNN–based multi-layer) - iterations remaining = %d\n", iterations);
+    computeLearn([this, iterations]() {
         // Update input data for the next iteration.
         _pDataSourceManager->x.build([iterations](double x){ return inputFunction(x - iterations); });
         _pDataSourceManager->y_hat.build([iterations](double x){ return inputFunction(x - iterations); });
@@ -485,7 +492,7 @@ void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
         _pBuffer_y_hat->didModifyRange(NS::Range::Make(0, _pBuffer_y_hat->length()));
         
         if (iterations > 0) {
-            this->computeLearnAndApplyUpdates(iterations - 1);
+            computeLearnAndApplyUpdates(iterations - 1);
         }
     });
 }
@@ -493,8 +500,8 @@ void Computer::computeLearnAndApplyUpdates(uint32_t iterations)
 void Computer::computeForwardIterations(uint32_t iterations)
 {
     printf("computeForwardIterations (RNN–based multi-layer)\n");
-    this->computeForward([this, iterations]() {
-        printf("Forward Iterations remaining=%d\n", iterations);
+    computeForward([this, iterations]() {
+        printf("Forward Iterations remaining = %d\n", iterations);
         _pDataSourceManager->x.build([iterations](double x){ return inputFunction(x - iterations); });
         std::memcpy(_pBuffer_x->contents(), _pDataSourceManager->x.get_data_buffer(), _pDataSourceManager->x.get_num_data() * sizeof(float));
         _pBuffer_x->didModifyRange(NS::Range(0, _pBuffer_x->length()));
@@ -503,120 +510,26 @@ void Computer::computeForwardIterations(uint32_t iterations)
         _pBuffer_error->didModifyRange(NS::Range(0, _pBuffer_error->length()));
         _pBuffer_error_hidden->didModifyRange(NS::Range(0, _pBuffer_error_hidden->length()));
         
-        this->extractAllResults(iterations);
+        // Log the iteration via Logger.
+        {
+            float* inputPtr = static_cast<float*>(_pBuffer_x->contents());
+            float* hiddenPtr = static_cast<float*>(_pBuffer_hidden->contents());
+            float* outputPtr = static_cast<float*>(_pBuffer_y->contents());
+            float* targetPtr = static_cast<float*>(_pBuffer_y_hat->contents());
+            _pLogger->logIteration(inputPtr, (int)_pDataSourceManager->x.get_num_data(),
+                                   hiddenPtr, hidden_dim,
+                                   outputPtr, output_dim,
+                                   targetPtr, (int)_pDataSourceManager->y_hat.get_num_data());
+        }
         
         if (iterations > 0) {
-            this->computeForwardIterations(iterations - 1);
+            computeForwardIterations(iterations - 1);
         }
     });
 }
 
-#pragma mark – Logging & Output
+#pragma mark – Logging Helpers
 
-void Computer::logError()
-{
-    float* error = static_cast<float*>(_pBuffer_error->contents());
-    
-    float avg_error = 0.0f;
-    for (int i = 0; i < input_dim; i++) {
-        avg_error += error[i];
-    }
-    avg_error /= input_dim;
-    printf("AVG OUTPUT ERROR: %f\n", abs(avg_error));
-    
-    float* error_hidden = static_cast<float*>(_pBuffer_error_hidden->contents());
-    
-    float avg_error_hidden = 0.0f;
-    for (int i = 0; i < input_dim; i++) {
-        avg_error_hidden += error_hidden[i];
-    }
-    avg_error_hidden /= input_dim;
-    printf("AVG HIDDEN ERROR: %f\n", abs(avg_error_hidden));
-}
-
-void Computer::logInformation(const std::string& filename, int remainingIterations)
-{
-    printf("logInformation\n");
-    std::ofstream logFile(filename, std::ios::app);
-    if (!logFile.is_open()) {
-        std::cerr << "Error opening log file!" << std::endl;
-        return;
-    }
-    
-    logFile << "clf; hold on;" << std::endl;
-    logFile << "ylim([-1 1]);" << std::endl;
-    
-    float* inputPtr = static_cast<float*>(_pBuffer_x->contents());
-    float* hiddenPtr = static_cast<float*>(_pBuffer_hidden->contents());
-    float* outputPtr = static_cast<float*>(_pBuffer_y->contents());
-    float* targetPtr = static_cast<float*>(_pBuffer_y_hat->contents());
-    
-    uint64_t length = _pBuffer_y->length() / sizeof(float);
-    
-    logFile << "# Logging iteration" << std::endl;
-    logFile << "x = [ ";
-    for (uint64_t i = 0; i < length; i++) {
-        if (i != 0)
-            logFile << ", ";
-        logFile << i;
-    }
-    logFile << " ]" << std::endl;
-    
-    logFile << "input = [ ";
-    for (uint64_t i = 0; i < length; i++) {
-        if (i != 0)
-            logFile << ", ";
-        logFile << inputPtr[i];
-    }
-    logFile << " ]" << std::endl;
-    
-    logFile << "hidden = [ ";
-    for (uint64_t i = 0; i < hidden_dim; i++) {
-        if (i != 0)
-            logFile << ", ";
-        logFile << hiddenPtr[i];
-    }
-    logFile << " ]" << std::endl;
-    
-    logFile << "output = [ ";
-    for (uint64_t i = 0; i < length; i++) {
-        if (i != 0)
-            logFile << ", ";
-        logFile << outputPtr[i];
-    }
-    logFile << " ]" << std::endl;
-    
-    logFile << "target = [ ";
-    for (uint64_t i = 0; i < length; i++) {
-        if (i != 0)
-            logFile << ", ";
-        logFile << targetPtr[i];
-    }
-    logFile << " ]" << std::endl;
-    
-    logFile << "scatter(1:length(input), input, 'b');" << std::endl;
-    logFile << "scatter(1:length(output), output, 'r');" << std::endl;
-    logFile << "hold off; pause(0.01);" << std::endl;
-    
-    logFile.close();
-}
-
-void Computer::extractAllResults(int remainingIterations)
-{
-    printf("extractAllResults\n");
-    logInformation(outputFileName, remainingIterations);
-}
-
-void Computer::clearOutput()
-{
-    printf("clearOutput\n");
-    std::ofstream logFile(outputFileName, std::ios::trunc);
-    if (!logFile.is_open()) {
-        std::cerr << "Error opening log file!" << std::endl;
-        return;
-    }
-    logFile << std::endl;
-}
 
 #pragma mark – User Input Handling
 
