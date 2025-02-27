@@ -35,11 +35,22 @@
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		DFE030402D70783700B1B6ED /* Exceptions for "MetalNeuron" folder in "Compile Sources" phase from "MetalNeuron" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = DF5F23FA2D6A711A00D915B2 /* Sources */;
+			membershipExceptions = (
+				"src/rnn-layer.h",
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		DF5F23FF2D6A711A00D915B2 /* MetalNeuron */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				DF5F24972D6A723400D915B2 /* Exceptions for "MetalNeuron" folder in "MetalNeuron" target */,
+				DFE030402D70783700B1B6ED /* Exceptions for "MetalNeuron" folder in "Compile Sources" phase from "MetalNeuron" target */,
 			);
 			path = MetalNeuron;
 			sourceTree = "<group>";
