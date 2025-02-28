@@ -197,6 +197,7 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
             
             printf("iterations remaining: %d\n", iterations);
             _pLogger->logErrors(outputErrors, output_dim, hiddenErrors, hidden_dim, sequenceLength_);
+            _pLogger->logIteration(*outputs.data(), output_dim, *targets.data(), output_dim);
             
             // Advance the global timestep so that the sinusoid animation advances.
             globalTimestep++;
