@@ -55,6 +55,7 @@ private:
     dispatch_semaphore_t _semaphore;
 
     int sequenceLength_;
+    int globalTimestep; // added to control the time-shift for animation
 };
 
 #endif // NEURAL_ENGINE_H

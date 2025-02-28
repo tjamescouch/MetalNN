@@ -19,7 +19,8 @@ double targetFunc(double index, int timestep) {
 
 NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength)
 : _pDevice(pDevice->retain()), sequenceLength_(sequenceLength),
-areBuffersBuilt(false), currentlyComputing(false)
+  areBuffersBuilt(false), currentlyComputing(false),
+  globalTimestep(0)  // initialize the global timestep for animation
 {
     _pLogger = new Logger(outputFileName);
     _pDataSourceManager = new DataSourceManager(input_dim, hidden_dim, output_dim, sequenceLength_);
@@ -142,8 +143,9 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
     computeForward([this, iterations]() {
         computeBackward([this, iterations]() {
             for (int t = 0; t < sequenceLength_; ++t) {
-                _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
-                _pDenseLayer->updateTargetBufferAt(_pDataSourceManager->y_hat, t);
+                // Update using the shifted time so that the target (and input) animates
+                _pInputLayer->updateBufferAt(_pDataSourceManager->x, (t + globalTimestep) % sequenceLength_);
+                _pDenseLayer->updateTargetBufferAt(_pDataSourceManager->y_hat, (t + globalTimestep) % sequenceLength_);
             }
             
             std::vector<float*> inputs(sequenceLength_);
@@ -165,12 +167,12 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
             printf("iterations remaining: %d\n", iterations);
             _pLogger->logErrors(outputErrors, output_dim, hiddenErrors, hidden_dim, sequenceLength_);
             
+            // Increment global timestep so that the sinusoid animation advances
+            globalTimestep++;
             
             computeLearnAndApplyUpdates(iterations - 1);
         });
     });
-    
-    
     
 }
 
@@ -178,8 +180,9 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     if (iterations == 0) return;
     
     computeForward([this, iterations]() {
+        // Update the input buffer using a shifted timestep for animation
         for (int t = 0; t < sequenceLength_; ++t) {
-            _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
+            _pInputLayer->updateBufferAt(_pDataSourceManager->x, (t + globalTimestep)%sequenceLength_);
         }
         
         std::vector<float*> inputs(sequenceLength_);
@@ -197,6 +200,8 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
         printf("iterations remaining: %d\n", iterations);
         _pLogger->logIteration(*outputs.data(), output_dim, *targets.data(), output_dim);
         
+        // Advance the global timestep so that the sinusoid shifts in the next iteration
+        globalTimestep++;
         
         computeForwardIterations(iterations - 1);
     });
