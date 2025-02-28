@@ -1,4 +1,3 @@
-// multiLayerKernels.h
 #ifndef MULTI_LAYER_KERNELS_H
 #define MULTI_LAYER_KERNELS_H
 
@@ -24,7 +23,6 @@ inline float activationDerivative(float y) {
   return (1.0f - y * y);
 }
 
-
 inline float random(uint seed) {
     seed = seed * 1664525 + 1013904223;
     return float(seed & 0x00FFFFFF) / float(0x01000000);
@@ -32,7 +30,6 @@ inline float random(uint seed) {
 
 //-------------------------------------------------------------------
 // Forward pass for the recurrent layer (RNN cell)
-// Computes the hidden state using the current input and the previous hidden state.
 kernel void forward_rnn(
     device const float* x            [[buffer(0)]],
     device const float* h_prev       [[buffer(1)]],
@@ -46,17 +43,17 @@ kernel void forward_rnn(
 ) {
     uint input_dim = *pX;
     uint hidden_dim = *pH;
-    
+
     if (tid >= hidden_dim) return;
     
     float sum = b[tid];
     
-    // Contribution from current input: x * W_xh
+    // Contribution from current input
     for (uint i = 0; i < input_dim; i++) {
         sum += x[i] * W_xh[i * hidden_dim + tid];
     }
     
-    // Recurrent contribution from previous hidden state: h_prev * W_hh
+    // Recurrent contribution from previous hidden state
     for (uint j = 0; j < hidden_dim; j++) {
         sum += h_prev[j] * W_hh[j * hidden_dim + tid];
     }
@@ -66,19 +63,18 @@ kernel void forward_rnn(
 
 //-------------------------------------------------------------------
 // Forward pass for the output layer (feedforward)
-// Computes the output activation from the hidden state produced by the RNN.
 kernel void forward_output_layer(
-    device const float* h            [[buffer(0)]],  // hidden state from RNN layer
-    device       float* y            [[buffer(1)]],  // output activation
-    device const float* W            [[buffer(2)]],  // weight matrix (hidden_dim x output_dim)
-    device const float* b            [[buffer(3)]],  // bias vector for output layer
-    device const uint* pH            [[buffer(4)]],  // hidden state dimension
-    device const uint* pN            [[buffer(5)]],  // number of output neurons
+    device const float* h            [[buffer(0)]],
+    device       float* y            [[buffer(1)]],
+    device const float* W            [[buffer(2)]],
+    device const float* b            [[buffer(3)]],
+    device const uint* pH            [[buffer(4)]],
+    device const uint* pN            [[buffer(5)]],
     uint tid                         [[thread_position_in_grid]]
 ) {
     uint hidden_dim = *pH;
     uint output_dim = *pN;
-    
+
     if (tid >= output_dim) return;
     
     float sum = b[tid];
@@ -89,8 +85,7 @@ kernel void forward_output_layer(
 }
 
 //-------------------------------------------------------------------
-// Learning kernel for the recurrent layer (RNN cell)
-// Updates both the input-to-hidden and recurrent weight matrices based on the error signal.
+// Learning kernel for the output layer
 kernel void learn_output_layer(
     device const float* h            [[buffer(0)]],
     device       float* W            [[buffer(1)]],
@@ -104,16 +99,14 @@ kernel void learn_output_layer(
 ) {
     uint hidden_dim = *pH;
     uint output_dim = *pN;
-    
+
     if (tid >= output_dim) return;
 
-    // Compute raw error
     float raw_error = y[tid] - y_hat[tid];
-
     float delta = raw_error * activationDerivative(y[tid]);
     error[tid] = delta;
 
-    // Update weights and biases
+    // Weight + bias update
     for (uint i = 0; i < hidden_dim; i++) {
         W[i * output_dim + tid] -= learning_rate_w * delta * h[i];
     }
@@ -121,7 +114,8 @@ kernel void learn_output_layer(
 }
 
 //-------------------------------------------------------------------
-// Learning kernel for the recurrent layer (RNN cell)
+// Learning kernel for the recurrent layer (multi-step BPTT)
+// CHANGED: added next_hidden_error
 kernel void learn_rnn(
     device const float* x            [[buffer(0)]],
     device const float* h_prev       [[buffer(1)]],
@@ -129,10 +123,11 @@ kernel void learn_rnn(
     device       float* W_hh         [[buffer(3)]],
     device       float* b            [[buffer(4)]],
     device const float* h            [[buffer(5)]],
-    device const float* output_error [[buffer(6)]], // error from next layer
-    device       float* hidden_error [[buffer(7)]], // hidden layer error (to propagate backward)
-    device const uint* pX            [[buffer(8)]],
-    device const uint* pH            [[buffer(9)]],
+    device const float* output_error [[buffer(6)]],  // error from Dense at this timestep
+    device const float* next_hidden_error [[buffer(7)]], // CHANGED: error from next RNN timestep
+    device       float* hidden_error [[buffer(8)]],
+    device const uint* pX            [[buffer(9)]],
+    device const uint* pH            [[buffer(10)]],
     uint tid                         [[thread_position_in_grid]]
 ) {
     uint input_dim = *pX;
@@ -140,16 +135,14 @@ kernel void learn_rnn(
 
     if (tid >= hidden_dim) return;
 
-    // Compute propagated hidden error using activation derivative
-    float propagated_error = 0.0f;
-
-    // Corrected: Propagate error using the transpose of W_hh
+    // Combine the next timestep's hidden error plus local output_error
+    float accumulated_err = output_error[tid];
     for (uint k = 0; k < hidden_dim; k++) {
-        propagated_error += output_error[k] * W_hh[k * hidden_dim + tid];
+        accumulated_err += next_hidden_error[k] * W_hh[k * hidden_dim + tid];
     }
 
-    // Multiply by activation derivative
-    float delta = propagated_error * activationDerivative(h[tid]);
+    // Multiply by activation derivative of current hidden state
+    float delta = accumulated_err * activationDerivative(h[tid]);
     hidden_error[tid] = delta;
 
     // Update input-to-hidden weights
@@ -166,9 +159,9 @@ kernel void learn_rnn(
     b[tid] -= learning_rate_b * delta;
 }
 
-)";
+)"; // end of the big string
 
-} // namespace kernels
+} // namespace multilayerkernels
 
 #pragma endregion Declarations }
 #endif

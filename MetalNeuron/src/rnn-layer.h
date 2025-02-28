@@ -27,7 +27,7 @@ public:
     void setInputBufferAt(int timestep, MTL::Buffer* inputBuffer);
     void setDenseErrorBuffer(MTL::Buffer* denseErrorBuffer, int timestep);
 
-    // New method to shift the hidden state buffers forward by one timestep.
+    // Shifts stored RNN states forward by one step. (Kept as-is)
     void shiftHiddenStates();
 
 private:
@@ -47,6 +47,8 @@ private:
 
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
+
+    MTL::Buffer* zeroBuffer_; // CHANGED: holds zero for next_hidden_error boundary
 };
 
 #endif
