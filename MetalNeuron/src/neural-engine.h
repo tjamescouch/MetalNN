@@ -43,7 +43,8 @@ private:
     Logger* _pLogger;
 
     InputLayer* _pInputLayer;
-    RNNLayer* _pRNNLayer;
+    RNNLayer* _pRNNLayer1;
+    RNNLayer* _pRNNLayer2;
     DenseLayer* _pDenseLayer;
 
     MTL::Device* _pDevice;

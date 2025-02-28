@@ -47,14 +47,16 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength)
     
     // Layers initialization with sequence length
     _pInputLayer = new InputLayer(input_dim, sequenceLength_);
-    _pRNNLayer = new RNNLayer(input_dim, hidden_dim, sequenceLength_);
+    _pRNNLayer1 = new RNNLayer(input_dim, hidden_dim, sequenceLength_);
+    _pRNNLayer2 = new RNNLayer(hidden_dim, hidden_dim, sequenceLength_);
     _pDenseLayer = new DenseLayer(hidden_dim, output_dim, sequenceLength_);
     
     buildComputePipeline();
 }
 
 NeuralEngine::~NeuralEngine() {
-    delete _pRNNLayer;
+    delete _pRNNLayer1;
+    delete _pRNNLayer2;
     delete _pDenseLayer;
     delete _pInputLayer;
     delete _pDataSourceManager;
@@ -75,22 +77,43 @@ void NeuralEngine::buildComputePipeline() {
     
     assert(_pComputeLibrary && "Compute library creation failed.");
     
-    _pRNNLayer->buildPipeline(_pDevice, _pComputeLibrary);
+    _pRNNLayer1->buildPipeline(_pDevice, _pComputeLibrary);
+    _pRNNLayer2->buildPipeline(_pDevice, _pComputeLibrary);
     _pDenseLayer->buildPipeline(_pDevice, _pComputeLibrary);
     _pComputeLibrary->release();
 }
 
 void NeuralEngine::buildBuffers() {
     _pInputLayer->buildBuffers(_pDevice);
-    _pRNNLayer->buildBuffers(_pDevice);
+    _pRNNLayer1->buildBuffers(_pDevice);
+    _pRNNLayer2->buildBuffers(_pDevice);
     _pDenseLayer->buildBuffers(_pDevice);
-    
+
+    // Connect Input → RNN1
     for (int t = 0; t < sequenceLength_; ++t) {
         _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
-        _pRNNLayer->setInputBufferAt(t, _pInputLayer->getBufferAt(t));
-        _pDenseLayer->setInputBufferAt(t, _pRNNLayer->getOutputBufferAt(t));
+        _pRNNLayer1->setInputBufferAt(t, _pInputLayer->getBufferAt(t));
+    }
+
+    // Connect RNN1 → RNN2
+    for (int t = 0; t < sequenceLength_; ++t) {
+        _pRNNLayer2->setInputBufferAt(t, _pRNNLayer1->getOutputBufferAt(t));
+    }
+
+    // Connect RNN2 → Dense
+    for (int t = 0; t < sequenceLength_; ++t) {
+        _pDenseLayer->setInputBufferAt(t, _pRNNLayer2->getOutputBufferAt(t));
         _pDenseLayer->updateTargetBufferAt(_pDataSourceManager->y_hat, t);
-        _pRNNLayer->setDenseErrorBuffer(_pDenseLayer->getErrorBufferAt(t), t);
+    }
+
+    // Connect Dense errors back to RNN2
+    for (int t = 0; t < sequenceLength_; ++t) {
+        _pRNNLayer2->setDenseErrorBuffer(_pDenseLayer->getErrorBufferAt(t), t);
+    }
+
+    // Connect RNN2 errors back to RNN1
+    for (int t = 0; t < sequenceLength_; ++t) {
+        _pRNNLayer1->setDenseErrorBuffer(_pRNNLayer2->getErrorBufferAt(t), t);
     }
     
     
@@ -102,7 +125,8 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     currentlyComputing = true;
     
     auto cmdBuf = _pCommandQueue->commandBuffer();
-    _pRNNLayer->forward(cmdBuf);
+    _pRNNLayer1->forward(cmdBuf);
+    _pRNNLayer2->forward(cmdBuf);
     _pDenseLayer->forward(cmdBuf);
     
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
@@ -136,7 +160,8 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
     
     auto cmdBuf = _pCommandQueue->commandBuffer();
     _pDenseLayer->backward(cmdBuf);
-    _pRNNLayer->backward(cmdBuf);
+    _pRNNLayer2->backward(cmdBuf);
+    _pRNNLayer1->backward(cmdBuf);
     
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
         currentlyComputing = false;
@@ -153,8 +178,8 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
     
     // Shift input and target buffers...
     shiftBuffers();
-    // Also shift the RNN hidden state buffers to maintain temporal continuity.
-    _pRNNLayer->shiftHiddenStates();
+    _pRNNLayer1->shiftHiddenStates();
+    _pRNNLayer2->shiftHiddenStates();
     
     // Use the last slot (always valid) for new data.
     int slot = sequenceLength_ - 1;
@@ -188,11 +213,11 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
             
             for (int t = 0; t < sequenceLength_; ++t) {
                 inputs[t] = static_cast<float*>(_pInputLayer->getBufferAt(t)->contents());
-                hiddenStates[t] = static_cast<float*>(_pRNNLayer->getOutputBufferAt(t)->contents());
                 outputs[t] = static_cast<float*>(_pDenseLayer->getOutputBufferAt(t)->contents());
                 targets[t] = _pDataSourceManager->y_hat.get_data_buffer_at(t);
                 outputErrors[t] = static_cast<float*>(_pDenseLayer->getErrorBufferAt(t)->contents());
-                hiddenErrors[t] = static_cast<float*>(_pRNNLayer->getErrorBufferAt(t)->contents());
+                hiddenStates[t] = static_cast<float*>(_pRNNLayer2->getOutputBufferAt(t)->contents());
+                hiddenErrors[t] = static_cast<float*>(_pRNNLayer2->getErrorBufferAt(t)->contents());
             }
             
             printf("iterations remaining: %d\n", iterations);
@@ -213,7 +238,8 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     if (iterations == 0) return;
     
     shiftBuffers();
-    _pRNNLayer->shiftHiddenStates();
+    _pRNNLayer1->shiftHiddenStates();
+    _pRNNLayer2->shiftHiddenStates();
     
     int slot = sequenceLength_ - 1;
     int effectiveTime = globalTimestep + sequenceLength_ - 1;
@@ -243,7 +269,7 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
         
         for (int t = 0; t < sequenceLength_; ++t) {
             inputs[t] = static_cast<float*>(_pInputLayer->getBufferAt(t)->contents());
-            hiddenStates[t] = static_cast<float*>(_pRNNLayer->getOutputBufferAt(t)->contents());
+            hiddenStates[t] = static_cast<float*>(_pRNNLayer2->getOutputBufferAt(t)->contents());
             outputs[t] = static_cast<float*>(_pDenseLayer->getOutputBufferAt(t)->contents());
             targets[t] = _pDataSourceManager->y_hat.get_data_buffer_at(t);
         }
