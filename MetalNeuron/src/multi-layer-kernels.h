@@ -11,7 +11,7 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.05f;
+constant float learning_rate_w = 0.01f;
 constant float learning_rate_b = 0.01f;
 
 // Activation function and its derivative
