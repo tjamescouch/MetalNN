@@ -67,6 +67,7 @@ _pDenseLayer(nullptr)
     buildComputePipeline();
 }
 
+
 NeuralEngine::~NeuralEngine() {
     if (_pRNNLayer) {
         delete _pRNNLayer;
@@ -117,17 +118,27 @@ void NeuralEngine::buildComputePipeline() {
 
 void NeuralEngine::buildBuffers() {
     std::cout << "Building buffers (NeuralEngine)" << std::endl;
-    _pRNNLayer->buildBuffers(_pDevice);
+    
+    // Build DenseLayer buffers first.
     _pDenseLayer->buildBuffers(_pDevice);
     
+    // Now build RNNLayer buffers.
+    _pRNNLayer->buildBuffers(_pDevice);
+    
+    // Set the DenseLayer's error buffer for the RNNLayer.
+    _pRNNLayer->setDenseErrorBuffer(_pDenseLayer->getErrorBuffer());
+    
+    // Build input buffers.
     _pInputLayer->buildBuffers(_pDevice);
     _pInputLayer->updateBuffer(_pDataSourceManager->x);
     _pRNNLayer->setInputBuffer(_pInputLayer->getBuffer());
     
     // Chain: set DenseLayer's input to be RNNLayer's output.
     _pDenseLayer->setInputBuffer(_pRNNLayer->getOutputBuffer());
+    
     areBuffersBuilt = true;
 }
+
 
 void NeuralEngine::computeForward(std::function<void()> onComplete) {
     std::cout << "Performing forward pass (NeuralEngine)" << std::endl;

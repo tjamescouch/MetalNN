@@ -105,6 +105,38 @@ kernel void forward_output_layer(
 //-------------------------------------------------------------------
 // Learning kernel for the recurrent layer (RNN cell)
 // Updates both the input-to-hidden and recurrent weight matrices based on the error signal.
+kernel void learn_output_layer(
+    device const float* h            [[buffer(0)]],
+    device       float* W            [[buffer(1)]],
+    device       float* b            [[buffer(2)]],
+    device       float* y            [[buffer(3)]],
+    device const float* y_hat        [[buffer(4)]],
+    device       float* error        [[buffer(5)]],
+    device const uint* pH            [[buffer(6)]],
+    device const uint* pN            [[buffer(7)]],
+    uint tid                         [[thread_position_in_grid]]
+) {
+    uint hidden_dim = *pH;
+    uint output_dim = *pN;
+    
+    if (tid >= output_dim) return;
+
+    // Compute raw error
+    float raw_error = y[tid] - y_hat[tid];
+
+    // Include activation derivative (critical!)
+    float delta = raw_error * activationDerivative(y[tid]);
+    error[tid] = delta;
+
+    // Update weights and biases
+    for (uint i = 0; i < hidden_dim; i++) {
+        W[i * output_dim + tid] -= learning_rate_w * delta * h[i];
+    }
+    b[tid] -= learning_rate_b * delta;
+}
+
+//-------------------------------------------------------------------
+// Learning kernel for the recurrent layer (RNN cell)
 kernel void learn_rnn(
     device const float* x            [[buffer(0)]],
     device const float* h_prev       [[buffer(1)]],
@@ -112,58 +144,41 @@ kernel void learn_rnn(
     device       float* W_hh         [[buffer(3)]],
     device       float* b            [[buffer(4)]],
     device const float* h            [[buffer(5)]],
-    device       float* error        [[buffer(6)]],
-    device const uint* pX            [[buffer(7)]],
-    device const uint* pH            [[buffer(8)]],
+    device const float* output_error [[buffer(6)]], // error from next layer
+    device       float* hidden_error [[buffer(7)]], // hidden layer error (to propagate backward)
+    device const uint* pX            [[buffer(8)]],
+    device const uint* pH            [[buffer(9)]],
     uint tid                         [[thread_position_in_grid]]
 ) {
     uint input_dim = *pX;
     uint hidden_dim = *pH;
-    
+
     if (tid >= hidden_dim) return;
-    
+
+    // Compute propagated hidden error using activation derivative
+    float propagated_error = 0.0f;
+
+    // Propagate error from the output layer backward through weights
+    for (uint k = 0; k < hidden_dim; k++) {
+        propagated_error += output_error[k] * W_hh[tid * hidden_dim + k];
+    }
+
+    // Multiply by activation derivative
+    float delta = propagated_error * activationDerivative(h[tid]);
+    hidden_error[tid] = delta;
+
     // Update input-to-hidden weights
     for (uint i = 0; i < input_dim; i++) {
-        W_xh[i * hidden_dim + tid] -= learning_rate_w * error[tid] * x[i];
+        W_xh[i * hidden_dim + tid] -= learning_rate_w * delta * x[i];
     }
-    
+
     // Update recurrent weights
     for (uint j = 0; j < hidden_dim; j++) {
-        W_hh[j * hidden_dim + tid] -= learning_rate_w * error[tid] * h_prev[j];
+        W_hh[j * hidden_dim + tid] -= learning_rate_w * delta * h_prev[j];
     }
-    
-    // Update bias for the hidden state
-    b[tid] -= learning_rate_b * error[tid];
-}
 
-//-------------------------------------------------------------------
-// Learning kernel for the output layer
-// Updates the output layer weights and biases based on the error signal.
-kernel void learn_output_layer(
-    device const float* h            [[buffer(0)]],  // hidden state from RNN layer
-    device       float* W            [[buffer(1)]],
-    device       float* b            [[buffer(2)]],
-    device       float* y            [[buffer(3)]],
-    device const float* y_hat        [[buffer(4)]],
-    device       float* error        [[buffer(5)]],
-    device const uint* pH            [[buffer(6)]],  // hidden state dimension (input to output layer)
-    device const uint* pN            [[buffer(7)]],  // number of output neurons
-    uint tid                         [[thread_position_in_grid]]
-) {
-    uint hidden_dim = *pH;
-    uint output_dim = *pN;
-    
-    if (tid >= output_dim) return;
-    
-    // Compute error for this output neuron
-    float y_hat_minus_y = y[tid] - y_hat[tid];
-    error[tid] = y_hat_minus_y;
-    
-    // Update weights and bias for the output layer
-    for (uint i = 0; i < hidden_dim; i++) {
-        W[i * output_dim + tid] -= learning_rate_w * error[tid] * h[i];
-    }
-    b[tid] -= learning_rate_b * error[tid];
+    // Update bias
+    b[tid] -= learning_rate_b * delta;
 }
 
 )";
