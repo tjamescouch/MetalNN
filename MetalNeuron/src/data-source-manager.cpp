@@ -14,14 +14,12 @@ void DataSourceManager::initialize(std::function<void()> onComplete,
                                    double (*inputFunc)(double, int),
                                    double (*targetFunc)(double, int))
 {
-    int completedTimesteps = 0;
-
     for (int t = 0; t < sequenceLength_; ++t) {
-        x.buildAsyncAtTimestep(inputFunc, t, [this, t, targetFunc, &completedTimesteps, onComplete]() {
-            y_hat.buildAsyncAtTimestep(targetFunc, t, [this, &completedTimesteps, onComplete]() {
+        x.buildAsyncAtTimestep(inputFunc, t, [this, t, targetFunc, onComplete]() {
+            y_hat.buildAsyncAtTimestep(targetFunc, t, [this, onComplete]() {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     completedTimesteps++;
-                    if (completedTimesteps == sequenceLength_) {
+                    if (completedTimesteps.load() == sequenceLength_) {
                         onComplete();
                     }
                 });

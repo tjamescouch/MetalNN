@@ -10,6 +10,8 @@
 #include <cstring>   // For memcpy
 #include <vector>
 
+int globaltime = 0;
+
 InputLayer::InputLayer(int inputDim, int sequenceLength)
     : inputDim_(inputDim), sequenceLength_(sequenceLength)
 {
@@ -40,7 +42,7 @@ void InputLayer::updateBufferAt(DataSource& ds, int timestep) {
         return;
     }
     memcpy(bufferInputs_[timestep]->contents(),
-           ds.get_data_buffer_at(timestep),
+           ds.get_data_buffer_at(globaltime++),
            inputDim_ * sizeof(float));
     bufferInputs_[timestep]->didModifyRange(NS::Range::Make(0, inputDim_ * sizeof(float)));
 }

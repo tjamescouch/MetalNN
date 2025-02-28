@@ -3,6 +3,8 @@
 
 #include "data-source.h"
 #include <functional>
+#include <atomic>
+
 
 class DataSourceManager {
 public:
@@ -18,6 +20,7 @@ public:
 
     void buildInputAtTimestep(std::function<double(double, int)> inputFunc, int timestep, std::function<void()> onComplete);
     void buildTargetAtTimestep(std::function<double(double, int)> targetFunc, int timestep, std::function<void()> onComplete);
+    std::atomic<int> completedTimesteps{0};
 
 private:
     int sequenceLength_;
