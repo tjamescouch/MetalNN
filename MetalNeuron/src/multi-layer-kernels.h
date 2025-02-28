@@ -11,7 +11,7 @@ using namespace metal;
 
 // Global constants
 constant float learning_rate_w = 0.01f;
-constant float learning_rate_b = 0.01f;
+constant float learning_rate_b = 0.001f;
 
 // Activation function and its derivative
 inline float activationFunction(float x) {

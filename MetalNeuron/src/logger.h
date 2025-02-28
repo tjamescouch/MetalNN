@@ -20,6 +20,7 @@ public:
     void clear();
     
 private:
+    std::ofstream *logFileStream = nullptr;
     std::string filename_;
 };
 
