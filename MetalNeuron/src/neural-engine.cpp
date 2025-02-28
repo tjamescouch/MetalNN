@@ -2,6 +2,7 @@
 #include "multi-layer-kernels.h"
 #include <iostream>
 #include <cassert>
+#include <random>
 
 const int num_iterations = 1000;
 const int input_dim  = 512;
@@ -9,14 +10,16 @@ const int hidden_dim = 512;
 const int output_dim = 512;
 const char* outputFileName = "multilayer_nn_training.m";
 
-double inputFunc(double index, int timestep) {
+double inputFunc(double index, double timestep) {
     return sin(0.05 * index + 0.1 * timestep);
 }
 
-double targetFunc(double index, int timestep) {
+double targetFunc(double index, double timestep) {
     return cos(0.05 * index + 0.1 * timestep);
 }
 
+std::default_random_engine generator;
+std::uniform_int_distribution<int> distribution(0, 2*M_PI);
 
 NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength)
 : _pDevice(pDevice->retain()), sequenceLength_(sequenceLength),
@@ -37,6 +40,7 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength)
         computeForwardIterations(num_iterations);
     });
     _pKeyboardController->setLearnCallback([this]() {
+        _pLogger->clear();
         computeLearnAndApplyUpdates(num_iterations);
     });
     _pKeyboardController->setClearCallback([this]() {
@@ -183,20 +187,20 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
     
     // Use the last slot (always valid) for new data.
     int slot = sequenceLength_ - 1;
-    int effectiveTime = globalTimestep + sequenceLength_ - 1;
+    double effectiveTime = distribution(generator);
     
     // Update the input data for the new slot.
     {
         float* inBuffer = _pDataSourceManager->x.get_data_buffer_at(slot);
         for (int i = 0; i < input_dim; ++i) {
-            inBuffer[i] = static_cast<float>(sin(0.05 * i + 0.1 * effectiveTime));
+            inBuffer[i] = inputFunc(i, effectiveTime);
         }
     }
     // Update the target data for the new slot.
     {
         float* tgtBuffer = _pDataSourceManager->y_hat.get_data_buffer_at(slot);
         for (int i = 0; i < output_dim; ++i) {
-            tgtBuffer[i] = static_cast<float>(cos(0.05 * i + 0.1 * effectiveTime));
+            tgtBuffer[i] = targetFunc(i, effectiveTime);
         }
     }
     _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
@@ -248,14 +252,14 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     {
         float* inBuffer = _pDataSourceManager->x.get_data_buffer_at(slot);
         for (int i = 0; i < input_dim; ++i) {
-            inBuffer[i] = static_cast<float>(sin(0.05 * i + 0.1 * effectiveTime));
+            inBuffer[i] = inputFunc(i, effectiveTime);
         }
     }
     // Update the target data for the new slot.
     {
         float* tgtBuffer = _pDataSourceManager->y_hat.get_data_buffer_at(slot);
         for (int i = 0; i < output_dim; ++i) {
-            tgtBuffer[i] = static_cast<float>(cos(0.05 * i + 0.1 * effectiveTime));
+            tgtBuffer[i] = targetFunc(i, effectiveTime);
         }
     }
     _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);

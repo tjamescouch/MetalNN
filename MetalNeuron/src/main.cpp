@@ -20,7 +20,7 @@
 #define MTK_PRIVATE_IMPLEMENTATION
 #define CA_PRIVATE_IMPLEMENTATION
 
-#include "src/app-delegate.h"
+#include "app-delegate.h"
 
 #include <iostream>
 #include <filesystem>

@@ -15,11 +15,11 @@ public:
     DataSource y_hat;  // Target data per timestep
 
     void initialize(std::function<void()> onComplete,
-                    double (*inputFunc)(double, int),
-                    double (*targetFunc)(double, int));
+                    double (*inputFunc)(double, double),
+                    double (*targetFunc)(double, double));
 
-    void buildInputAtTimestep(std::function<double(double, int)> inputFunc, int timestep, std::function<void()> onComplete);
-    void buildTargetAtTimestep(std::function<double(double, int)> targetFunc, int timestep, std::function<void()> onComplete);
+    void buildInputAtTimestep(std::function<double(double, double)> inputFunc, int timestep, std::function<void()> onComplete);
+    void buildTargetAtTimestep(std::function<double(double, double)> targetFunc, int timestep, std::function<void()> onComplete);
     std::atomic<int> completedTimesteps{0};
 
 private:
