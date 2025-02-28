@@ -13,9 +13,7 @@ using namespace metal;
 // Global constants
 constant float learning_rate_w = 0.01f;
 constant float learning_rate_b = 0.001f;
-constant float min_delta      = 0.01f;
-constant float max_de_dw      = 1.0f;
-constant float max_de_db      = 0.5f;
+constant float max_abs_activation_derivative      = 1.0f;
 
 // Activation function and its derivative
 inline float activationFunction(float x) {
@@ -24,24 +22,13 @@ inline float activationFunction(float x) {
 
 inline float activationDerivative(float y) {
   // Using y = tanh(x): derivative = 1 - y^2
-  return 1.0f - y * y;
+  return clamp(1.0f - y * y, -max_abs_activation_derivative, max_abs_activation_derivative);
 }
 
-float sign_of(float in) {
-    return in > 0 ? 1 : -1;
-}
-
-float zero_nan(float in) {
-    return isnan(in) ? 0 : in;
-}
 
 inline float random(uint seed) {
     seed = seed * 1664525 + 1013904223;
     return float(seed & 0x00FFFFFF) / float(0x01000000);
-}
-
-inline float decay(float age, float lambda = 0.01) {
-    return clamp(exp(-age * lambda), 0.f, 1.f);
 }
 
 //-------------------------------------------------------------------
@@ -75,7 +62,7 @@ kernel void forward_rnn(
         sum += h_prev[j] * W_hh[j * hidden_dim + tid];
     }
     
-    h[tid] = activationFunction(clamp(sum, -100.f, 100.f));
+    h[tid] = activationFunction(clamp(sum, -10.f, 10.f));
 }
 
 //-------------------------------------------------------------------
@@ -124,7 +111,6 @@ kernel void learn_output_layer(
     // Compute raw error
     float raw_error = y[tid] - y_hat[tid];
 
-    // Include activation derivative (critical!)
     float delta = raw_error * activationDerivative(y[tid]);
     error[tid] = delta;
 

@@ -14,9 +14,9 @@
 
 
 // Define dimensions and training iterations.
-const int input_dim  = 256;
-const int hidden_dim = 256;
-const int output_dim = 256;
+const int input_dim  = 512;
+const int hidden_dim = 512;
+const int output_dim = 512;
 const int NUM_ITERATIONS = 10000;
 const char* outputFileName = "multilayer_nn_training.m";
 
