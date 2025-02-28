@@ -10,18 +10,28 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.01f;
-constant float learning_rate_b = 0.001f;
+constant float learning_rate_w = 0.0001f;
+constant float learning_rate_b = 0.0001f;
 
-// Activation function and its derivative
-inline float activationFunction(float x) {
-  return clamp(x, -1.f, 1.f);//tanh(x);
+// Activation function and derivative for hidden layers
+inline float hiddenActivation(float x) {
+  return tanh(x);
 }
 
-inline float activationDerivative(float y) {
-  // Using y = tanh(x): derivative = 1 - y^2
+inline float hiddenActivationDerivative(float y) {
+  // derivative = 1 - y^2 (for tanh)
   return (1.0f - y * y);
 }
+
+// Activation function and derivative for output layer (linear)
+inline float outputActivation(float x) {
+  return x;  // Linear activation
+}
+
+inline float outputActivationDerivative(float y) {
+  return 1.0f;  // Derivative of linear activation is always 1
+}
+
 
 inline float random(uint seed) {
     seed = seed * 1664525 + 1013904223;
@@ -58,7 +68,7 @@ kernel void forward_rnn(
         sum += h_prev[j] * W_hh[j * hidden_dim + tid];
     }
     
-    h[tid] = activationFunction(clamp(sum, -20.f, 20.f));
+    h[tid] = hiddenActivation(clamp(sum, -20.f, 20.f));
 }
 
 //-------------------------------------------------------------------
@@ -81,7 +91,7 @@ kernel void forward_output_layer(
     for (uint i = 0; i < hidden_dim; i++) {
         sum += h[i] * W[i * output_dim + tid];
     }
-    y[tid] = activationFunction(clamp(sum, -20.f, 20.f));
+    y[tid] = outputActivation(sum);  // linear activation, no clamping needed
 }
 
 //-------------------------------------------------------------------
@@ -103,7 +113,8 @@ kernel void learn_output_layer(
     if (tid >= output_dim) return;
 
     float raw_error = y[tid] - y_hat[tid];
-    float delta = raw_error * activationDerivative(y[tid]);
+    float delta = raw_error * outputActivationDerivative(y[tid]); 
+    delta = clamp(delta, -1.0f, 1.0f);
     error[tid] = delta;
 
     // Weight + bias update
@@ -142,7 +153,8 @@ kernel void learn_rnn(
     }
 
     // Multiply by activation derivative of current hidden state
-    float delta = accumulated_err * activationDerivative(h[tid]);
+    float delta = accumulated_err * hiddenActivationDerivative(h[tid]);
+    delta = clamp(delta, -1.0f, 1.0f);
     hidden_error[tid] = delta;
 
     // Update input-to-hidden weights

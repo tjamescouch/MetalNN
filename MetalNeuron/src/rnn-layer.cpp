@@ -34,7 +34,7 @@ RNNLayer::~RNNLayer() {
 }
 
 void RNNLayer::buildBuffers(MTL::Device* device) {
-    float scale = 0.01f;
+    float scale = 0.001f;
     
     // Allocate weight buffer: W_xh (inputDim x hiddenDim)
     bufferW_xh_ = device->newBuffer(inputDim_ * hiddenDim_ * sizeof(float),
@@ -225,9 +225,16 @@ void RNNLayer::shiftHiddenStates() {
         bufferHiddenStates_[t]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
         bufferHiddenPrevStates_[t]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
     }
-    // Zero out the last slot
-    memset(bufferHiddenStates_[sequenceLength_-1]->contents(), 0, hiddenDim_ * sizeof(float));
-    memset(bufferHiddenPrevStates_[sequenceLength_-1]->contents(), 0, hiddenDim_ * sizeof(float));
+    // Preserve continuity in the last slot instead of zeroing
+    memcpy(bufferHiddenStates_[sequenceLength_-1]->contents(),
+           bufferHiddenStates_[sequenceLength_-2]->contents(),
+           hiddenDim_ * sizeof(float));
+
+    memcpy(bufferHiddenPrevStates_[sequenceLength_-1]->contents(),
+           bufferHiddenStates_[sequenceLength_-2]->contents(),
+           hiddenDim_ * sizeof(float));
+
     bufferHiddenStates_[sequenceLength_-1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
     bufferHiddenPrevStates_[sequenceLength_-1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
+
 }
