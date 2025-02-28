@@ -2,6 +2,7 @@
 #include "multi-layer-kernels.h"
 #include <iostream>
 #include <cassert>
+#include <cstring>  // For memcpy
 
 const int input_dim  = 512;
 const int hidden_dim = 512;
@@ -69,8 +70,8 @@ void NeuralEngine::buildComputePipeline() {
     NS::Error* pError = nullptr;
     
     _pComputeLibrary = _pDevice->newLibrary(
-                                            NS::String::string(multilayerkernels::nnKernelSrc, NS::UTF8StringEncoding),
-                                            nullptr, &pError);
+        NS::String::string(multilayerkernels::nnKernelSrc, NS::UTF8StringEncoding),
+        nullptr, &pError);
     
     assert(_pComputeLibrary && "Compute library creation failed.");
     
@@ -92,8 +93,25 @@ void NeuralEngine::buildBuffers() {
         _pRNNLayer->setDenseErrorBuffer(_pDenseLayer->getErrorBufferAt(t), t);
     }
     
-    
     areBuffersBuilt = true;
+}
+
+// shiftBuffers shifts the stored data sequence by one time step.
+// It copies each timestep’s contents into the previous slot for both the input buffers
+// and the target data in the DataSource.
+void NeuralEngine::shiftBuffers() {
+    // Shift input layer buffers
+    for (int t = 0; t < sequenceLength_ - 1; ++t) {
+        memcpy(_pInputLayer->getBufferAt(t)->contents(),
+               _pInputLayer->getBufferAt(t + 1)->contents(),
+               input_dim * sizeof(float));
+    }
+    // Shift target data in the DataSource's y_hat buffers
+    for (int t = 0; t < sequenceLength_ - 1; ++t) {
+        memcpy(_pDataSourceManager->y_hat.get_data_buffer_at(t),
+               _pDataSourceManager->y_hat.get_data_buffer_at(t + 1),
+               output_dim * sizeof(float));
+    }
 }
 
 void NeuralEngine::computeForward(std::function<void()> onComplete) {
@@ -115,7 +133,6 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     
     float* outputData = static_cast<float*>(_pDenseLayer->getOutputBufferAt(0)->contents());
     std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ..." << std::endl;
-    
 }
 
 void NeuralEngine::computeBackward(std::function<void()> onComplete) {
@@ -139,15 +156,33 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
 void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
     if (iterations == 0) return;
     
+    // Shift buffers to move the sequence forward by one timestep
+    shiftBuffers();
+    
+    // Use the last slot (always valid) for new data.
+    int slot = sequenceLength_ - 1;
+    // Compute effective time for the new data point.
+    int effectiveTime = globalTimestep + sequenceLength_ - 1;
+    
+    // Update the input data for the new slot.
+    {
+        float* inBuffer = _pDataSourceManager->x.get_data_buffer_at(slot);
+        for (int i = 0; i < input_dim; ++i) {
+            inBuffer[i] = static_cast<float>(sin(0.05 * i + 0.1 * effectiveTime));
+        }
+    }
+    // Update the target data for the new slot.
+    {
+        float* tgtBuffer = _pDataSourceManager->y_hat.get_data_buffer_at(slot);
+        for (int i = 0; i < output_dim; ++i) {
+            tgtBuffer[i] = static_cast<float>(cos(0.05 * i + 0.1 * effectiveTime));
+        }
+    }
+    _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
+    _pDenseLayer->updateTargetBufferAt(_pDataSourceManager->y_hat, slot);
     
     computeForward([this, iterations]() {
         computeBackward([this, iterations]() {
-            for (int t = 0; t < sequenceLength_; ++t) {
-                // Update using the shifted time so that the target (and input) animates
-                _pInputLayer->updateBufferAt(_pDataSourceManager->x, (t + globalTimestep) % sequenceLength_);
-                _pDenseLayer->updateTargetBufferAt(_pDataSourceManager->y_hat, (t + globalTimestep) % sequenceLength_);
-            }
-            
             std::vector<float*> inputs(sequenceLength_);
             std::vector<float*> hiddenStates(sequenceLength_);
             std::vector<float*> outputs(sequenceLength_);
@@ -167,24 +202,40 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
             printf("iterations remaining: %d\n", iterations);
             _pLogger->logErrors(outputErrors, output_dim, hiddenErrors, hidden_dim, sequenceLength_);
             
-            // Increment global timestep so that the sinusoid animation advances
+            // Advance the global timestep so that the sinusoid animation advances.
             globalTimestep++;
-            
             computeLearnAndApplyUpdates(iterations - 1);
         });
     });
-    
 }
 
 void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     if (iterations == 0) return;
     
-    computeForward([this, iterations]() {
-        // Update the input buffer using a shifted timestep for animation
-        for (int t = 0; t < sequenceLength_; ++t) {
-            _pInputLayer->updateBufferAt(_pDataSourceManager->x, (t + globalTimestep)%sequenceLength_);
+    // Shift buffers to move the sequence forward by one timestep.
+    shiftBuffers();
+    
+    int slot = sequenceLength_ - 1;
+    int effectiveTime = globalTimestep + sequenceLength_ - 1;
+    
+    // Update the input data for the new slot.
+    {
+        float* inBuffer = _pDataSourceManager->x.get_data_buffer_at(slot);
+        for (int i = 0; i < input_dim; ++i) {
+            inBuffer[i] = static_cast<float>(sin(0.05 * i + 0.1 * effectiveTime));
         }
-        
+    }
+    // Update the target data for the new slot.
+    {
+        float* tgtBuffer = _pDataSourceManager->y_hat.get_data_buffer_at(slot);
+        for (int i = 0; i < output_dim; ++i) {
+            tgtBuffer[i] = static_cast<float>(cos(0.05 * i + 0.1 * effectiveTime));
+        }
+    }
+    _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
+    _pDenseLayer->updateTargetBufferAt(_pDataSourceManager->y_hat, slot);
+    
+    computeForward([this, iterations]() {
         std::vector<float*> inputs(sequenceLength_);
         std::vector<float*> hiddenStates(sequenceLength_);
         std::vector<float*> outputs(sequenceLength_);
@@ -200,12 +251,11 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
         printf("iterations remaining: %d\n", iterations);
         _pLogger->logIteration(*outputs.data(), output_dim, *targets.data(), output_dim);
         
-        // Advance the global timestep so that the sinusoid shifts in the next iteration
         globalTimestep++;
-        
         computeForwardIterations(iterations - 1);
     });
 }
+
 
 void NeuralEngine::keyPress(KeyPress* kp) {
     _pKeyboardController->keyPress(kp);

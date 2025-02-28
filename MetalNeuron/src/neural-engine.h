@@ -36,6 +36,7 @@ public:
 private:
     void buildComputePipeline();
     void buildBuffers();
+    void shiftBuffers(); // New helper: shifts stored sequence buffers by one time step
 
     DataSourceManager* _pDataSourceManager;
     KeyboardController* _pKeyboardController;
@@ -55,7 +56,7 @@ private:
     dispatch_semaphore_t _semaphore;
 
     int sequenceLength_;
-    int globalTimestep; // added to control the time-shift for animation
+    int globalTimestep; // Controls the time offset for generating new data
 };
 
 #endif // NEURAL_ENGINE_H
