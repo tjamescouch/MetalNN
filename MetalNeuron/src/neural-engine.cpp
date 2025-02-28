@@ -2,7 +2,6 @@
 #include "multi-layer-kernels.h"
 #include <iostream>
 #include <cassert>
-#include <cstring>  // For memcpy
 
 const int input_dim  = 512;
 const int hidden_dim = 512;
@@ -70,8 +69,8 @@ void NeuralEngine::buildComputePipeline() {
     NS::Error* pError = nullptr;
     
     _pComputeLibrary = _pDevice->newLibrary(
-        NS::String::string(multilayerkernels::nnKernelSrc, NS::UTF8StringEncoding),
-        nullptr, &pError);
+                                            NS::String::string(multilayerkernels::nnKernelSrc, NS::UTF8StringEncoding),
+                                            nullptr, &pError);
     
     assert(_pComputeLibrary && "Compute library creation failed.");
     
@@ -93,25 +92,8 @@ void NeuralEngine::buildBuffers() {
         _pRNNLayer->setDenseErrorBuffer(_pDenseLayer->getErrorBufferAt(t), t);
     }
     
+    
     areBuffersBuilt = true;
-}
-
-// shiftBuffers shifts the stored data sequence by one time step.
-// It copies each timestep’s contents into the previous slot for both the input buffers
-// and the target data in the DataSource.
-void NeuralEngine::shiftBuffers() {
-    // Shift input layer buffers
-    for (int t = 0; t < sequenceLength_ - 1; ++t) {
-        memcpy(_pInputLayer->getBufferAt(t)->contents(),
-               _pInputLayer->getBufferAt(t + 1)->contents(),
-               input_dim * sizeof(float));
-    }
-    // Shift target data in the DataSource's y_hat buffers
-    for (int t = 0; t < sequenceLength_ - 1; ++t) {
-        memcpy(_pDataSourceManager->y_hat.get_data_buffer_at(t),
-               _pDataSourceManager->y_hat.get_data_buffer_at(t + 1),
-               output_dim * sizeof(float));
-    }
 }
 
 void NeuralEngine::computeForward(std::function<void()> onComplete) {
@@ -133,6 +115,7 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     
     float* outputData = static_cast<float*>(_pDenseLayer->getOutputBufferAt(0)->contents());
     std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ..." << std::endl;
+    
 }
 
 void NeuralEngine::computeBackward(std::function<void()> onComplete) {
@@ -156,12 +139,13 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
 void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
     if (iterations == 0) return;
     
-    // Shift buffers to move the sequence forward by one timestep
+    // Shift input and target buffers...
     shiftBuffers();
+    // Also shift the RNN hidden state buffers to maintain temporal continuity.
+    _pRNNLayer->shiftHiddenStates();
     
     // Use the last slot (always valid) for new data.
     int slot = sequenceLength_ - 1;
-    // Compute effective time for the new data point.
     int effectiveTime = globalTimestep + sequenceLength_ - 1;
     
     // Update the input data for the new slot.
@@ -209,11 +193,14 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
     });
 }
 
+
 void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     if (iterations == 0) return;
     
-    // Shift buffers to move the sequence forward by one timestep.
+    // Shift input and target buffers...
     shiftBuffers();
+    // Also shift the RNN hidden state buffers.
+    _pRNNLayer->shiftHiddenStates();
     
     int slot = sequenceLength_ - 1;
     int effectiveTime = globalTimestep + sequenceLength_ - 1;
@@ -263,4 +250,19 @@ void NeuralEngine::keyPress(KeyPress* kp) {
 
 void NeuralEngine::handleKeyStateChange() {
     _pKeyboardController->handleKeyStateChange();
+}
+
+void NeuralEngine::shiftBuffers() {
+    // Shift input layer buffers
+    for (int t = 0; t < sequenceLength_ - 1; ++t) {
+        memcpy(_pInputLayer->getBufferAt(t)->contents(),
+               _pInputLayer->getBufferAt(t + 1)->contents(),
+               input_dim * sizeof(float));
+    }
+    // Shift target data in the DataSource's y_hat buffers
+    for (int t = 0; t < sequenceLength_ - 1; ++t) {
+        memcpy(_pDataSourceManager->y_hat.get_data_buffer_at(t),
+               _pDataSourceManager->y_hat.get_data_buffer_at(t + 1),
+               output_dim * sizeof(float));
+    }
 }

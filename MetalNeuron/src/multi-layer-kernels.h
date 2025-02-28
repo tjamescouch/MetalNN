@@ -143,9 +143,9 @@ kernel void learn_rnn(
     // Compute propagated hidden error using activation derivative
     float propagated_error = 0.0f;
 
-    // Propagate error from the output layer backward through weights
+    // Corrected: Propagate error using the transpose of W_hh
     for (uint k = 0; k < hidden_dim; k++) {
-        propagated_error += output_error[k] * W_hh[tid * hidden_dim + k];
+        propagated_error += output_error[k] * W_hh[k * hidden_dim + tid];
     }
 
     // Multiply by activation derivative
