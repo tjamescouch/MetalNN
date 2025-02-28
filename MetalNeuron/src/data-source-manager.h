@@ -20,17 +20,6 @@ public:
     DataSource x;      // Input data
     DataSource y_hat;  // Target output for the output layer
 
-    // For the recurrent hidden layer.
-    DataSource W1;     // Input-to–hidden weights (W_xh)
-    DataSource b1;     // Hidden layer biases
-
-    // For the output layer.
-    DataSource W2;     // Hidden-to–output weights
-    DataSource b2;     // Output layer biases
-    
-    // Random data sources for initialization.
-    DataSource rand1;
-    DataSource rand2;
     
     // Asynchronously initialize all DataSources.
     // 'inputFunc' is used to build the input and 'targetFunc' for the target.
