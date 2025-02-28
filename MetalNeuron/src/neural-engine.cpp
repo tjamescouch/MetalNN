@@ -138,38 +138,35 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
 void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
     if (iterations == 0) return;
     
-    _pDataSourceManager->buildInputAtTimestep(inputFunc, -iterations, [this, iterations](){
-        _pDataSourceManager->buildTargetAtTimestep(inputFunc, -iterations, [this, iterations](){
-            computeForward([this, iterations]() {
-                computeBackward([this, iterations]() {
-                    for (int t = 0; t < sequenceLength_; ++t) {
-                        _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
-                        _pDenseLayer->updateTargetBufferAt(_pDataSourceManager->y_hat, t);
-                    }
-                    
-                    std::vector<float*> inputs(sequenceLength_);
-                    std::vector<float*> hiddenStates(sequenceLength_);
-                    std::vector<float*> outputs(sequenceLength_);
-                    std::vector<float*> targets(sequenceLength_);
-                    std::vector<float*> outputErrors(sequenceLength_);
-                    std::vector<float*> hiddenErrors(sequenceLength_);
-                    
-                    for (int t = 0; t < sequenceLength_; ++t) {
-                        inputs[t] = static_cast<float*>(_pInputLayer->getBufferAt(t)->contents());
-                        hiddenStates[t] = static_cast<float*>(_pRNNLayer->getOutputBufferAt(t)->contents());
-                        outputs[t] = static_cast<float*>(_pDenseLayer->getOutputBufferAt(t)->contents());
-                        targets[t] = _pDataSourceManager->y_hat.get_data_buffer_at(t);
-                        outputErrors[t] = static_cast<float*>(_pDenseLayer->getErrorBufferAt(t)->contents());
-                        hiddenErrors[t] = static_cast<float*>(_pRNNLayer->getErrorBufferAt(t)->contents());
-                    }
-                    
-                    printf("iterations remaining: %d\n", iterations);
-                    _pLogger->logErrors(outputErrors, output_dim, hiddenErrors, hidden_dim, sequenceLength_);
-                    
-                    
-                    computeLearnAndApplyUpdates(iterations - 1);
-                });
-            });
+    
+    computeForward([this, iterations]() {
+        computeBackward([this, iterations]() {
+            for (int t = 0; t < sequenceLength_; ++t) {
+                _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
+                _pDenseLayer->updateTargetBufferAt(_pDataSourceManager->y_hat, t);
+            }
+            
+            std::vector<float*> inputs(sequenceLength_);
+            std::vector<float*> hiddenStates(sequenceLength_);
+            std::vector<float*> outputs(sequenceLength_);
+            std::vector<float*> targets(sequenceLength_);
+            std::vector<float*> outputErrors(sequenceLength_);
+            std::vector<float*> hiddenErrors(sequenceLength_);
+            
+            for (int t = 0; t < sequenceLength_; ++t) {
+                inputs[t] = static_cast<float*>(_pInputLayer->getBufferAt(t)->contents());
+                hiddenStates[t] = static_cast<float*>(_pRNNLayer->getOutputBufferAt(t)->contents());
+                outputs[t] = static_cast<float*>(_pDenseLayer->getOutputBufferAt(t)->contents());
+                targets[t] = _pDataSourceManager->y_hat.get_data_buffer_at(t);
+                outputErrors[t] = static_cast<float*>(_pDenseLayer->getErrorBufferAt(t)->contents());
+                hiddenErrors[t] = static_cast<float*>(_pRNNLayer->getErrorBufferAt(t)->contents());
+            }
+            
+            printf("iterations remaining: %d\n", iterations);
+            _pLogger->logErrors(outputErrors, output_dim, hiddenErrors, hidden_dim, sequenceLength_);
+            
+            
+            computeLearnAndApplyUpdates(iterations - 1);
         });
     });
     
@@ -180,30 +177,28 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
 void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     if (iterations == 0) return;
     
-    _pDataSourceManager->buildInputAtTimestep(inputFunc, -iterations, [this, iterations](){
-        computeForward([this, iterations]() {
-            for (int t = 0; t < sequenceLength_; ++t) {
-                _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
-            }
-            
-            std::vector<float*> inputs(sequenceLength_);
-            std::vector<float*> hiddenStates(sequenceLength_);
-            std::vector<float*> outputs(sequenceLength_);
-            std::vector<float*> targets(sequenceLength_);
-            
-            for (int t = 0; t < sequenceLength_; ++t) {
-                inputs[t] = static_cast<float*>(_pInputLayer->getBufferAt(t)->contents());
-                hiddenStates[t] = static_cast<float*>(_pRNNLayer->getOutputBufferAt(t)->contents());
-                outputs[t] = static_cast<float*>(_pDenseLayer->getOutputBufferAt(t)->contents());
-                targets[t] = _pDataSourceManager->y_hat.get_data_buffer_at(t);
-            }
-            
-            printf("iterations remaining: %d\n", iterations);
-            _pLogger->logIteration(*outputs.data(), output_dim, *targets.data(), output_dim);
-            
-            
-            computeForwardIterations(iterations - 1);
-        });
+    computeForward([this, iterations]() {
+        for (int t = 0; t < sequenceLength_; ++t) {
+            _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
+        }
+        
+        std::vector<float*> inputs(sequenceLength_);
+        std::vector<float*> hiddenStates(sequenceLength_);
+        std::vector<float*> outputs(sequenceLength_);
+        std::vector<float*> targets(sequenceLength_);
+        
+        for (int t = 0; t < sequenceLength_; ++t) {
+            inputs[t] = static_cast<float*>(_pInputLayer->getBufferAt(t)->contents());
+            hiddenStates[t] = static_cast<float*>(_pRNNLayer->getOutputBufferAt(t)->contents());
+            outputs[t] = static_cast<float*>(_pDenseLayer->getOutputBufferAt(t)->contents());
+            targets[t] = _pDataSourceManager->y_hat.get_data_buffer_at(t);
+        }
+        
+        printf("iterations remaining: %d\n", iterations);
+        _pLogger->logIteration(*outputs.data(), output_dim, *targets.data(), output_dim);
+        
+        
+        computeForwardIterations(iterations - 1);
     });
 }
 
