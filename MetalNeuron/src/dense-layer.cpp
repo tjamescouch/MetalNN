@@ -42,11 +42,12 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
 }
 
 void DenseLayer::buildBuffers(MTL::Device* device) {
+    const float scale = 0.01f;
     // Shared weights across timesteps
     bufferWeights_ = device->newBuffer(inputDim_ * outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     float* w = static_cast<float*>(bufferWeights_->contents());
     for (int i = 0; i < inputDim_ * outputDim_; ++i)
-        w[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+        w[i] = ((float)rand() / RAND_MAX - 0.5f) * scale;
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
 
     // Shared bias

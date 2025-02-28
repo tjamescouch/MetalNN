@@ -11,8 +11,8 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.0005f;
-constant float learning_rate_b = 0.00005f;
+constant float learning_rate_w = 0.05f;
+constant float learning_rate_b = 0.01f;
 
 // Activation function and its derivative
 inline float activationFunction(float x) {
@@ -61,7 +61,7 @@ kernel void forward_rnn(
         sum += h_prev[j] * W_hh[j * hidden_dim + tid];
     }
     
-    h[tid] = activationFunction(clamp(sum, -10.f, 10.f));
+    h[tid] = activationFunction(clamp(sum, -20.f, 20.f));
 }
 
 //-------------------------------------------------------------------
@@ -85,7 +85,7 @@ kernel void forward_output_layer(
     for (uint i = 0; i < hidden_dim; i++) {
         sum += h[i] * W[i * output_dim + tid];
     }
-    y[tid] = activationFunction(clamp(sum, -10.f, 10.f));
+    y[tid] = activationFunction(clamp(sum, -20.f, 20.f));
 }
 
 //-------------------------------------------------------------------

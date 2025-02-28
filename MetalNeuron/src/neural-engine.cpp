@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cassert>
 
+const int num_iterations = 1000;
 const int input_dim  = 512;
 const int hidden_dim = 512;
 const int output_dim = 512;
@@ -33,10 +34,10 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength)
     _pKeyboardController = new KeyboardController();
     _pKeyboardController->setForwardCallback([this]() {
         _pLogger->clear();
-        computeForwardIterations(1000);
+        computeForwardIterations(num_iterations);
     });
     _pKeyboardController->setLearnCallback([this]() {
-        computeLearnAndApplyUpdates(1000);
+        computeLearnAndApplyUpdates(num_iterations);
     });
     _pKeyboardController->setClearCallback([this]() {
         _pLogger->clear();
@@ -116,6 +117,17 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     float* outputData = static_cast<float*>(_pDenseLayer->getOutputBufferAt(0)->contents());
     std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ..." << std::endl;
     
+#ifdef DEBUG_NETWORK
+    // Compute mean squared error using target data from the DataSource's y_hat buffer at timestep 0.
+    float mse = 0.0f;
+    float* targetData = _pDataSourceManager->y_hat.get_data_buffer_at(0);
+    for (int i = 0; i < output_dim; ++i) {
+        float diff = targetData[i] - outputData[i];
+        mse += diff * diff;
+    }
+    mse /= output_dim;
+    std::printf("Mean Squared Error at timestep 0: %f\n", mse);
+#endif
 }
 
 void NeuralEngine::computeBackward(std::function<void()> onComplete) {
