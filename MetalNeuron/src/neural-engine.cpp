@@ -212,9 +212,7 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
 void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     if (iterations == 0) return;
     
-    // Shift input and target buffers...
     shiftBuffers();
-    // Also shift the RNN hidden state buffers.
     _pRNNLayer->shiftHiddenStates();
     
     int slot = sequenceLength_ - 1;
