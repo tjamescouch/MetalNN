@@ -27,6 +27,9 @@ public:
     void setInputBufferAt(int timestep, MTL::Buffer* inputBuffer);
     void setDenseErrorBuffer(MTL::Buffer* denseErrorBuffer, int timestep);
 
+    // New method to shift the hidden state buffers forward by one timestep.
+    void shiftHiddenStates();
+
 private:
     int inputDim_;
     int hiddenDim_;

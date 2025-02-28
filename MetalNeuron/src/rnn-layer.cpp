@@ -1,16 +1,26 @@
-// rnn-layer.cpp (BPTT updates)
 #include <iostream>
 #include "rnn-layer.h"
 #include "common.h"
+#include <cstring>
 
 RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength)
 : inputDim_(inputDim), hiddenDim_(hiddenDim), sequenceLength_(sequenceLength),
-bufferW_xh_(nullptr), bufferW_hh_(nullptr), bufferBias_(nullptr),
-forwardPipelineState_(nullptr), backwardPipelineState_(nullptr)
+  bufferW_xh_(nullptr), bufferW_hh_(nullptr), bufferBias_(nullptr),
+  forwardPipelineState_(nullptr), backwardPipelineState_(nullptr)
 {}
 
 RNNLayer::~RNNLayer() {
-    // Release all buffers
+    // Release all allocated buffers and pipeline states
+    for (auto buf : bufferInputs_)      if (buf) buf->release();
+    for (auto buf : bufferHiddenStates_)  if (buf) buf->release();
+    for (auto buf : bufferHiddenPrevStates_) if (buf) buf->release();
+    for (auto buf : bufferErrors_)        if (buf) buf->release();
+    for (auto buf : bufferDenseErrors_)   if (buf) buf->release();
+    if (bufferW_xh_) bufferW_xh_->release();
+    if (bufferW_hh_) bufferW_hh_->release();
+    if (bufferBias_) bufferBias_->release();
+    if (forwardPipelineState_) forwardPipelineState_->release();
+    if (backwardPipelineState_) backwardPipelineState_->release();
 }
 
 void RNNLayer::buildBuffers(MTL::Device* device) {
@@ -36,7 +46,7 @@ void RNNLayer::buildBuffers(MTL::Device* device) {
     memset(b, 0, hiddenDim_ * sizeof(float));
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
     
-    // Allocate per-timestep hidden state buffers
+    // Allocate per-timestep hidden state buffers and others.
     bufferHiddenStates_.resize(sequenceLength_);
     bufferHiddenPrevStates_.resize(sequenceLength_);
     bufferInputs_.resize(sequenceLength_);
@@ -61,7 +71,6 @@ void RNNLayer::buildBuffers(MTL::Device* device) {
         bufferDenseErrors_[t] = nullptr;
     }
 }
-
 
 void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
     for (int t = 0; t < sequenceLength_; ++t) {
@@ -152,4 +161,24 @@ MTL::Buffer* RNNLayer::getOutputBufferAt(int timestep) const {
 MTL::Buffer* RNNLayer::getErrorBufferAt(int timestep) const {
     assert(timestep >= 0 && timestep < sequenceLength_);
     return bufferErrors_[timestep];
+}
+
+// New method: Shifts the hidden state buffers (and previous states) by one timestep.
+// For t = 0 .. sequenceLength_-2, copy the contents from t+1 into t, then zero the last slot.
+void RNNLayer::shiftHiddenStates() {
+    for (int t = 0; t < sequenceLength_ - 1; ++t) {
+        memcpy(bufferHiddenStates_[t]->contents(),
+               bufferHiddenStates_[t+1]->contents(),
+               hiddenDim_ * sizeof(float));
+        memcpy(bufferHiddenPrevStates_[t]->contents(),
+               bufferHiddenPrevStates_[t+1]->contents(),
+               hiddenDim_ * sizeof(float));
+        bufferHiddenStates_[t]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
+        bufferHiddenPrevStates_[t]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
+    }
+    // Initialize the last timestep buffers to zero.
+    memset(bufferHiddenStates_[sequenceLength_-1]->contents(), 0, hiddenDim_ * sizeof(float));
+    memset(bufferHiddenPrevStates_[sequenceLength_-1]->contents(), 0, hiddenDim_ * sizeof(float));
+    bufferHiddenStates_[sequenceLength_-1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
+    bufferHiddenPrevStates_[sequenceLength_-1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
 }
