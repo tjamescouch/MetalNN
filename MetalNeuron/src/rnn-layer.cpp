@@ -105,7 +105,7 @@ void RNNLayer::backward(MTL::CommandBuffer* cmdBuf) {
     encoder->setBuffer(bufferW_hh_, 0, 3);
     encoder->setBuffer(bufferBias_, 0, 4);
     encoder->setBuffer(bufferHidden_, 0, 5);
-    encoder->setBuffer(bufferDenseError_, 0, 6); // Critical binding fix!
+    encoder->setBuffer(bufferDenseError_, 0, 6);
     encoder->setBuffer(bufferError_, 0, 7);
     encoder->setBytes(&inputDim_, sizeof(int), 8);
     encoder->setBytes(&hiddenDim_, sizeof(int), 9);

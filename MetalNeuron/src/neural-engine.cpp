@@ -195,6 +195,7 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
         _pDataSourceManager->y_hat.build([iterations](double x){ return inputFunction(x - iterations); });
         
         _pInputLayer->updateBuffer(_pDataSourceManager->x);
+        _pDenseLayer->updateTargetBuffer(_pDataSourceManager->y_hat);
         
         // Retrieve error data from the learning passes.
         float* outputError = static_cast<float*>(_pDenseLayer->getErrorBuffer()->contents());

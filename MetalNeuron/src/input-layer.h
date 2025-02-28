@@ -35,16 +35,17 @@ public:
     
     // Called to build pipeline states from the given device and library.
     void buildPipeline(MTL::Device* device, MTL::Library* library) override {
-        
+        //Intentionally empty
     };
     
     // Record commands for the forward pass.
     void forward(MTL::CommandBuffer* cmdBuf) override {
-        
+        //Intentionally empty
     };
+    
     // Record commands for the backward pass.
     void backward(MTL::CommandBuffer* cmdBuf) override {
-        
+        //Intentionally empty
     };
     
 private:

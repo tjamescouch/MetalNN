@@ -75,7 +75,7 @@ kernel void forward_rnn(
         sum += h_prev[j] * W_hh[j * hidden_dim + tid];
     }
     
-    h[tid] = activationFunction(clamp(sum, -10.f, 10.f));
+    h[tid] = activationFunction(clamp(sum, -100.f, 100.f));
 }
 
 //-------------------------------------------------------------------
