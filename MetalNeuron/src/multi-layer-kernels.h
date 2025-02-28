@@ -15,7 +15,7 @@ constant float learning_rate_b = 0.001f;
 
 // Activation function and its derivative
 inline float activationFunction(float x) {
-  return tanh(x);
+  return clamp(x, -1.f, 1.f);//tanh(x);
 }
 
 inline float activationDerivative(float y) {

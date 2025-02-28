@@ -113,11 +113,11 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     
     cmdBuf->commit();
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
-    
+
+#ifdef DEBUG_NETWORK
     float* outputData = static_cast<float*>(_pDenseLayer->getOutputBufferAt(0)->contents());
     std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ..." << std::endl;
     
-#ifdef DEBUG_NETWORK
     // Compute mean squared error using target data from the DataSource's y_hat buffer at timestep 0.
     float mse = 0.0f;
     float* targetData = _pDataSourceManager->y_hat.get_data_buffer_at(0);
@@ -197,7 +197,9 @@ void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
             
             printf("iterations remaining: %d\n", iterations);
             _pLogger->logErrors(outputErrors, output_dim, hiddenErrors, hidden_dim, sequenceLength_);
+#ifdef DEBUG_NETWORK
             _pLogger->logIteration(*outputs.data(), output_dim, *targets.data(), output_dim);
+#endif
             
             // Advance the global timestep so that the sinusoid animation advances.
             globalTimestep++;
