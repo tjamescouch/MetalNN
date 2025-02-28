@@ -191,7 +191,7 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
         }
 
         printf("iterations remaining: %d\n", iterations);
-        _pLogger->logIteration(outputs, output_dim, targets, output_dim, sequenceLength_);
+        _pLogger->logIteration(*outputs.data(), output_dim, *targets.data(), output_dim);
 
         
         computeForwardIterations(iterations - 1);

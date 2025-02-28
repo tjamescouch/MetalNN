@@ -38,9 +38,8 @@ void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount,
     std::cout << "AVG HIDDEN ERROR (across sequence): " << avgHiddenError << std::endl;
 }
 
-void Logger::logIteration(const std::vector<float*>& outputs, int outputCount,
-                          const std::vector<float*>& targets, int targetCount,
-                          int sequenceLength) {
+void Logger::logIteration(const float* output, int outputCount,
+                          const float* target, int targetCount) {
     std::ofstream logFile(filename_, std::ios::app);
     if (!logFile.is_open()) {
         std::cerr << "Error opening log file: " << filename_ << std::endl;
@@ -50,41 +49,32 @@ void Logger::logIteration(const std::vector<float*>& outputs, int outputCount,
     logFile << "clf; hold on;" << std::endl;
     logFile << "ylim([-1.2 1.2]);" << std::endl;
 
-    // Concatenate outputs and targets across timesteps for clearer visualization
-    logFile << "output = [ ";
-    for (int t = 0; t < sequenceLength; ++t) {
-        for (int i = 0; i < outputCount; ++i) {
-            logFile << outputs[t][i];
-            if (!(t == sequenceLength - 1 && i == outputCount - 1))
-                logFile << ", ";
-        }
-    }
-    logFile << " ];" << std::endl;
+    // Generate x-axis explicitly for this timestep
+    logFile << "x = 1:" << outputCount << ";" << std::endl;
 
+    // Log the target and output arrays clearly
     logFile << "target = [ ";
-    for (int t = 0; t < sequenceLength; ++t) {
-        for (int i = 0; i < targetCount; ++i) {
-            logFile << targets[t][i];
-            if (!(t == sequenceLength - 1 && i == targetCount - 1))
-                logFile << ", ";
-        }
+    for (int i = 0; i < targetCount; ++i) {
+        logFile << target[i] << (i < targetCount - 1 ? ", " : "");
     }
     logFile << " ];" << std::endl;
 
-    // Generate the x-axis values (single continuous range)
-    int totalPoints = outputCount * sequenceLength;
-    logFile << "x = 1:" << totalPoints << ";" << std::endl;
+    logFile << "output = [ ";
+    for (int i = 0; i < outputCount; ++i) {
+        logFile << output[i] << (i < outputCount - 1 ? ", " : "");
+    }
+    logFile << " ];" << std::endl;
 
-    // Plot clearly labeled predictions and targets
+    // Plot using scatter plots explicitly
     logFile << "scatter(x, target, 'filled', 'b', 'DisplayName', 'Target');" << std::endl;
     logFile << "scatter(x, output, 'filled', 'r', 'DisplayName', 'Prediction');" << std::endl;
 
     logFile << "legend('show');" << std::endl;
-
     logFile << "hold off; pause(0.01);" << std::endl;
 
     logFile.close();
 }
+
 
 
 void Logger::clear() {

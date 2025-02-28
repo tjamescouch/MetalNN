@@ -14,9 +14,8 @@ public:
                    const std::vector<float*>& hiddenErrors, int hiddenCount, int sequenceLength);
     
     // Logs one full iteration's data (inputs, hidden states, outputs, targets) for all timesteps.
-    void logIteration(const std::vector<float*>& outputs, int outputCount,
-                      const std::vector<float*>& targets, int targetCount,
-                      int sequenceLength);
+    void logIteration(const float* output, int outputCount,
+                      const float* target, int targetCount);
     
     void clear();
     
