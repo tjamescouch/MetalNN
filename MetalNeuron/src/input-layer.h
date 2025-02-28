@@ -1,56 +1,38 @@
-//
-//  input-layer.h
-//  MetalNeuron
-//
-//  Created by James Couch on 2025-02-27.
-//
-
+// input-layer.h
 #ifndef INPUT_LAYER_H
 #define INPUT_LAYER_H
 
 #include "layer.h"
-#include "data-source.h"  // Assumes DataSource provides getData() and getSize()
+#include "data-source.h"
+#include <vector>
 
 // Forward declarations for Metal classes.
 namespace MTL {
-class Device;
-class Buffer;
+    class Device;
+    class Buffer;
 }
 
 class InputLayer : public Layer {
 public:
-    // Constructor takes the number of input elements.
-    InputLayer(int inputDim);
+    InputLayer(int inputDim, int sequenceLength);
     virtual ~InputLayer();
     
-    // Allocate the Metal buffer for the input.
     void buildBuffers(MTL::Device* device) override;
+
+    // Updates input buffer for a specific timestep.
+    void updateBufferAt(DataSource& ds, int timestep);
     
-    // Update the Metal buffer from the provided DataSource.
-    // Assumes ds.getData() returns a pointer to the data and ds.getSize() returns the size in bytes.
-    void updateBuffer(DataSource& ds);
+    // Retrieves the buffer for a specific timestep.
+    MTL::Buffer* getBufferAt(int timestep) const;
     
-    // Returns the Metal buffer holding the input data.
-    MTL::Buffer* getBuffer() const;
-    
-    // Called to build pipeline states from the given device and library.
-    void buildPipeline(MTL::Device* device, MTL::Library* library) override {
-        //Intentionally empty
-    };
-    
-    // Record commands for the forward pass.
-    void forward(MTL::CommandBuffer* cmdBuf) override {
-        //Intentionally empty
-    };
-    
-    // Record commands for the backward pass.
-    void backward(MTL::CommandBuffer* cmdBuf) override {
-        //Intentionally empty
-    };
+    void buildPipeline(MTL::Device* device, MTL::Library* library) override {};
+    void forward(MTL::CommandBuffer* cmdBuf) override {};
+    void backward(MTL::CommandBuffer* cmdBuf) override {};
     
 private:
     int inputDim_;
-    MTL::Buffer* bufferInput_;
+    int sequenceLength_;
+    std::vector<MTL::Buffer*> bufferInputs_;
 };
 
 #endif // INPUT_LAYER_H

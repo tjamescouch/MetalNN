@@ -1,64 +1,44 @@
-//
-//  height-map.h
-//  LearnMetalCPP
-//
-//  Created by James Couch on 2024-12-07.
-//
 #ifndef DATA_SOURCE_H
 #define DATA_SOURCE_H
 
-#pragma region Declarations {
-
 #include "common.h"
 #include <thread>
+#include <vector>
+#include <functional>
 
-#include <array>
-
-class DataSource
-{
+class DataSource {
 public:
-    DataSource(int width, int height);
+    DataSource(int width, int height, int sequenceLength);
     ~DataSource();
-    
-    size_t get_num_data();
-    
-    int get_width();
-    int get_height();
-    
-    float* get_data_buffer();
-    float get_data(float x, float y);
-    
-    void build(std::function<double(double)> f);
-    void initRandom();
-    
-    // Asynchronous build interface
+
+    size_t get_num_data() const;
+    float* get_data_buffer_at(int timestep);
+    const float* get_data_buffer_at(int timestep) const;
+
+    void buildAtTimestep(std::function<double(double, int)> f, int timestep);
+    void initRandomAtTimestep(int timestep);
+
     template<typename Callback>
-    void buildAsync(std::function<double(double)> f, Callback onComplete) {
-        std::thread([this, onComplete, f]() {
-            // 1) Do expensive build on background thread
-            this->build(f);
-            // 2) Inform caller that build is done
+    void buildAsyncAtTimestep(std::function<double(double, int)> f, int timestep, Callback onComplete) {
+        std::thread([this, f, timestep, onComplete]() {
+            buildAtTimestep(f, timestep);
             onComplete();
         }).detach();
     }
-    
-    // Asynchronous build interface
+
     template<typename Callback>
-    void initRandomAsync(Callback onComplete) {
-        std::thread([this, onComplete]() {
-            // 1) Do expensive build on background thread
-            this->initRandom();
-            // 2) Inform caller that build is done
+    void initRandomAsyncAtTimestep(int timestep, Callback onComplete) {
+        std::thread([this, timestep, onComplete]() {
+            initRandomAtTimestep(timestep);
             onComplete();
         }).detach();
     }
-    
+
 private:
-    int width;
-    int height;
-    std::vector<float> data;
+    int width_;
+    int height_;
+    int sequenceLength_;
+    std::vector<std::vector<float>> data_;  // One data vector per timestep
 };
 
-#pragma endregion Declarations }
-#endif
-
+#endif // DATA_SOURCE_H

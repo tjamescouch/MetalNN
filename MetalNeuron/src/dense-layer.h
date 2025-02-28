@@ -1,38 +1,32 @@
-// dense-layer.h
 #ifndef DENSELAYER_H
 #define DENSELAYER_H
 
 #include "layer.h"
 #include "data-source.h"
+#include <vector>
 
-namespace MTL {
-    class Device;
-    class Buffer;
-    class CommandBuffer;
-    class ComputePipelineState;
-    class Library;
-}
+namespace MTL { class Device; class Buffer; class CommandBuffer; class ComputePipelineState; class Library; }
 
 class DenseLayer : public Layer {
 public:
-    DenseLayer(int inputDim, int outputDim);
-    virtual ~DenseLayer();
+    DenseLayer(int inputDim, int outputDim, int sequenceLength);
+    ~DenseLayer();
 
-    void buildPipeline(MTL::Device* device, MTL::Library* library) override;
-    void buildBuffers(MTL::Device* device) override;
-    void forward(MTL::CommandBuffer* cmdBuf) override;
-    void backward(MTL::CommandBuffer* cmdBuf) override;
+    void buildPipeline(MTL::Device*, MTL::Library*) override;
+    void buildBuffers(MTL::Device*) override;
 
-    MTL::Buffer* getErrorBuffer() const;
-    MTL::Buffer* getOutputBuffer() const;
-    void setInputBuffer(MTL::Buffer* inputBuffer);
+    void forward(MTL::CommandBuffer*) override;
+    void backward(MTL::CommandBuffer*) override;
 
-    void updateTargetBuffer(DataSource& ds);
+    void setInputBufferAt(int timestep, MTL::Buffer*);
+    void updateTargetBufferAt(DataSource&, int timestep);
+    MTL::Buffer* getErrorBufferAt(int timestep) const;
+    MTL::Buffer* getOutputBufferAt(int timestep) const;
 
 private:
-    int inputDim_, outputDim_;
-    MTL::Buffer *bufferInput_, *bufferOutput_, *bufferWeights_, *bufferBias_, *bufferYhat_, *bufferError_;
+    int inputDim_, outputDim_, sequenceLength_;
+    std::vector<MTL::Buffer*> bufferInputs_, bufferOutputs_, bufferErrors_, bufferTargets_;
+    MTL::Buffer *bufferWeights_, *bufferBias_;
     MTL::ComputePipelineState *forwardPipelineState_, *backwardPipelineState_;
 };
-
-#endif // DENSELAYER_H
+#endif

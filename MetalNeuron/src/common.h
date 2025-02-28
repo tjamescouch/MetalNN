@@ -7,6 +7,8 @@
 #ifndef COMMON_INCLUDES_H
 #define COMMON_INCLUDES_H
 
+#define DEBUG_NETWORK
+
 #include <Metal/Metal.hpp>
 #include <AppKit/AppKit.hpp>
 #include <MetalKit/MetalKit.hpp>

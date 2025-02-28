@@ -1,9 +1,3 @@
-//
-//  data-source-manager.h
-//  MetalNeuron
-//
-//  Created by James Couch on 2025-02-26.
-//
 #ifndef DATASOURCE_MANAGER_H
 #define DATASOURCE_MANAGER_H
 
@@ -12,21 +6,21 @@
 
 class DataSourceManager {
 public:
-    // Constructor: accepts dimensions for input, hidden and output layers.
-    DataSourceManager(int inputDim, int hiddenDim, int outputDim);
+    DataSourceManager(int inputDim, int hiddenDim, int outputDim, int sequenceLength);
     ~DataSourceManager();
 
-    // DataSources used in the network.
-    DataSource x;      // Input data
-    DataSource y_hat;  // Target output for the output layer
+    DataSource x;      // Input data per timestep
+    DataSource y_hat;  // Target data per timestep
 
-    
-    // Asynchronously initialize all DataSources.
-    // 'inputFunc' is used to build the input and 'targetFunc' for the target.
     void initialize(std::function<void()> onComplete,
-                    double (*inputFunc)(double),
-                    double (*targetFunc)(double));
+                    double (*inputFunc)(double, int),
+                    double (*targetFunc)(double, int));
+
+    void buildInputAtTimestep(std::function<double(double, int)> inputFunc, int timestep, std::function<void()> onComplete);
+    void buildTargetAtTimestep(std::function<double(double, int)> targetFunc, int timestep, std::function<void()> onComplete);
+
+private:
+    int sequenceLength_;
 };
 
 #endif // DATASOURCE_MANAGER_H
-

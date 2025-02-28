@@ -1,10 +1,3 @@
-//
-//  logger.cpp
-//  MetalNeuron
-//
-//  Created by James Couch on 2025-02-27.
-//
-
 #include "logger.h"
 #include <fstream>
 #include <iostream>
@@ -17,87 +10,87 @@ Logger::Logger(const std::string& filename)
 Logger::~Logger() {
 }
 
-void Logger::logErrors(const float* outputError, int outputCount, const float* hiddenError, int hiddenCount) {
-    float avgOutput = 0.0f;
-    for (int i = 0; i < outputCount; i++) {
-        avgOutput += outputError[i];
-    }
-    avgOutput /= outputCount;
+void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount,
+                       const std::vector<float*>& hiddenErrors, int hiddenCount, int sequenceLength) {
+    float avgOutputError = 0.0f;
+    float avgHiddenError = 0.0f;
 
-    float avgHidden = 0.0f;
-    for (int i = 0; i < hiddenCount; i++) {
-        avgHidden += hiddenError[i];
-    }
-    avgHidden /= hiddenCount;
+    for (int t = 0; t < sequenceLength; ++t) {
+        float timestepOutputError = 0.0f;
+        float timestepHiddenError = 0.0f;
 
-    std::cout << "AVG OUTPUT ERROR: " << fabs(avgOutput) << std::endl;
-    std::cout << "AVG HIDDEN ERROR: " << fabs(avgHidden) << std::endl;
+        for (int i = 0; i < outputCount; ++i)
+            timestepOutputError += fabs(outputErrors[t][i]);
+        timestepOutputError /= outputCount;
+
+        for (int i = 0; i < hiddenCount; ++i)
+            timestepHiddenError += fabs(hiddenErrors[t][i]);
+        timestepHiddenError /= hiddenCount;
+
+        avgOutputError += timestepOutputError;
+        avgHiddenError += timestepHiddenError;
+    }
+
+    avgOutputError /= sequenceLength;
+    avgHiddenError /= sequenceLength;
+
+    std::cout << "AVG OUTPUT ERROR (across sequence): " << avgOutputError << std::endl;
+    std::cout << "AVG HIDDEN ERROR (across sequence): " << avgHiddenError << std::endl;
 }
 
-void Logger::logIteration(const float* input, int inputCount,
-                            const float* hidden, int hiddenCount,
-                            const float* output, int outputCount,
-                            const float* target, int targetCount) {
+void Logger::logIteration(const std::vector<float*>& outputs, int outputCount,
+                          const std::vector<float*>& targets, int targetCount,
+                          int sequenceLength) {
     std::ofstream logFile(filename_, std::ios::app);
     if (!logFile.is_open()) {
         std::cerr << "Error opening log file: " << filename_ << std::endl;
         return;
     }
+
     logFile << "clf; hold on;" << std::endl;
-    logFile << "ylim([-1 1]);" << std::endl;
+    logFile << "ylim([-1.2 1.2]);" << std::endl;
 
-    logFile << "# Logging iteration" << std::endl;
-
-    logFile << "x = [ ";
-    for (int i = 0; i < inputCount; i++) {
-        if (i > 0)
-            logFile << ", ";
-        logFile << i;
-    }
-    logFile << " ]" << std::endl;
-
-    logFile << "input = [ ";
-    for (int i = 0; i < inputCount; i++) {
-        if (i > 0)
-            logFile << ", ";
-        logFile << input[i];
-    }
-    logFile << " ]" << std::endl;
-
-    logFile << "hidden = [ ";
-    for (int i = 0; i < hiddenCount; i++) {
-        if (i > 0)
-            logFile << ", ";
-        logFile << hidden[i];
-    }
-    logFile << " ]" << std::endl;
-
+    // Concatenate outputs and targets across timesteps for clearer visualization
     logFile << "output = [ ";
-    for (int i = 0; i < outputCount; i++) {
-        if (i > 0)
-            logFile << ", ";
-        logFile << output[i];
+    for (int t = 0; t < sequenceLength; ++t) {
+        for (int i = 0; i < outputCount; ++i) {
+            logFile << outputs[t][i];
+            if (!(t == sequenceLength - 1 && i == outputCount - 1))
+                logFile << ", ";
+        }
     }
-    logFile << " ]" << std::endl;
+    logFile << " ];" << std::endl;
 
     logFile << "target = [ ";
-    for (int i = 0; i < targetCount; i++) {
-        if (i > 0)
-            logFile << ", ";
-        logFile << target[i];
+    for (int t = 0; t < sequenceLength; ++t) {
+        for (int i = 0; i < targetCount; ++i) {
+            logFile << targets[t][i];
+            if (!(t == sequenceLength - 1 && i == targetCount - 1))
+                logFile << ", ";
+        }
     }
-    logFile << " ]" << std::endl;
+    logFile << " ];" << std::endl;
 
-    logFile << "scatter(1:length(input), input, 'b');" << std::endl;
-    logFile << "scatter(1:length(output), output, 'r');" << std::endl;
+    // Generate the x-axis values (single continuous range)
+    int totalPoints = outputCount * sequenceLength;
+    logFile << "x = 1:" << totalPoints << ";" << std::endl;
+
+    // Plot clearly labeled predictions and targets
+    logFile << "scatter(x, target, 'filled', 'b', 'DisplayName', 'Target');" << std::endl;
+    logFile << "scatter(x, output, 'filled', 'r', 'DisplayName', 'Prediction');" << std::endl;
+
+    logFile << "legend('show');" << std::endl;
+
     logFile << "hold off; pause(0.01);" << std::endl;
+
     logFile.close();
 }
+
 
 void Logger::clear() {
     std::ofstream logFile(filename_, std::ios::trunc);
     if (!logFile.is_open()) {
-        std::cerr << "Error opening log file: " << filename_ << std::endl;
+        std::cerr << "Error clearing log file: " << filename_ << std::endl;
         return;
     }
     logFile.close();

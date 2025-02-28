@@ -12,7 +12,7 @@
 
 ViewDelegate::ViewDelegate( MTL::Device* pDevice )
 : MTK::ViewDelegate()
-, _pComputer( new NeuralEngine( pDevice ) )
+, _pComputer( new NeuralEngine( pDevice, 10 ) )
 {
 }
 

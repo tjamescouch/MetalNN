@@ -2,52 +2,48 @@
 #define RNNLAYER_H
 
 #include "layer.h"
+#include <vector>
 
-// Forward declarations for Metal classes
 namespace MTL {
     class Device;
-    class CommandQueue;
-    class Library;
     class Buffer;
     class ComputePipelineState;
-    class Function;
-    class CompileOptions;
-    class ComputeCommandEncoder;
     class CommandBuffer;
 }
 
 class RNNLayer : public Layer {
 public:
-    RNNLayer(int inputDim, int hiddenDim);
+    RNNLayer(int inputDim, int hiddenDim, int sequenceLength);
     virtual ~RNNLayer();
 
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
     void buildBuffers(MTL::Device* device) override;
+
     void forward(MTL::CommandBuffer* cmdBuf) override;
     void backward(MTL::CommandBuffer* cmdBuf) override;
 
-    MTL::Buffer* getErrorBuffer() const;
-    MTL::Buffer* getOutputBuffer() const;
-    void setInputBuffer(MTL::Buffer* inputBuffer);
-
-    // NEW: Setter to bind DenseLayer's error buffer.
-    void setDenseErrorBuffer(MTL::Buffer* denseErrorBuffer);
+    MTL::Buffer* getOutputBufferAt(int timestep) const;
+    MTL::Buffer* getErrorBufferAt(int timestep) const;
+    void setInputBufferAt(int timestep, MTL::Buffer* inputBuffer);
+    void setDenseErrorBuffer(MTL::Buffer* denseErrorBuffer, int timestep);
 
 private:
     int inputDim_;
     int hiddenDim_;
+    int sequenceLength_;
 
-    MTL::Buffer* bufferInput_;
-    MTL::Buffer* bufferHidden_;
-    MTL::Buffer* bufferHiddenPrev_;
+    std::vector<MTL::Buffer*> bufferInputs_;
+    std::vector<MTL::Buffer*> bufferHiddenStates_;
+    std::vector<MTL::Buffer*> bufferHiddenPrevStates_;
+    std::vector<MTL::Buffer*> bufferErrors_;
+    std::vector<MTL::Buffer*> bufferDenseErrors_;
+
     MTL::Buffer* bufferW_xh_;
     MTL::Buffer* bufferW_hh_;
     MTL::Buffer* bufferBias_;
-    MTL::Buffer* bufferError_;
-    MTL::Buffer* bufferDenseError_;  // New buffer for DenseLayer error propagation
 
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
 };
 
-#endif // RNNLAYER_H
+#endif

@@ -1,248 +1,200 @@
-#include <cmath>
+#include "neural-engine.h"
+#include "multi-layer-kernels.h"
 #include <iostream>
 #include <cassert>
-#include <fstream>
-#include <algorithm>
-#include "neural-engine.h"
-#include "data-source-manager.h"
-#include "keyboard-controller.h"
-#include "logger.h"
-#include "rnn-layer.h"
-#include "dense-layer.h"
-#include "multi-layer-kernels.h"
 
-
-
-// Define dimensions and training iterations.
 const int input_dim  = 512;
 const int hidden_dim = 512;
 const int output_dim = 512;
-const int NUM_ITERATIONS = 10000;
 const char* outputFileName = "multilayer_nn_training.m";
 
-// Example functions for data source initialization.
-double inputFunction(double in) {
-    return sin(0.050 * in);
-}
-double expectedOutput(double in) {
-    return sin(0.050 * in);
+double inputFunc(double index, int timestep) {
+    return sin(0.05 * index + 0.1 * timestep);
 }
 
-NeuralEngine::NeuralEngine(MTL::Device* pDevice)
-: _pDataSourceManager(new DataSourceManager(input_dim, hidden_dim, output_dim)),
-_pDevice(pDevice->retain()),
-_pCompileOptions(nullptr),
-areBuffersBuilt(false),
-currentlyComputing(false),
-_pInputLayer(nullptr),
-_pRNNLayer(nullptr),
-_pDenseLayer(nullptr)
+double targetFunc(double index, int timestep) {
+    return cos(0.05 * index + 0.1 * timestep);
+}
+
+
+NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength)
+: _pDevice(pDevice->retain()), sequenceLength_(sequenceLength),
+  areBuffersBuilt(false), currentlyComputing(false)
 {
     _pLogger = new Logger(outputFileName);
-    
+    _pDataSourceManager = new DataSourceManager(input_dim, hidden_dim, output_dim, sequenceLength_);
+
     _pDataSourceManager->initialize([this]() {
         _pLogger->clear();
         buildBuffers();
-    }, inputFunction, expectedOutput);
-    
+    }, inputFunc, targetFunc);
+
     _pKeyboardController = new KeyboardController();
     _pKeyboardController->setForwardCallback([this]() {
         _pLogger->clear();
-        computeForwardIterations(NUM_ITERATIONS);
+        computeForwardIterations(1000);
     });
     _pKeyboardController->setLearnCallback([this]() {
-        computeLearnAndApplyUpdates(NUM_ITERATIONS);
+        computeLearnAndApplyUpdates(1000);
     });
     _pKeyboardController->setClearCallback([this]() {
         _pLogger->clear();
     });
-    
-    _semaphore = dispatch_semaphore_create(NeuralEngine::kMaxFramesInFlight);
-    
-    // Compose the network from layers.
-    _pInputLayer = new InputLayer(input_dim);
-    _pRNNLayer = new RNNLayer(input_dim, hidden_dim);
-    _pDenseLayer = new DenseLayer(hidden_dim, output_dim);
-    
+
+    _semaphore = dispatch_semaphore_create(kMaxFramesInFlight);
+
+    // Layers initialization with sequence length
+    _pInputLayer = new InputLayer(input_dim, sequenceLength_);
+    _pRNNLayer = new RNNLayer(input_dim, hidden_dim, sequenceLength_);
+    _pDenseLayer = new DenseLayer(hidden_dim, output_dim, sequenceLength_);
+
     buildComputePipeline();
 }
 
-
 NeuralEngine::~NeuralEngine() {
-    if (_pRNNLayer) {
-        delete _pRNNLayer;
-        _pRNNLayer = nullptr;
-    }
-    if (_pDenseLayer) {
-        delete _pDenseLayer;
-        _pDenseLayer = nullptr;
-    }
-    if (_pDataSourceManager) {
-        delete _pDataSourceManager;
-        _pDataSourceManager = nullptr;
-    }
-    if (_pKeyboardController) {
-        delete _pKeyboardController;
-        _pKeyboardController = nullptr;
-    }
-    if (_pLogger) {
-        delete _pLogger;
-        _pLogger = nullptr;
-    }
-    if (_pComputeLibrary) _pComputeLibrary->release();
+    delete _pRNNLayer;
+    delete _pDenseLayer;
+    delete _pInputLayer;
+    delete _pDataSourceManager;
+    delete _pKeyboardController;
+    delete _pLogger;
+
     if (_pCommandQueue) _pCommandQueue->release();
     if (_pDevice) _pDevice->release();
 }
 
 void NeuralEngine::buildComputePipeline() {
-    std::cout << "Building compute pipeline (NeuralEngine)" << std::endl;
     _pCommandQueue = _pDevice->newCommandQueue();
-    
     NS::Error* pError = nullptr;
+
     _pComputeLibrary = _pDevice->newLibrary(
-                                            NS::String::string(multilayerkernels::nnKernelSrc, NS::UTF8StringEncoding),
-                                            _pCompileOptions,
-                                            &pError
-                                            );
-    if (!_pComputeLibrary) {
-        std::cerr << "Compute library error: " << pError->localizedDescription()->utf8String() << std::endl;
-        assert(false);
-    }
+        NS::String::string(multilayerkernels::nnKernelSrc, NS::UTF8StringEncoding),
+        nullptr, &pError);
     
-    // Let each layer build its own pipeline.
+    assert(_pComputeLibrary && "Compute library creation failed.");
+
     _pRNNLayer->buildPipeline(_pDevice, _pComputeLibrary);
     _pDenseLayer->buildPipeline(_pDevice, _pComputeLibrary);
-    
     _pComputeLibrary->release();
 }
 
 void NeuralEngine::buildBuffers() {
-    std::cout << "Building buffers (NeuralEngine)" << std::endl;
-    
-    // Build DenseLayer buffers first.
-    _pDenseLayer->buildBuffers(_pDevice);
-    
-    // Now build RNNLayer buffers.
-    _pRNNLayer->buildBuffers(_pDevice);
-    
-    // Set the DenseLayer's error buffer for the RNNLayer.
-    _pRNNLayer->setDenseErrorBuffer(_pDenseLayer->getErrorBuffer());
-    
-    // Build input buffers.
     _pInputLayer->buildBuffers(_pDevice);
-    _pInputLayer->updateBuffer(_pDataSourceManager->x);
-    _pRNNLayer->setInputBuffer(_pInputLayer->getBuffer());
-    
-    // Chain: set DenseLayer's input to be RNNLayer's output.
-    _pDenseLayer->setInputBuffer(_pRNNLayer->getOutputBuffer());
-    
+    _pRNNLayer->buildBuffers(_pDevice);
+    _pDenseLayer->buildBuffers(_pDevice);
+
+    for (int t = 0; t < sequenceLength_; ++t) {
+        _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
+        _pRNNLayer->setInputBufferAt(t, _pInputLayer->getBufferAt(t));
+        _pDenseLayer->setInputBufferAt(t, _pRNNLayer->getOutputBufferAt(t));
+        _pDenseLayer->updateTargetBufferAt(_pDataSourceManager->y_hat, t);
+        _pRNNLayer->setDenseErrorBuffer(_pDenseLayer->getErrorBufferAt(t), t);
+    }
+
+
     areBuffersBuilt = true;
 }
 
-
 void NeuralEngine::computeForward(std::function<void()> onComplete) {
-    std::cout << "Performing forward pass (NeuralEngine)" << std::endl;
     if (!areBuffersBuilt || currentlyComputing) return;
     currentlyComputing = true;
-    
-    NS::AutoreleasePool* pPool = NS::AutoreleasePool::alloc()->init();
+
     auto cmdBuf = _pCommandQueue->commandBuffer();
-    assert(cmdBuf);
-    
     _pRNNLayer->forward(cmdBuf);
     _pDenseLayer->forward(cmdBuf);
-    
-    cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
-        dispatch_semaphore_signal(_semaphore);
+
+    cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
         currentlyComputing = false;
+        dispatch_semaphore_signal(_semaphore);
         onComplete();
     });
-    
+
     cmdBuf->commit();
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
-    pPool->release();
+    
+    float* outputData = static_cast<float*>(_pDenseLayer->getOutputBufferAt(0)->contents());
+    std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ..." << std::endl;
+
 }
 
-void NeuralEngine::computeLearn(std::function<void()> onComplete) {
-    computeForward([this, onComplete](){
-        std::cout << "Performing learning pass (NeuralEngine)" << std::endl;
-        if (!areBuffersBuilt || currentlyComputing) return;
-        currentlyComputing = true;
-        
-        NS::AutoreleasePool* pPool = NS::AutoreleasePool::alloc()->init();
-        auto cmdBuf = _pCommandQueue->commandBuffer();
-        assert(cmdBuf);
-        
-        _pDenseLayer->backward(cmdBuf);
-        _pRNNLayer->backward(cmdBuf);
-        
-        cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb){
-            dispatch_semaphore_signal(_semaphore);
-            currentlyComputing = false;
-            // (For demonstration, we could log errors here.)
-            onComplete();
-        });
-        cmdBuf->commit();
-        dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
-        pPool->release();
+void NeuralEngine::computeBackward(std::function<void()> onComplete) {
+    if (!areBuffersBuilt || currentlyComputing) return;
+    currentlyComputing = true;
+
+    auto cmdBuf = _pCommandQueue->commandBuffer();
+    _pDenseLayer->backward(cmdBuf);
+    _pRNNLayer->backward(cmdBuf);
+
+    cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
+        currentlyComputing = false;
+        dispatch_semaphore_signal(_semaphore);
+        onComplete();
     });
+
+    cmdBuf->commit();
+    dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
 }
 
 void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
-    std::cout << "computeLearnAndApplyUpdates, iterations remaining = " << iterations << std::endl;
-    computeLearn([this, iterations]() {
-        _pDataSourceManager->x.build([iterations](double x){ return inputFunction(x - iterations); });
-        _pDataSourceManager->y_hat.build([iterations](double x){ return inputFunction(x - iterations); });
-        
-        _pInputLayer->updateBuffer(_pDataSourceManager->x);
-        _pDenseLayer->updateTargetBuffer(_pDataSourceManager->y_hat);
-        
-        // Retrieve error data from the learning passes.
-        float* outputError = static_cast<float*>(_pDenseLayer->getErrorBuffer()->contents());
-        long outputErrorCount = _pDenseLayer->getErrorBuffer()->length() / sizeof(float);
-        
-        float* hiddenError = static_cast<float*>(_pRNNLayer->getErrorBuffer()->contents());
-        long hiddenErrorCount = _pRNNLayer->getErrorBuffer()->length() / sizeof(float);
-        
-        // Log errors.
-        _pLogger->logErrors(outputError, (int)outputErrorCount,
-                            hiddenError, (int)hiddenErrorCount);
-        
-        if (iterations > 0) {
+    if (iterations == 0) return;
+
+    computeForward([this, iterations]() {
+        computeBackward([this, iterations]() {
+            for (int t = 0; t < sequenceLength_; ++t) {
+                _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
+                _pDenseLayer->updateTargetBufferAt(_pDataSourceManager->y_hat, t);
+            }
+            
+            std::vector<float*> inputs(sequenceLength_);
+            std::vector<float*> hiddenStates(sequenceLength_);
+            std::vector<float*> outputs(sequenceLength_);
+            std::vector<float*> targets(sequenceLength_);
+            std::vector<float*> outputErrors(sequenceLength_);
+            std::vector<float*> hiddenErrors(sequenceLength_);
+
+            for (int t = 0; t < sequenceLength_; ++t) {
+                inputs[t] = static_cast<float*>(_pInputLayer->getBufferAt(t)->contents());
+                hiddenStates[t] = static_cast<float*>(_pRNNLayer->getOutputBufferAt(t)->contents());
+                outputs[t] = static_cast<float*>(_pDenseLayer->getOutputBufferAt(t)->contents());
+                targets[t] = _pDataSourceManager->y_hat.get_data_buffer_at(t);
+                outputErrors[t] = static_cast<float*>(_pDenseLayer->getErrorBufferAt(t)->contents());
+                hiddenErrors[t] = static_cast<float*>(_pRNNLayer->getErrorBufferAt(t)->contents());
+            }
+
+            printf("iterations remaining: %d\n", iterations);
+            _pLogger->logErrors(outputErrors, output_dim, hiddenErrors, hidden_dim, sequenceLength_);
+
+            
             computeLearnAndApplyUpdates(iterations - 1);
-        }
+        });
     });
 }
 
 void NeuralEngine::computeForwardIterations(uint32_t iterations) {
-    std::cout << "computeForwardIterations, iterations remaining = " << iterations << std::endl;
+    if (iterations == 0) return;
+
     computeForward([this, iterations]() {
-        _pDataSourceManager->x.build([iterations](double x){ return inputFunction(x - iterations); });
-        _pInputLayer->updateBuffer(_pDataSourceManager->x);
-        
-        // Retrieve iteration information.
-        float* inputData = static_cast<float*>(_pInputLayer->getBuffer()->contents());
-        long inputCount = _pInputLayer->getBuffer()->length() / sizeof(float);
-        
-        float* hiddenData = static_cast<float*>(_pRNNLayer->getOutputBuffer()->contents());
-        long hiddenCount = _pRNNLayer->getOutputBuffer()->length() / sizeof(float);
-        
-        float* outputData = static_cast<float*>(_pDenseLayer->getOutputBuffer()->contents());
-        long outputCount = _pDenseLayer->getOutputBuffer()->length() / sizeof(float);
-        
-        // Assume DataSource y_hat has getData() and getSize() methods.
-        float* targetData = static_cast<float*>(_pDataSourceManager->y_hat.get_data_buffer());
-        long targetCount = _pDataSourceManager->y_hat.get_num_data() / sizeof(float);
-        
-        // Log iteration information.
-        _pLogger->logIteration(inputData,  (int)inputCount,
-                               hiddenData, (int)hiddenCount,
-                               outputData, (int)outputCount,
-                               targetData, (int)targetCount);
-        
-        if (iterations > 0) {
-            computeForwardIterations(iterations - 1);
+        for (int t = 0; t < sequenceLength_; ++t) {
+            _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
         }
+        
+        std::vector<float*> inputs(sequenceLength_);
+        std::vector<float*> hiddenStates(sequenceLength_);
+        std::vector<float*> outputs(sequenceLength_);
+        std::vector<float*> targets(sequenceLength_);
+
+        for (int t = 0; t < sequenceLength_; ++t) {
+            inputs[t] = static_cast<float*>(_pInputLayer->getBufferAt(t)->contents());
+            hiddenStates[t] = static_cast<float*>(_pRNNLayer->getOutputBufferAt(t)->contents());
+            outputs[t] = static_cast<float*>(_pDenseLayer->getOutputBufferAt(t)->contents());
+            targets[t] = _pDataSourceManager->y_hat.get_data_buffer_at(t);
+        }
+
+        printf("iterations remaining: %d\n", iterations);
+        _pLogger->logIteration(outputs, output_dim, targets, output_dim, sequenceLength_);
+
+        
+        computeForwardIterations(iterations - 1);
     });
 }
 

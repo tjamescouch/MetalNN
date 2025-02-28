@@ -19,17 +19,20 @@ namespace MTL {
 
 class NeuralEngine {
 public:
-    NeuralEngine(MTL::Device* pDevice);
+    NeuralEngine(MTL::Device* pDevice, int sequenceLength);
     ~NeuralEngine();
 
     void computeForward(std::function<void()> onComplete);
-    void computeLearn(std::function<void()> onComplete);
+    void computeBackward(std::function<void()> onComplete);
+
     void computeLearnAndApplyUpdates(uint32_t iterations);
     void computeForwardIterations(uint32_t iterations);
+
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();
+
     static constexpr int kMaxFramesInFlight = 3;
-    
+
 private:
     void buildComputePipeline();
     void buildBuffers();
@@ -37,11 +40,11 @@ private:
     DataSourceManager* _pDataSourceManager;
     KeyboardController* _pKeyboardController;
     Logger* _pLogger;
-    
+
     InputLayer* _pInputLayer;
     RNNLayer* _pRNNLayer;
     DenseLayer* _pDenseLayer;
-    
+
     MTL::Device* _pDevice;
     MTL::CommandQueue* _pCommandQueue;
     MTL::Library* _pComputeLibrary;
@@ -50,6 +53,8 @@ private:
     bool areBuffersBuilt;
     bool currentlyComputing;
     dispatch_semaphore_t _semaphore;
+
+    int sequenceLength_;
 };
 
 #endif // NEURAL_ENGINE_H

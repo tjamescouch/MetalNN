@@ -1,89 +1,48 @@
-//
-//  height-map.cpp
-//  LearnMetalCPP
-//
-//  Created by James Couch on 2024-12-07.
-//
-
 #include "data-source.h"
-#include "math-lib.h"
-#include <simd/simd.h>
-
-#pragma mark - DataSource
-#pragma region DataSource {
-
 #include <random>
+#include <cstdio>
 
-// Create a random number engine
-std::random_device rd;
-std::mt19937 gen(rd());
+// Random number generation setup
+static std::random_device rd;
+static std::mt19937 gen(rd());
+static std::uniform_real_distribution<> uniform_dist(-1.0, 1.0);
 
-// Create a distribution that maps to [0, 1]
-std::uniform_real_distribution<> uniform_0_to_1(0.0, 1.0);
-std::uniform_real_distribution<> uniform_n_1_to_p_1(-1.0, 1.0);
-    
+DataSource::DataSource(int width, int height, int sequenceLength)
+    : width_(width), height_(height), sequenceLength_(sequenceLength),
+      data_(sequenceLength, std::vector<float>(width * height, 0.0f)) {}
 
-DataSource::DataSource(int width, int height)
-{
-    this->width = width;
-    this->height = height;
+DataSource::~DataSource() {}
+
+size_t DataSource::get_num_data() const {
+    return width_ * height_;
 }
 
-DataSource::~DataSource()
-{
+float* DataSource::get_data_buffer_at(int timestep) {
+    return data_[timestep].data();
 }
 
-float* DataSource::get_data_buffer()
-{
-    return data.data();
+const float* DataSource::get_data_buffer_at(int timestep) const {
+    return data_[timestep].data();
 }
 
-size_t DataSource::get_num_data()
-{
-    return data.size();
-}
+void DataSource::buildAtTimestep(std::function<double(double, int)> f, int timestep) {
+    if (timestep < 0 || timestep >= sequenceLength_) return;
 
-
-void DataSource::initRandom()
-{
-    data.resize(0);
-    printf("Generating data...\n");
-
-    size_t numCellsPerRow = this->width - 1;  // cells in each row
-    size_t totalNumCells  = numCellsPerRow * numCellsPerRow;
-    data.reserve(totalNumCells * 6);
-
-    for (int ix = 0; ix < this->width; ++ix)
-    {
-        for(int iy = 0; iy < this->height; ++iy)
-        {
-            float x  = uniform_n_1_to_p_1(gen);
-            this->data.push_back(x);
-        }
+    printf("Generating data at timestep %d...\n", timestep);
+    auto& timestepData = data_[timestep];
+    for (int i = 0; i < width_ * height_; ++i) {
+        timestepData[i] = static_cast<float>(f(i, timestep));
     }
-    
-    printf("Data generation finished. Generated %zu values\n", data.size());
+    printf("Data generation finished for timestep %d. Generated %zu values\n", timestep, timestepData.size());
 }
 
-void DataSource::build(std::function<double(double)> f)
-{
-    data.resize(0);
-    printf("Generating data...\n");
+void DataSource::initRandomAtTimestep(int timestep) {
+    if (timestep < 0 || timestep >= sequenceLength_) return;
 
-    size_t numCellsPerRow = this->width - 1;  // cells in each row
-    size_t totalNumCells  = numCellsPerRow * numCellsPerRow;
-    data.reserve(totalNumCells * 6);
-
-    for (int ix = 0; ix < this->width; ++ix)
-    {
-        for(int iy = 0; iy < this->height; ++iy)
-        {
-            this->data.push_back(f(ix + iy*this->width));
-        }
+    printf("Generating random data at timestep %d...\n", timestep);
+    auto& timestepData = data_[timestep];
+    for (auto& value : timestepData) {
+        value = static_cast<float>(uniform_dist(gen));
     }
-    
-    printf("Data generation finished. Generated %zu values\n", data.size());
+    printf("Random data generation finished for timestep %d. Generated %zu values\n", timestep, timestepData.size());
 }
-
-
-#pragma endregion DataSource }

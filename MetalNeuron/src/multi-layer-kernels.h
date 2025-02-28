@@ -11,9 +11,8 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.01f;
-constant float learning_rate_b = 0.001f;
-constant float max_abs_activation_derivative      = 1.0f;
+constant float learning_rate_w = 0.0005f;
+constant float learning_rate_b = 0.00005f;
 
 // Activation function and its derivative
 inline float activationFunction(float x) {
@@ -22,7 +21,7 @@ inline float activationFunction(float x) {
 
 inline float activationDerivative(float y) {
   // Using y = tanh(x): derivative = 1 - y^2
-  return clamp(1.0f - y * y, -max_abs_activation_derivative, max_abs_activation_derivative);
+  return (1.0f - y * y);
 }
 
 
