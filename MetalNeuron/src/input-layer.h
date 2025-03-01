@@ -18,16 +18,18 @@ public:
     virtual ~InputLayer();
     
     void buildBuffers(MTL::Device* device) override;
-
-    // Updates input buffer for a specific timestep.
     void updateBufferAt(DataSource& ds, int timestep);
-    
-    // Retrieves the buffer for a specific timestep.
-    MTL::Buffer* getBufferAt(int timestep) const;
-    
     void buildPipeline(MTL::Device* device, MTL::Library* library) override {};
     void forward(MTL::CommandBuffer* cmdBuf) override {};
     void backward(MTL::CommandBuffer* cmdBuf) override {};
+    void setInputBufferAt(int timestep, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBufferAt(int timestep) const override;
+    MTL::Buffer* getErrorBufferAt(int timestep) const override;
+    void updateTargetBufferAt(DataSource& targetData, int timestep) const {};
+    int outputSize() const override { return inputDim_; }
+    void updateTargetBufferAt(DataSource& targetData, int timestep) override {};
+    void setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputErrorBufferAt(int timestep) const override;
     
 private:
     int inputDim_;

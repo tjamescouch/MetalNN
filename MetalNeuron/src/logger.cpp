@@ -20,8 +20,7 @@ Logger::~Logger() {
     }
 }
 
-void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount,
-                       const std::vector<float*>& hiddenErrors, int hiddenCount, int sequenceLength) {
+void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount, int hiddenCount, int sequenceLength) {
     float avgOutputError = 0.0f;
     float avgHiddenError = 0.0f;
     
@@ -33,19 +32,12 @@ void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount,
             timestepOutputError += fabs(outputErrors[t][i]);
         timestepOutputError /= outputCount;
         
-        for (int i = 0; i < hiddenCount; ++i)
-            timestepHiddenError += fabs(hiddenErrors[t][i]);
-        timestepHiddenError /= hiddenCount;
-        
         avgOutputError += timestepOutputError;
-        avgHiddenError += timestepHiddenError;
     }
     
     avgOutputError /= sequenceLength;
-    avgHiddenError /= sequenceLength;
     
     std::cout << "AVG OUTPUT ERROR (across sequence): " << avgOutputError << std::endl;
-    std::cout << "AVG HIDDEN ERROR (across sequence): " << avgHiddenError << std::endl;
 }
 
 void Logger::logIteration(const float* output, int outputCount,

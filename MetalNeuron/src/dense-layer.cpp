@@ -17,28 +17,23 @@ forwardPipelineState_(nullptr), backwardPipelineState_(nullptr)
 }
 
 DenseLayer::~DenseLayer() {
-    for (auto buf : bufferInputs_)  if (buf) buf->release();
     for (auto buf : bufferOutputs_) if (buf) buf->release();
     for (auto buf : bufferTargets_) if (buf) buf->release();
     for (auto buf : bufferErrors_)  if (buf) buf->release();
+    
     if (bufferWeights_) bufferWeights_->release();
     if (bufferBias_) bufferBias_->release();
+    if (bufferDecay_) bufferDecay_->release();
     if (forwardPipelineState_) forwardPipelineState_->release();
     if (backwardPipelineState_) backwardPipelineState_->release();
-    if (bufferDecay_) bufferDecay_->release();
 }
 
 void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
-    // Confirm shader function name explicitly
-    std::cout << "🔍 Attempting to load shader function: forward_output_layer\n";
     auto forwardFunc = library->newFunction(NS::String::string("forward_output_layer", NS::UTF8StringEncoding));
-
-    if (!forwardFunc) {
-        std::cerr << "❌ ERROR: Failed to find Metal shader function 'forward_output_layer'.\n";
-        return;
-    }
-
+    assert(forwardFunc && "Forward function not found.");
+    
     auto backwardFunc = library->newFunction(NS::String::string("learn_output_layer", NS::UTF8StringEncoding));
+    assert(backwardFunc && "Backward function not found.");
     
     NS::Error* error = nullptr;
     forwardPipelineState_ = device->newComputePipelineState(forwardFunc, &error);
@@ -52,9 +47,9 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
 }
 
 void DenseLayer::buildBuffers(MTL::Device* device) {
-    const float scale = 0.01f;
+    const float scale = 0.1f;
     const float decay = 1.0f;
-    // Shared weights across timesteps
+    
     bufferWeights_ = device->newBuffer(inputDim_ * outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     float* w = static_cast<float*>(bufferWeights_->contents());
     for (int i = 0; i < inputDim_ * outputDim_; ++i)
@@ -65,13 +60,17 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     memcpy(bufferDecay_->contents(), &decay, sizeof(float));
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
     
-    // Shared bias
     bufferBias_ = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     memset(bufferBias_->contents(), 0, outputDim_ * sizeof(float));
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
     
-    // Timestep-specific buffers
+    bufferInputErrors_.resize(sequenceLength_);
+    bufferOutputErrors_.resize(sequenceLength_);
+    
     for (int t = 0; t < sequenceLength_; ++t) {
+        bufferInputErrors_[t] = device->newBuffer(inputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+        bufferOutputErrors_[t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+        
         bufferOutputs_[t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         bufferTargets_[t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         bufferErrors_[t]  = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
@@ -91,9 +90,9 @@ void DenseLayer::setInputBufferAt(int timestep, MTL::Buffer* inputBuffer) {
     bufferInputs_[timestep] = inputBuffer;
 }
 
-void DenseLayer::updateTargetBufferAt(DataSource& ds, int timestep) {
+void DenseLayer::updateTargetBufferAt(DataSource& targetData, int timestep) {
     assert(timestep >= 0 && timestep < sequenceLength_);
-    memcpy(bufferTargets_[timestep]->contents(), ds.get_data_buffer_at(timestep), outputDim_ * sizeof(float));
+    memcpy(bufferTargets_[timestep]->contents(), targetData.get_data_buffer_at(timestep), outputDim_ * sizeof(float));
     bufferTargets_[timestep]->didModifyRange(NS::Range(0, outputDim_ * sizeof(float)));
 }
 
@@ -101,7 +100,6 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
     for (int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(forwardPipelineState_);
-        
         encoder->setBuffer(bufferInputs_[t], 0, 0);
         encoder->setBuffer(bufferOutputs_[t], 0, 1);
         encoder->setBuffer(bufferWeights_, 0, 2);
@@ -117,14 +115,9 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
 }
 
 void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
-#ifdef DEBUG_NETWORK
-    float* pDecay = static_cast<float*>(bufferDecay_->contents());
-    std::cout << "Dense decay " << *pDecay << std::endl;
-#endif
     for (int t = sequenceLength_ - 1; t >= 0; --t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(backwardPipelineState_);
-        
         encoder->setBuffer(bufferInputs_[t], 0, 0);
         encoder->setBuffer(bufferWeights_, 0, 1);
         encoder->setBuffer(bufferBias_, 0, 2);
@@ -140,6 +133,19 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
         encoder->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
         encoder->endEncoding();
     }
+    
+    // Ensure buffers modified by GPU kernels are synchronized
+    bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
+    bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
+    bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
+    for (int t = 0; t < sequenceLength_; ++t) {
+        bufferErrors_[t]->didModifyRange(NS::Range(0, outputDim_ * sizeof(float)));
+    }
+#ifdef DEBUG_NETWORK
+    float* weights = static_cast<float*>(bufferWeights_->contents());
+    std::cout << "Weights sample after backward: "
+    << weights[0] << ", " << weights[1] << ", ..." << std::endl;
+#endif
 }
 
 MTL::Buffer* DenseLayer::getErrorBufferAt(int timestep) const {
@@ -150,4 +156,18 @@ MTL::Buffer* DenseLayer::getErrorBufferAt(int timestep) const {
 MTL::Buffer* DenseLayer::getOutputBufferAt(int timestep) const {
     assert(timestep >= 0 && timestep < sequenceLength_);
     return bufferOutputs_[timestep];
+}
+
+int DenseLayer::outputSize() const {
+    return outputDim_;
+}
+
+void DenseLayer::setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) {
+    assert(timestep >= 0 && timestep < sequenceLength_);
+    bufferOutputErrors_[timestep] = buffer;
+}
+
+MTL::Buffer* DenseLayer::getInputErrorBufferAt(int timestep) const {
+    assert(timestep >= 0 && timestep < sequenceLength_);
+    return bufferInputErrors_[timestep];
 }

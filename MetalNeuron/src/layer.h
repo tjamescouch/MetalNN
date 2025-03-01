@@ -10,11 +10,14 @@
 
 #include <functional>
 
+#import "data-source.h"
+
 // Forward declarations for Metal types.
 namespace MTL {
-    class Device;
-    class Library;
-    class CommandBuffer;
+class Buffer;
+class Device;
+class Library;
+class CommandBuffer;
 }
 
 class Layer {
@@ -28,6 +31,13 @@ public:
     virtual void forward(MTL::CommandBuffer* cmdBuf) = 0;
     // Record commands for the backward pass.
     virtual void backward(MTL::CommandBuffer* cmdBuf) = 0;
+    virtual void setInputBufferAt(int timestep, MTL::Buffer* buffer) = 0;
+    virtual MTL::Buffer* getOutputBufferAt(int timestep) const = 0;
+    virtual int outputSize() const = 0;
+    virtual MTL::Buffer* getErrorBufferAt(int timestep) const = 0;
+    virtual void updateTargetBufferAt(DataSource& targetData, int timestep) = 0;
+    virtual void setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) = 0;
+    virtual MTL::Buffer* getInputErrorBufferAt(int timestep) const = 0;
 };
 
 #endif // LAYER_H

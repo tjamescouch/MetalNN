@@ -45,9 +45,25 @@ void InputLayer::updateBufferAt(DataSource& ds, int timestep) {
     bufferInputs_[timestep]->didModifyRange(NS::Range::Make(0, inputDim_ * sizeof(float)));
 }
 
-MTL::Buffer* InputLayer::getBufferAt(int timestep) const {
-    if (timestep < 0 || timestep >= sequenceLength_) {
-        return nullptr;  // Handle invalid timestep gracefully.
-    }
+
+void InputLayer::setInputBufferAt(int timestep, MTL::Buffer* buffer) {
+    assert(timestep >= 0 && timestep < sequenceLength_);
+    bufferInputs_[timestep] = buffer;
+}
+
+MTL::Buffer* InputLayer::getOutputBufferAt(int timestep) const {
+    assert(timestep >= 0 && timestep < sequenceLength_);
     return bufferInputs_[timestep];
+}
+
+MTL::Buffer* InputLayer::getErrorBufferAt(int timestep) const {
+    return nullptr;
+}
+
+void InputLayer::setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) {
+    // No-op, input layer doesn't propagate errors backward
+}
+
+MTL::Buffer* InputLayer::getInputErrorBufferAt(int timestep) const {
+    return nullptr; // clearly indicate not applicable
 }

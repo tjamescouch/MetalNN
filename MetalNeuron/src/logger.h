@@ -10,8 +10,7 @@ public:
     ~Logger();
     
     // Logs average errors computed from output and hidden errors across all timesteps.
-    void logErrors(const std::vector<float*>& outputErrors, int outputCount,
-                   const std::vector<float*>& hiddenErrors, int hiddenCount, int sequenceLength);
+    void logErrors(const std::vector<float*>& outputErrors, int outputCount, int hiddenCount, int sequenceLength);
     
     // Logs one full iteration's data (inputs, hidden states, outputs, targets) for all timesteps.
     void logIteration(const float* output, int outputCount,
