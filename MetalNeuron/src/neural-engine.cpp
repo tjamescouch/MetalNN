@@ -238,6 +238,11 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
     _pRNNLayer2->backward(cmdBuf);
     _pRNNLayer1->backward(cmdBuf);
     
+    // 🚧 Dynamic layers backward pass (new incremental step)
+    for (auto it = dynamicLayers_.rbegin(); it != dynamicLayers_.rend(); ++it) {
+        (*it)->backward(cmdBuf);
+    }
+    
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
