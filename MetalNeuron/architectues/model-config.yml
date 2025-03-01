@@ -1,21 +1,20 @@
 name: "MyNeuralNet"
 
 layers:
-  - type: Dense
-    input_size: 784
-    output_size: 256
-    activation: relu
+  - type: RNN
+    input_size: 512
+    output_size: 512
+    activation: tanh
 
-  - type: Dropout
-    rate: 0.5
-
-  - type: Dense
-    output_size: 128
-    activation: relu
+  - type: RNN
+    input_size: 512
+    output_size: 512
+    activation: tanh
 
   - type: Dense
-    output_size: 10
-    activation: softmax
+    input_size: 512
+    output_size: 512
+    activation: linear
 
 time_steps: 10
 
@@ -32,4 +31,4 @@ training:
 
 metadata:
   author: "James Couch"
-  description: "Example network for MNIST classification"
+  description: "Network configuration with 2 RNN layers followed by a Dense layer to reproduce original network behavior"

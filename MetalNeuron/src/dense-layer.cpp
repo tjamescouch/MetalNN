@@ -47,7 +47,7 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
 }
 
 void DenseLayer::buildBuffers(MTL::Device* device) {
-    const float scale = 0.1f;
+    const float scale = 0.01f;
     const float decay = 1.0f;
     
     bufferWeights_ = device->newBuffer(inputDim_ * outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
