@@ -13,7 +13,7 @@ using namespace metal;
 constant float learning_rate_w = 0.00002f;
 constant float learning_rate_b = 0.00002f;
 
-constant float decay_factor = 0.9995f;
+constant float decay_factor = 0.99992f;
 
 // Activation function and derivative for hidden layers
 inline float hiddenActivation(float x) {
@@ -22,7 +22,7 @@ inline float hiddenActivation(float x) {
 
 inline float hiddenActivationDerivative(float y) {
   // derivative = 1 - y^2 (for tanh)
-  return clamp(1.0f - y * y, -0.5, 0.5);
+  return (1.0f - y * y);
 }
 
 // Activation function and derivative for output layer (linear)
@@ -70,7 +70,7 @@ kernel void forward_rnn(
         sum += h_prev[j] * W_hh[j * hidden_dim + tid];
     }
     
-    h[tid] = hiddenActivation(clamp(sum, -20.f, 20.f));
+    h[tid] = hiddenActivation(sum);
 }
 
 //-------------------------------------------------------------------
@@ -122,7 +122,7 @@ kernel void learn_output_layer(
 
     float raw_error = y[tid] - y_hat[tid];
     float delta = raw_error * outputActivationDerivative(y[tid]); 
-    delta = clamp(delta, -1.0f, 1.0f);
+    //delta = clamp(delta, -1.0f, 1.0f);
     error[tid] = delta;
 
     // Weight + bias update
@@ -168,7 +168,7 @@ kernel void learn_rnn(
 
     // Multiply by activation derivative of current hidden state
     float delta = accumulated_err * hiddenActivationDerivative(h[tid]);
-    delta = clamp(delta, -1.0f, 1.0f);
+    //delta = clamp(delta, -1.0f, 1.0f);
     hidden_error[tid] = delta;
 
     // Update input-to-hidden weights
