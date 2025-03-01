@@ -42,10 +42,11 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 - [ ] Implement batch normalization layers to improve training stability.
 - [ ] Add automated tests and diagnostics for gradient checks and debugging.
 - [x] Implement dynamically selectable activation functions.
+- [x] Implement dropout regularization.
 
 ### Medium-term Goals:
 - [ ] Expand support for additional layer types (e.g., GRU, LSTM, Attention layers).
-- [ ] Impement ADAM optimizer algorithm
+- [ ] Implement ADAM optimizer algorithm.
 - [ ] Implement distributed training capabilities, enabling local and distributed workloads (similar to SETI@Home model).
 - [ ] Enhance GPU memory management and computation scheduling for better performance.
 
