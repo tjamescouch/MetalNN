@@ -274,6 +274,7 @@
 				HEADER_SEARCH_PATHS = (
 					"metal-cpp",
 					"metal-cpp-extensions",
+					include,
 				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -349,6 +350,7 @@
 				HEADER_SEARCH_PATHS = (
 					"metal-cpp",
 					"metal-cpp-extensions",
+					include,
 				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (

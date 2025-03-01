@@ -1,0 +1,43 @@
+//
+//  model-config.h
+//  MetalNeuron
+//
+//  Created by James Couch on 2025-02-28.
+//
+
+#pragma once
+
+#include <string>
+#include <vector>
+#include <map>
+#include <fkYAML/node.hpp>
+
+// Layer configuration
+struct LayerConfig {
+    std::string type;
+    std::map<std::string, fkyaml::node> params;
+};
+
+// Optimizer configuration
+struct OptimizerConfig {
+    std::string type;
+    float learning_rate;
+    std::map<std::string, fkyaml::node> parameters;
+};
+
+// Training configuration
+struct TrainingConfig {
+    OptimizerConfig optimizer;
+    int epochs;
+    int batch_size;
+};
+
+// Overall model configuration
+struct ModelConfig {
+    std::string name;
+    std::vector<LayerConfig> layers;
+    TrainingConfig training;
+    std::map<std::string, fkyaml::node> metadata;
+
+    static ModelConfig loadFromFile(const std::string& filePath);
+};

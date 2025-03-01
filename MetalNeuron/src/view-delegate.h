@@ -8,20 +8,26 @@
 #define VIEW_DELEGATE_H
 
 #pragma region Declarations {
+
+#include "common.h"
+#include "model/model-config.h"
 #include "neural-engine.h"
 
-class ViewDelegate : public MTK::ViewDelegate
-{
-    public:
-    ViewDelegate( MTL::Device* pDevice );
-        virtual ~ViewDelegate() override;
-        virtual void drawInMTKView( MTK::View* pView ) override;
-        NeuralEngine* getComputer() { return _pComputer; }
+class ViewDelegate : public MTK::ViewDelegate {
+public:
+    ViewDelegate(MTL::Device* pDevice);
+    virtual ~ViewDelegate();
 
-    private:
-        NeuralEngine* _pComputer;
+    bool loadModelFromFile(const std::string& filePath);
+    void drawInMTKView(MTK::View* pView) override;
+    void drawableSizeWillChange(MTK::View* pView, CGSize size) override;
+
+    NeuralEngine* getComputer();
+
+private:
+    MTL::Device* _pDevice;
+    NeuralEngine* _pComputer;
 };
 
-#pragma endregion Declarations }
 
 #endif

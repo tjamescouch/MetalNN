@@ -1,6 +1,7 @@
 #ifndef NEURAL_ENGINE_H
 #define NEURAL_ENGINE_H
 
+#include "model/model-config.h"
 #include "data-source-manager.h"
 #include "keyboard-controller.h"
 #include "logger.h"
@@ -19,8 +20,10 @@ namespace MTL {
 
 class NeuralEngine {
 public:
-    NeuralEngine(MTL::Device* pDevice, int sequenceLength);
+    NeuralEngine(MTL::Device* pDevice, int sequenceLength, const ModelConfig& config);
     ~NeuralEngine();
+    
+    void runInference();
 
     void computeForward(std::function<void()> onComplete);
     void computeBackward(std::function<void()> onComplete);

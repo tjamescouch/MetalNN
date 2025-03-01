@@ -77,8 +77,11 @@ void AppDelegate::applicationDidFinishLaunching( NS::Notification* pNotification
     StartKeyboardMonitoring(static_cast<KeyboardEventCallback>(
                                                                [this](KeyPress kp) {
                                                                    printf("KEY: %lu\n", kp.code);
-                                                                   this->getComputer()->keyPress(&kp);
-                                                                   this->getComputer()->handleKeyStateChange();
+                                                                   auto engine = this->getComputer();
+                                                                   if (engine) {
+                                                                       this->getComputer()->keyPress(&kp);
+                                                                       this->getComputer()->handleKeyStateChange();
+                                                                   }
                                                                }
                                                                ));
     

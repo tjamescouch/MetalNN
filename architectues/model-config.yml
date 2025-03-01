@@ -1,0 +1,33 @@
+name: "MyNeuralNet"
+
+layers:
+  - type: Dense
+    input_size: 784
+    output_size: 256
+    activation: relu
+
+  - type: Dropout
+    rate: 0.5
+
+  - type: Dense
+    output_size: 128
+    activation: relu
+
+  - type: Dense
+    output_size: 10
+    activation: softmax
+
+training:
+  optimizer:
+    type: adam
+    learning_rate: 0.001
+    parameters:
+      beta1: 0.9
+      beta2: 0.999
+
+  epochs: 50
+  batch_size: 32
+
+metadata:
+  author: "James Couch"
+  description: "Example network for MNIST classification"

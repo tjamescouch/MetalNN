@@ -21,7 +21,7 @@ double targetFunc(double index, double timestep) {
 std::default_random_engine generator;
 std::uniform_int_distribution<int> distribution(0, 2*M_PI);
 
-NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength)
+NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength, const ModelConfig& config)
 : _pDevice(pDevice->retain()), sequenceLength_(sequenceLength),
   areBuffersBuilt(false), currentlyComputing(false),
   globalTimestep(0)  // initialize the global timestep for animation
@@ -308,4 +308,10 @@ void NeuralEngine::shiftBuffers() {
                _pDataSourceManager->y_hat.get_data_buffer_at(t + 1),
                output_dim * sizeof(float));
     }
+}
+
+
+void NeuralEngine::runInference()
+{
+    // Existing inference code
 }
