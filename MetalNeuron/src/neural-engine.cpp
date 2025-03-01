@@ -26,6 +26,15 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength, const Model
   areBuffersBuilt(false), currentlyComputing(false),
   globalTimestep(0)  // initialize the global timestep for animation
 {
+    std::cout << "🔧 [Dynamic Constructor] Loaded ModelConfig: " << config.name << "\n";
+    std::cout << "🔧 Number of layers defined: " << config.layers.size() << "\n";
+
+    for (size_t i = 0; i < config.layers.size(); ++i) {
+        std::cout << "   Layer " << i+1 << ": " << config.layers[i].type << "\n";
+    }
+
+    
+    
     _pLogger = new Logger(outputFileName);
     _pDataSourceManager = new DataSourceManager(input_dim, hidden_dim, output_dim, sequenceLength_);
     

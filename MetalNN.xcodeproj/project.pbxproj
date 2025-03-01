@@ -14,6 +14,18 @@
 		DF5F24172D6A715600D915B2 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF5F24162D6A715600D915B2 /* MetalKit.framework */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		DFE032AC2D72E9A000B1B6ED /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 7;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		DF0C95852D6AC5F10046F318 /* MLCompute.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MLCompute.framework; path = System/Library/Frameworks/MLCompute.framework; sourceTree = SDKROOT; };
 		DF5F23FE2D6A711A00D915B2 /* MetalNeuron.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MetalNeuron.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -24,17 +36,6 @@
 		DF5F24162D6A715600D915B2 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		DF5F24972D6A723400D915B2 /* Exceptions for "MetalNeuron" folder in "MetalNeuron" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Assets.xcassets,
-				"Preview Content/Preview Assets.xcassets",
-			);
-			target = DF5F23FD2D6A711A00D915B2 /* MetalNeuron */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 		DFE030402D70783700B1B6ED /* Exceptions for "MetalNeuron" folder in "Compile Sources" phase from "MetalNeuron" target */ = {
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
@@ -43,14 +44,21 @@
 				"src/rnn-layer.h",
 			);
 		};
+		DFE032AE2D72E9B900B1B6ED /* Exceptions for "MetalNeuron" folder in "Copy Files" phase from "MetalNeuron" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = DFE032AC2D72E9A000B1B6ED /* CopyFiles */;
+			membershipExceptions = (
+				"architectues/model-config.yml",
+			);
+		};
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		DF5F23FF2D6A711A00D915B2 /* MetalNeuron */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				DF5F24972D6A723400D915B2 /* Exceptions for "MetalNeuron" folder in "MetalNeuron" target */,
 				DFE030402D70783700B1B6ED /* Exceptions for "MetalNeuron" folder in "Compile Sources" phase from "MetalNeuron" target */,
+				DFE032AE2D72E9B900B1B6ED /* Exceptions for "MetalNeuron" folder in "Copy Files" phase from "MetalNeuron" target */,
 			);
 			path = MetalNeuron;
 			sourceTree = "<group>";
@@ -112,7 +120,7 @@
 			buildPhases = (
 				DF5F23FA2D6A711A00D915B2 /* Sources */,
 				DF5F23FB2D6A711A00D915B2 /* Frameworks */,
-				DF5F23FC2D6A711A00D915B2 /* Resources */,
+				DFE032AC2D72E9A000B1B6ED /* CopyFiles */,
 			);
 			buildRules = (
 			);
@@ -162,16 +170,6 @@
 			);
 		};
 /* End PBXProject section */
-
-/* Begin PBXResourcesBuildPhase section */
-		DF5F23FC2D6A711A00D915B2 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		DF5F23FA2D6A711A00D915B2 /* Sources */ = {
