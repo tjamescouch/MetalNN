@@ -7,47 +7,104 @@
 
 #include "dropout-layer.h"
 #include <iostream>
+#include <random>
 
 DropoutLayer::DropoutLayer(float rate, int featureDim, int sequenceLength)
-: rate_(rate), featureDim_(featureDim), sequenceLength_(sequenceLength) {}
+: rate_(rate), featureDim_(featureDim), sequenceLength_(sequenceLength), bufferRandomMask_(nullptr),forwardPipelineState_(nullptr),
+backwardPipelineState_(nullptr) {}
 
-DropoutLayer::~DropoutLayer() {}
+DropoutLayer::~DropoutLayer() {
+    for(auto buf : bufferInputs_) buf->release();
+    for(auto buf : bufferOutputs_) buf->release();
+    for(auto buf : bufferInputErrors_) buf->release();
+    for(auto buf : bufferOutputErrors_) buf->release();
+
+    if(bufferRandomMask_) bufferRandomMask_->release();
+    
+    if(forwardPipelineState_) forwardPipelineState_->release();
+    if(backwardPipelineState_) backwardPipelineState_->release();
+}
 
 void DropoutLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
-    // Stub: we'll implement Metal pipeline next step
-    std::cout << "⚙️ Dropout pipeline (stub) created with rate: " << rate_ << "\n";
+    NS::Error* error = nullptr;
+
+    auto forwardFunction = library->newFunction(NS::String::string("forward_dropout", NS::UTF8StringEncoding));
+    forwardPipelineState_ = device->newComputePipelineState(forwardFunction, &error);
+    if (!forwardPipelineState_) {
+        std::cerr << "Forward pipeline error (Dropout): "
+                  << error->localizedDescription()->utf8String() << std::endl;
+    }
+    assert(forwardPipelineState_);
+    forwardFunction->release();
+
+    auto backwardFunction = library->newFunction(NS::String::string("backward_dropout", NS::UTF8StringEncoding));
+    backwardPipelineState_ = device->newComputePipelineState(backwardFunction, &error);
+    if (!backwardPipelineState_) {
+        std::cerr << "Backward pipeline error (Dropout): "
+                  << error->localizedDescription()->utf8String() << std::endl;
+    }
+    assert(backwardPipelineState_);
+    backwardFunction->release();
 }
 
 void DropoutLayer::buildBuffers(MTL::Device* device) {
-    bufferInputs_.resize(sequenceLength_);
-    bufferOutputs_.resize(sequenceLength_);
-    bufferInputErrors_.resize(sequenceLength_);
-    bufferOutputErrors_.resize(sequenceLength_);
+    assert(device && "Device is null!");
 
-    for (int t = 0; t < sequenceLength_; ++t) {
-        bufferOutputs_[t] = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
-        
-        bufferInputErrors_[t] = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
-        bufferOutputErrors_[t] = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
+    for(int t = 0; t < sequenceLength_; ++t) {
+        auto inputBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
+        assert(inputBuf && "Failed to allocate input buffer");
+        bufferInputs_.push_back(inputBuf);
+
+        auto outputBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
+        assert(outputBuf && "Failed to allocate output buffer");
+        bufferOutputs_.push_back(outputBuf);
+
+        auto inputErrBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
+        assert(inputErrBuf && "Failed to allocate input error buffer");
+        bufferInputErrors_.push_back(inputErrBuf);
+
+        auto outputErrBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
+        assert(outputErrBuf && "Failed to allocate output error buffer");
+        bufferOutputErrors_.push_back(outputErrBuf);
     }
+
+    generateRandomMask(device);
+    assert(bufferRandomMask_ && "Random mask buffer allocation failed");
 }
 
+
 void DropoutLayer::forward(MTL::CommandBuffer* cmdBuf) {
-    for (int t = 0; t < sequenceLength_; ++t) {
-        memcpy(bufferOutputs_[t]->contents(),
-               bufferInputs_[t]->contents(),
-               featureDim_ * sizeof(float));
+    for(int t = 0; t < sequenceLength_; ++t) {
+        auto encoder = cmdBuf->computeCommandEncoder();
+        encoder->setComputePipelineState(forwardPipelineState_);
+        encoder->setBuffer(bufferInputs_[t], 0, 0);
+        encoder->setBuffer(bufferOutputs_[t], 0, 1);
+        encoder->setBuffer(bufferRandomMask_, 0, 2);
+        encoder->setBytes(&rate_, sizeof(float), 3);
+        encoder->setBytes(&featureDim_, sizeof(int), 4);
+
+        MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
+        MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
+        encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
+        encoder->endEncoding();
     }
-    std::cout << "🚀 DropoutLayer forward pass executed (stub copy)." << std::endl;
 }
 
 void DropoutLayer::backward(MTL::CommandBuffer* cmdBuf) {
-    for (int t = 0; t < sequenceLength_; ++t) {
-        memcpy(bufferInputErrors_[t]->contents(),
-               bufferOutputErrors_[t]->contents(),
-               featureDim_ * sizeof(float));
+    for(int t = 0; t < sequenceLength_; ++t) {
+        auto encoder = cmdBuf->computeCommandEncoder();
+        encoder->setComputePipelineState(backwardPipelineState_);
+        encoder->setBuffer(bufferOutputErrors_[t], 0, 0);
+        encoder->setBuffer(bufferInputErrors_[t], 0, 1);
+        encoder->setBuffer(bufferRandomMask_, 0, 2);
+        encoder->setBytes(&rate_, sizeof(float), 3);
+        encoder->setBytes(&featureDim_, sizeof(int), 4);
+
+        MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
+        MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
+        encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
+        encoder->endEncoding();
     }
-    std::cout << "🚀 DropoutLayer backward pass executed (stub copy)." << std::endl;
 }
 
 void DropoutLayer::setInputBufferAt(int timestep, MTL::Buffer* buffer) {
@@ -69,4 +126,19 @@ void DropoutLayer::setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) {
 MTL::Buffer* DropoutLayer::getInputErrorBufferAt(int timestep) const {
     assert(timestep >= 0 && timestep < sequenceLength_);
     return bufferInputErrors_[timestep];
+}
+
+void DropoutLayer::generateRandomMask(MTL::Device* device) {
+    std::vector<float> maskData(featureDim_);
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
+    for (auto& val : maskData) {
+        val = dist(gen);
+    }
+
+    if (bufferRandomMask_) bufferRandomMask_->release();
+    
+    bufferRandomMask_ = device->newBuffer(maskData.data(), featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
 }

@@ -206,7 +206,41 @@ kernel void learn_rnn(
     b[tid] -= learning_rate_b * delta * decay;
 }
 
-)"; // end of the big string
+//-------------------------------------------------------------------
+// Forward pass for Dropout layer (CPU-generated randomness)
+kernel void forward_dropout(
+    device const float* input       [[buffer(0)]],
+    device float* output            [[buffer(1)]],
+    device const float* randomMask  [[buffer(2)]],
+    device const float* rate        [[buffer(3)]],
+    device const uint* featureDim   [[buffer(4)]],
+    uint tid                        [[thread_position_in_grid]]
+) {
+    if (tid >= *featureDim) return;
+
+    float keep_prob = 1.0f - *rate;
+    float mask = randomMask[tid] < keep_prob ? (1.0f / keep_prob) : 0.0f;
+    output[tid] = input[tid] * mask;
+}
+
+//-------------------------------------------------------------------
+// Backward pass for Dropout layer
+kernel void backward_dropout(
+    device const float* output_error [[buffer(0)]],
+    device float* input_error        [[buffer(1)]],
+    device const float* randomMask   [[buffer(2)]],
+    device const float* rate         [[buffer(3)]],
+    device const uint* featureDim    [[buffer(4)]],
+    uint tid                         [[thread_position_in_grid]]
+) {
+    if (tid >= *featureDim) return;
+
+    float keep_prob = 1.0f - *rate;
+    float mask = randomMask[tid] < keep_prob ? (1.0f / keep_prob) : 0.0f;
+    input_error[tid] = output_error[tid] * mask;
+}
+
+)";
 
 } // namespace multilayerkernels
 

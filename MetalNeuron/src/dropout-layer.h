@@ -14,7 +14,7 @@
 class DropoutLayer : public Layer {
 public:
     DropoutLayer(float rate, int featureDim, int sequenceLength);
-    ~DropoutLayer();
+    ~DropoutLayer() override;
 
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
     void buildBuffers(MTL::Device* device) override;
@@ -37,4 +37,13 @@ private:
     float rate_;
     int sequenceLength_;
     int featureDim_;
+
+    MTL::ComputePipelineState* forwardPipelineState_;
+    MTL::ComputePipelineState* backwardPipelineState_;
+    
+    // New member for CPU-fed randomness
+    MTL::Buffer* bufferRandomMask_;
+    
+    // Helper to generate CPU-side random mask
+    void generateRandomMask(MTL::Device* device);
 };

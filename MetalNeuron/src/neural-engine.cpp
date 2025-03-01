@@ -92,6 +92,7 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
             
             dropout->buildPipeline(_pDevice, _pComputeLibrary);
             dropout->buildBuffers(_pDevice);
+            assert(dropout->getOutputBufferAt(0) && "Dropout output buffer at timestep 0 is null after initialization!");
             dynamicLayers_.push_back(dropout);
         }
     }
