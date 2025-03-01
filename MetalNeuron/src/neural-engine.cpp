@@ -22,10 +22,11 @@ double targetFunc(double index, double timestep) {
 std::default_random_engine generator;
 std::uniform_int_distribution<int> distribution(0, 2*M_PI);
 
-NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength, const ModelConfig& config)
-: _pDevice(pDevice->retain()), sequenceLength_(sequenceLength),
+NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config)
+: _pDevice(pDevice->retain()), sequenceLength_(0),
   areBuffersBuilt(false), currentlyComputing(false), globalTimestep(0)
 {
+    sequenceLength_ = config.time_steps;
     
     _pLogger = new Logger(outputFileName);
     _pDataSourceManager = new DataSourceManager(input_dim, hidden_dim, output_dim, sequenceLength_);

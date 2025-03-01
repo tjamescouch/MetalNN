@@ -36,7 +36,7 @@ RNNLayer::~RNNLayer() {
 }
 
 void RNNLayer::buildBuffers(MTL::Device* device) {
-    float scale = 0.01f;
+    float scale = 0.1f;
     float decay = 1.0f;
     
     // Allocate weight buffer: W_xh (inputDim x hiddenDim)

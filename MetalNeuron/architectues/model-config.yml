@@ -17,6 +17,8 @@ layers:
     output_size: 10
     activation: softmax
 
+time_steps: 10
+
 training:
   optimizer:
     type: adam

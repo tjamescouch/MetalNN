@@ -24,6 +24,7 @@ ModelConfig ModelConfig::loadFromFile(const std::string& filePath) {
 
     // Load basic fields
     modelConfig.name = config["name"].get_value<std::string>();
+    modelConfig.time_steps = config["time_steps"].get_value<int>();
 
     // Load layers
     for (const auto& layer : config["layers"]) {

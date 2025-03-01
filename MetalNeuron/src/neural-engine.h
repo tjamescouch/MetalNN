@@ -23,7 +23,7 @@ namespace MTL {
 
 class NeuralEngine {
 public:
-    NeuralEngine(MTL::Device* pDevice, int sequenceLength, const ModelConfig& config);
+    NeuralEngine(MTL::Device* pDevice, const ModelConfig& config);
     ~NeuralEngine();
     
     void runInference();

@@ -39,7 +39,7 @@ bool ViewDelegate::loadModelFromFile(const std::string& filePath)
         }
 
         // Instantiate NeuralEngine using your existing constructor
-        _pComputer = new NeuralEngine(_pDevice, 10, config);
+        _pComputer = new NeuralEngine(_pDevice, config);
 
         std::cout << "✅ NeuralEngine loaded with model: " << config.name << std::endl;
         return true;

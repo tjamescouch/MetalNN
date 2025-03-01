@@ -33,11 +33,13 @@ struct TrainingConfig {
 };
 
 // Overall model configuration
-struct ModelConfig {
+class ModelConfig {
+public:
+    int time_steps;
     std::string name;
     std::vector<LayerConfig> layers;
     TrainingConfig training;
     std::map<std::string, fkyaml::node> metadata;
-
+    
     static ModelConfig loadFromFile(const std::string& filePath);
 };
