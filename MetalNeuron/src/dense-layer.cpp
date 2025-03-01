@@ -47,7 +47,7 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
 }
 
 void DenseLayer::buildBuffers(MTL::Device* device) {
-    const float scale = 0.01f;
+    const float scale = 0.1f;
     const float decay = 1.0f;
     
     bufferWeights_ = device->newBuffer(inputDim_ * outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
@@ -98,9 +98,6 @@ void DenseLayer::updateTargetBufferAt(DataSource& targetData, int timestep) {
 
 void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
     uint activationRaw = static_cast<uint>(activation_);
-#ifdef DEBUG_NETWORK
-    std::cout << "forward activation enum value passed: " << activationRaw << std::endl;
-#endif
 
     for (int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
@@ -122,9 +119,6 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
 
 void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
     uint activationRaw = static_cast<uint>(activation_);
-#ifdef DEBUG_NETWORK
-    std::cout << "backward activation enum value passed: " << activationRaw << std::endl;
-#endif
 
     for (int t = sequenceLength_ - 1; t >= 0; --t) {
         auto encoder = cmdBuf->computeCommandEncoder();

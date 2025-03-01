@@ -4,15 +4,7 @@ layers:
   - type: RNN
     input_size: 512
     output_size: 512
-    activation: tanh
-
-  - type: Dropout
-    rate: 0.5
-
-  - type: RNN
-    input_size: 512
-    output_size: 512
-    activation: tanh
+    activation: relu
 
   - type: Dense
     input_size: 512

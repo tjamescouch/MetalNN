@@ -123,14 +123,14 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
         }
     }
 
-    // Connect input layer buffers
+    // ⚙️ Connect input layer buffers
     _pInputLayer->buildBuffers(_pDevice);
     for (int t = 0; t < sequenceLength_; ++t) {
         _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
         dynamicLayers_.front()->setInputBufferAt(t, _pInputLayer->getOutputBufferAt(t));
     }
 
-    // Connect subsequent layers
+    // ⚙️ Connect subsequent layers
     for (size_t i = 1; i < dynamicLayers_.size(); ++i) {
         for (int t = 0; t < sequenceLength_; ++t) {
             dynamicLayers_[i]->setInputBufferAt(t, dynamicLayers_[i-1]->getOutputBufferAt(t));
@@ -226,6 +226,13 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
+        
+        for (int t = 0; t < sequenceLength_; ++t) {
+            auto layer = dynamicLayers_.back(); // Typically check last layer first
+            float* gradients = static_cast<float*>(layer->getErrorBufferAt(t)->contents());
+            printf("Gradients sample timestep %d: %f, %f, %f\n", t, gradients[0], gradients[1], gradients[2]);
+        }
+        
         onComplete();
     });
 
