@@ -1,7 +1,9 @@
 #include <iostream>
+#include <cstring>
+
 #include "rnn-layer.h"
 #include "common.h"
-#include <cstring>
+#include "weight-initializer.h"
 
 RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation)
 : inputDim_(inputDim),
@@ -37,36 +39,32 @@ RNNLayer::~RNNLayer() {
 }
 
 void RNNLayer::buildBuffers(MTL::Device* device) {
-    float scale = 0.1f;
     float decay = 1.0f;
     
     // Allocate weight buffer: W_xh (inputDim x hiddenDim)
     bufferW_xh_ = device->newBuffer(inputDim_ * hiddenDim_ * sizeof(float),
                                     MTL::ResourceStorageModeManaged);
     float* w_xh = static_cast<float*>(bufferW_xh_->contents());
-    for (int i = 0; i < inputDim_ * hiddenDim_; i++) {
-        w_xh[i] = ((float)rand() / RAND_MAX - 0.5f) * scale;
-    }
+    WeightInitializer::initializeXavier(w_xh, inputDim_, hiddenDim_);
     bufferW_xh_->didModifyRange(NS::Range(0, bufferW_xh_->length()));
-    
+
+    // Allocate decay buffer
     bufferDecay_ = device->newBuffer(sizeof(float), MTL::ResourceStorageModeManaged);
-    memcpy(bufferDecay_->contents(), &decay, hiddenDim_ * sizeof(float));
+    memcpy(bufferDecay_->contents(), &decay, sizeof(float));
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
-    
+
     // Allocate weight buffer: W_hh (hiddenDim x hiddenDim)
     bufferW_hh_ = device->newBuffer(hiddenDim_ * hiddenDim_ * sizeof(float),
                                     MTL::ResourceStorageModeManaged);
     float* w_hh = static_cast<float*>(bufferW_hh_->contents());
-    for (int i = 0; i < hiddenDim_ * hiddenDim_; i++) {
-        w_hh[i] = ((float)rand() / RAND_MAX - 0.5f) * scale;
-    }
+    WeightInitializer::initializeXavier(w_hh, hiddenDim_, hiddenDim_);
     bufferW_hh_->didModifyRange(NS::Range(0, bufferW_hh_->length()));
-    
+
     // Allocate bias buffer
     bufferBias_ = device->newBuffer(hiddenDim_ * sizeof(float),
                                     MTL::ResourceStorageModeManaged);
     float* b = static_cast<float*>(bufferBias_->contents());
-    memset(b, 0, hiddenDim_ * sizeof(float));
+    WeightInitializer::initializeBias(b, hiddenDim_);
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
     
     // Allocate per-timestep hidden states, error, etc.

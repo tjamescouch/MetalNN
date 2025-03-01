@@ -46,45 +46,45 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     backwardFunc->release();
 }
 
+#include "weight-initializer.h"
+
 void DenseLayer::buildBuffers(MTL::Device* device) {
-    const float scale = 0.1f;
     const float decay = 1.0f;
     
     bufferWeights_ = device->newBuffer(inputDim_ * outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     float* w = static_cast<float*>(bufferWeights_->contents());
-    for (int i = 0; i < inputDim_ * outputDim_; ++i)
-        w[i] = ((float)rand() / RAND_MAX - 0.5f) * scale;
+    WeightInitializer::initializeXavier(w, inputDim_, outputDim_);
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
     
+    bufferBias_ = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    float* b = static_cast<float*>(bufferBias_->contents());
+    WeightInitializer::initializeBias(b, outputDim_);
+    bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
+
     bufferDecay_ = device->newBuffer(sizeof(float), MTL::ResourceStorageModeManaged);
     memcpy(bufferDecay_->contents(), &decay, sizeof(float));
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
-    
-    bufferBias_ = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-    memset(bufferBias_->contents(), 0, outputDim_ * sizeof(float));
-    bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
-    
+
     bufferInputErrors_.resize(sequenceLength_);
     bufferOutputErrors_.resize(sequenceLength_);
-    
+
     for (int t = 0; t < sequenceLength_; ++t) {
         bufferInputErrors_[t] = device->newBuffer(inputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         bufferOutputErrors_[t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-        
+
         bufferOutputs_[t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         bufferTargets_[t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         bufferErrors_[t]  = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-        
+
         memset(bufferOutputs_[t]->contents(), 0, outputDim_ * sizeof(float));
         memset(bufferTargets_[t]->contents(), 0, outputDim_ * sizeof(float));
         memset(bufferErrors_[t]->contents(), 0, outputDim_ * sizeof(float));
-        
+
         bufferOutputs_[t]->didModifyRange(NS::Range(0, bufferOutputs_[t]->length()));
         bufferTargets_[t]->didModifyRange(NS::Range(0, bufferTargets_[t]->length()));
         bufferErrors_[t]->didModifyRange(NS::Range(0, bufferErrors_[t]->length()));
     }
 }
-
 void DenseLayer::setInputBufferAt(int timestep, MTL::Buffer* inputBuffer) {
     assert(timestep >= 0 && timestep < sequenceLength_);
     bufferInputs_[timestep] = inputBuffer;
