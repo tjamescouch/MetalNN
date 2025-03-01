@@ -35,9 +35,26 @@ inline float outputActivationDerivative(float y) {
 }
 
 
-inline float random(uint seed) {
-    seed = seed * 1664525 + 1013904223;
-    return float(seed & 0x00FFFFFF) / float(0x01000000);
+// Activation functions
+inline float activate(const float x, const uint activation) {
+    switch (activation) {
+        case 0: return x;                      // Linear
+        case 1: return max(0.0f, x);           // ReLU
+        case 2: return tanh(x);                // Tanh
+        case 3: return 1.0f / (1.0f + exp(-x)); // Sigmoid
+        default: return x;                     // Fallback Linear
+    }
+}
+
+// Activation derivatives
+inline float activate_derivative(const float y, const uint activation) {
+    switch (activation) {
+        case 0: return 1.0f;                   // Linear
+        case 1: return y > 0.0f ? 1.0f : 0.0f; // ReLU
+        case 2: return 1.0f - y * y;           // Tanh
+        case 3: return y * (1.0f - y);         // Sigmoid
+        default: return 1.0f;                  // Fallback Linear
+    }
 }
 
 //-------------------------------------------------------------------
@@ -82,33 +99,36 @@ kernel void forward_output_layer(
     device const float* b            [[buffer(3)]],
     device const uint* pH            [[buffer(4)]],
     device const uint* pN            [[buffer(5)]],
+    device const uint* activation    [[buffer(6)]],
     uint tid                         [[thread_position_in_grid]]
 ) {
     uint hidden_dim = *pH;
     uint output_dim = *pN;
 
     if (tid >= output_dim) return;
-    
+
     float sum = b[tid];
     for (uint i = 0; i < hidden_dim; i++) {
         sum += h[i] * W[i * output_dim + tid];
     }
-    y[tid] = outputActivation(sum);  // linear activation, no clamping needed
+
+    y[tid] = activate(sum, *activation);
 }
 
 //-------------------------------------------------------------------
 // Learning kernel for the output layer
 kernel void learn_output_layer(
-    device const float* h            [[buffer(0)]],
-    device       float* W            [[buffer(1)]],
-    device       float* b            [[buffer(2)]],
-    device       float* y            [[buffer(3)]],
-    device const float* y_hat        [[buffer(4)]],
-    device       float* error        [[buffer(5)]],
-    device const uint* pH            [[buffer(6)]],
-    device const uint* pN            [[buffer(7)]],
-    device       float* pDecay       [[buffer(8)]],
-    uint tid                         [[thread_position_in_grid]]
+    device const float* h              [[buffer(0)]],
+    device float* W                    [[buffer(1)]],
+    device float* b                    [[buffer(2)]],
+    device const float* y              [[buffer(3)]],
+    device const float* y_hat          [[buffer(4)]],
+    device float* error                [[buffer(5)]],
+    device const uint* pH              [[buffer(6)]],
+    device const uint* pN              [[buffer(7)]],
+    device       float* pDecay         [[buffer(8)]],
+    device const uint* activation      [[buffer(9)]],
+    uint tid                           [[thread_position_in_grid]]
 ) {
     uint hidden_dim = *pH;
     uint output_dim = *pN;
@@ -121,8 +141,7 @@ kernel void learn_output_layer(
     float decay = *pDecay;
 
     float raw_error = y[tid] - y_hat[tid];
-    float delta = raw_error * outputActivationDerivative(y[tid]); 
-    //delta = clamp(delta, -1.0f, 1.0f);
+    float delta = raw_error * activate_derivative(y[tid], *activation); 
     error[tid] = delta;
 
     // Weight + bias update
@@ -134,7 +153,7 @@ kernel void learn_output_layer(
 
 //-------------------------------------------------------------------
 // Learning kernel for the recurrent layer (multi-step BPTT)
-// CHANGED: added next_hidden_error
+//-------------------------------------------------------------------
 kernel void learn_rnn(
     device const float* x            [[buffer(0)]],
     device const float* h_prev       [[buffer(1)]],

@@ -6,9 +6,11 @@
 #include <Metal/Metal.hpp>
 #include <vector>
 
+
+
 class DenseLayer : public Layer {
 public:
-    DenseLayer(int inputDim, int outputDim, int sequenceLength);
+    DenseLayer(int inputDim, int outputDim, int sequenceLength, ActivationFunction activationFunction);
     ~DenseLayer();
 
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
@@ -31,6 +33,7 @@ private:
     int inputDim_;
     int outputDim_;
     int sequenceLength_;
+    ActivationFunction activation_;
 
     std::vector<MTL::Buffer*> bufferInputs_;
     std::vector<MTL::Buffer*> bufferOutputs_;

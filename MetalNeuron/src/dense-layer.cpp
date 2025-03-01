@@ -5,8 +5,8 @@
 #include <algorithm>
 #include <iostream>
 
-DenseLayer::DenseLayer(int inputDim, int outputDim, int sequenceLength)
-: inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(sequenceLength),
+DenseLayer::DenseLayer(int inputDim, int outputDim, int sequenceLength, ActivationFunction activation)
+: inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(sequenceLength), activation_(activation),
 bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr),
 forwardPipelineState_(nullptr), backwardPipelineState_(nullptr)
 {
@@ -97,6 +97,11 @@ void DenseLayer::updateTargetBufferAt(DataSource& targetData, int timestep) {
 }
 
 void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
+    uint activationRaw = static_cast<uint>(activation_);
+#ifdef DEBUG_NETWORK
+    std::cout << "forward activation enum value passed: " << activationRaw << std::endl;
+#endif
+
     for (int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(forwardPipelineState_);
@@ -106,7 +111,8 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBuffer(bufferBias_, 0, 3);
         encoder->setBytes(&inputDim_, sizeof(int), 4);
         encoder->setBytes(&outputDim_, sizeof(int), 5);
-        
+        encoder->setBytes(&activationRaw, sizeof(uint), 6);
+
         MTL::Size threadsPerThreadgroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
         MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
         encoder->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
@@ -115,6 +121,11 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
 }
 
 void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
+    uint activationRaw = static_cast<uint>(activation_);
+#ifdef DEBUG_NETWORK
+    std::cout << "backward activation enum value passed: " << activationRaw << std::endl;
+#endif
+
     for (int t = sequenceLength_ - 1; t >= 0; --t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(backwardPipelineState_);
@@ -127,6 +138,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBytes(&inputDim_, sizeof(int), 6);
         encoder->setBytes(&outputDim_, sizeof(int), 7);
         encoder->setBuffer(bufferDecay_, 0, 8);
+        encoder->setBytes(&activationRaw, sizeof(uint), 9);  // Activation function passed here
         
         MTL::Size threadsPerThreadgroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
         MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
@@ -141,12 +153,14 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
     for (int t = 0; t < sequenceLength_; ++t) {
         bufferErrors_[t]->didModifyRange(NS::Range(0, outputDim_ * sizeof(float)));
     }
+
 #ifdef DEBUG_NETWORK
     float* weights = static_cast<float*>(bufferWeights_->contents());
     std::cout << "Weights sample after backward: "
     << weights[0] << ", " << weights[1] << ", ..." << std::endl;
 #endif
 }
+
 
 MTL::Buffer* DenseLayer::getErrorBufferAt(int timestep) const {
     assert(timestep >= 0 && timestep < sequenceLength_);

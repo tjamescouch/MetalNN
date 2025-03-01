@@ -20,6 +20,14 @@ class Library;
 class CommandBuffer;
 }
 
+enum class ActivationFunction {
+    Linear = 0,
+    ReLU,
+    Tanh,
+    Sigmoid
+};
+
+
 class Layer {
 public:
     virtual ~Layer() {}

@@ -19,6 +19,15 @@ double targetFunc(double index, double timestep) {
     return cos(0.05 * index + 0.1 * timestep);
 }
 
+//FIXME - find a better place for this
+ActivationFunction parseActivation(const std::string& activation) {
+    if (activation == "linear") return ActivationFunction::Linear;
+    if (activation == "relu") return ActivationFunction::ReLU;
+    if (activation == "tanh") return ActivationFunction::Tanh;
+    if (activation == "sigmoid") return ActivationFunction::Sigmoid;
+    throw std::invalid_argument("Unknown activation: " + activation);
+}
+
 std::default_random_engine generator;
 std::uniform_int_distribution<int> distribution(0, 2*M_PI);
 
@@ -68,14 +77,19 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
     for (const auto& layerConfig : config.layers) {
         if (layerConfig.type == "Dense") {
             int outputSize = layerConfig.params.at("output_size").get_value<int>();
-            auto dense = new DenseLayer(previousLayerOutputSize, outputSize, sequenceLength_);
+            auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
+            ActivationFunction activation = parseActivation(activationStr);
+            auto dense = new DenseLayer(previousLayerOutputSize, outputSize, sequenceLength_, activation);
+            
             dense->buildPipeline(_pDevice, _pComputeLibrary);
             dense->buildBuffers(_pDevice);
             dynamicLayers_.push_back(dense);
+            
             previousLayerOutputSize = outputSize;
         } else if (layerConfig.type == "Dropout") {
             float rate = layerConfig.params.at("rate").get_value<float>();
             auto dropout = new DropoutLayer(rate, previousLayerOutputSize, sequenceLength_);
+            
             dropout->buildPipeline(_pDevice, _pComputeLibrary);
             dropout->buildBuffers(_pDevice);
             dynamicLayers_.push_back(dropout);
@@ -119,11 +133,16 @@ NeuralEngine::~NeuralEngine() {
 void NeuralEngine::buildComputePipeline() {
     _pCommandQueue = _pDevice->newCommandQueue();
     NS::Error* pError = nullptr;
-    
+
     _pComputeLibrary = _pDevice->newLibrary(
         NS::String::string(multilayerkernels::nnKernelSrc, NS::UTF8StringEncoding),
         nullptr, &pError);
-    
+
+    if (!_pComputeLibrary) {
+        std::cerr << "Error creating compute library: "
+                  << pError->localizedDescription()->utf8String() << std::endl;
+    }
+
     assert(_pComputeLibrary && "Compute library creation failed.");
 }
 
