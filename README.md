@@ -1,4 +1,4 @@
-# Implements a simple RNN thats trained using BPTT #
+# Implements a simple RNN trained using BPTT #
 
 - To train - Press 'L'
 - To run a forward pass - Press 'F'
