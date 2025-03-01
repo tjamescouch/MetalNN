@@ -24,9 +24,11 @@ void DropoutLayer::buildBuffers(MTL::Device* device) {
 }
 
 void DropoutLayer::forward(MTL::CommandBuffer* cmdBuf) {
-    // Stub: no-op for now
+    std::cout << "🚀 DropoutLayer forward pass executed." << std::endl;
+    // (Stub, to be implemented next increment)
 }
 
 void DropoutLayer::backward(MTL::CommandBuffer* cmdBuf) {
     // Stub: no-op for now
+    std::cout << "🚀 DropoutLayer backward pass executed." << std::endl;
 }

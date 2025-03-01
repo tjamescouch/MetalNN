@@ -31,9 +31,11 @@ globalTimestep(0)  // initialize the global timestep for animation
     _pLogger = new Logger(outputFileName);
     _pDataSourceManager = new DataSourceManager(input_dim, hidden_dim, output_dim, sequenceLength_);
     
-    _pDataSourceManager->initialize([this]() {
+    _pDataSourceManager->initialize([this, config]() {
         _pLogger->clear();
         buildBuffers();
+        
+        createDynamicLayers(config);
     }, inputFunc, targetFunc);
     
     _pKeyboardController = new KeyboardController();
@@ -58,7 +60,9 @@ globalTimestep(0)  // initialize the global timestep for animation
     _pDenseLayer = new DenseLayer(hidden_dim, output_dim, sequenceLength_);
     
     buildComputePipeline();
-    
+}
+
+void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
     // 🚧 Dynamic Layer Instantiation
     std::cout << "🔧 [Dynamic Constructor] Loaded ModelConfig: " << config.name << "\n";
     std::cout << "🔧 Number of layers defined: " << config.layers.size() << "\n";
@@ -90,6 +94,12 @@ globalTimestep(0)  // initialize the global timestep for animation
             auto dynamicDenseLayer = new DenseLayer(inputSize, outputSize, sequenceLength_);
             dynamicDenseLayer->buildPipeline(_pDevice, _pComputeLibrary);
             dynamicDenseLayer->buildBuffers(_pDevice);
+            
+            for (int t = 0; t < sequenceLength_; ++t) {
+                // For initial testing, reuse an existing valid buffer from an earlier layer
+                // (Replace '_pRNNLayer1' and 'getOutputBufferAt' with actual previous valid buffers)
+                dynamicDenseLayer->setInputBufferAt(t, _pRNNLayer1->getOutputBufferAt(t));
+            }
             
             dynamicLayers_.push_back(dynamicDenseLayer);
             
@@ -188,6 +198,11 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     _pRNNLayer1->forward(cmdBuf);
     _pRNNLayer2->forward(cmdBuf);
     _pDenseLayer->forward(cmdBuf);
+    
+    // 🚧 Dynamic layers forward pass (minimal, incremental step)
+    for (Layer* layer : dynamicLayers_) {
+        layer->forward(cmdBuf);
+    }
     
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
         currentlyComputing = false;

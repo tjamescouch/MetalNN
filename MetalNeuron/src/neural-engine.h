@@ -33,6 +33,7 @@ public:
 
     void computeLearnAndApplyUpdates(uint32_t iterations);
     void computeForwardIterations(uint32_t iterations);
+    void createDynamicLayers(const ModelConfig& config);
 
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();
