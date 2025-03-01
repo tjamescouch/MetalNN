@@ -26,7 +26,7 @@ This project implements a dynamic, configurable Recurrent Neural Network (RNN) u
 ## Quickstart 🛠️
 
 - Clone the repository.
-- Adjust the network architecture in `config.yaml`.
+- Adjust the network architecture in `model-config.yaml`.
 - Run the project in Xcode and control training/inference via keyboard commands:
   - **Training:** Press `L`
   - **Forward Pass:** Press `F`
