@@ -41,9 +41,11 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 - [ ] Refine weight initialization and training parameters to resolve amplitude scaling issues.
 - [ ] Implement batch normalization layers to improve training stability.
 - [ ] Add automated tests and diagnostics for gradient checks and debugging.
+- [ ] Implement dynamically selectable activation functions.
 
 ### Medium-term Goals:
 - [ ] Expand support for additional layer types (e.g., GRU, LSTM, Attention layers).
+- [ ] Impement ADAM optimizer algorithm
 - [ ] Implement distributed training capabilities, enabling local and distributed workloads (similar to SETI@Home model).
 - [ ] Enhance GPU memory management and computation scheduling for better performance.
 
