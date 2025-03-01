@@ -11,6 +11,7 @@
 #include "input-layer.h"
 #include "rnn-layer.h"
 #include "dense-layer.h"
+#include "batch-normalization-layer.h"
 
 
 namespace MTL {
@@ -51,9 +52,6 @@ private:
     Logger* _pLogger;
 
     InputLayer* _pInputLayer;
-    RNNLayer* _pRNNLayer1;
-    RNNLayer* _pRNNLayer2;
-    DenseLayer* _pDenseLayer;
 
     MTL::Device* _pDevice;
     MTL::CommandQueue* _pCommandQueue;

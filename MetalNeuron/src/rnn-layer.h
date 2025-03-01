@@ -25,13 +25,15 @@ public:
     MTL::Buffer* getOutputBufferAt(int timestep) const override;
     MTL::Buffer* getErrorBufferAt(int timestep) const override;
     void setInputBufferAt(int timestep, MTL::Buffer* inputBuffer) override;
-    void setDenseErrorBuffer(MTL::Buffer* denseErrorBuffer, int timestep);
-    void updateTargetBufferAt(DataSource&, int) const {};
+    void setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputErrorBufferAt(int timestep) const override;
+    
+    int outputSize() const override;
+    void updateTargetBufferAt(DataSource& targetData, int timestep) override;
 
     // Shifts stored RNN states forward by one step. (Kept as-is)
     void shiftHiddenStates();
     
-    int outputSize() const override { return hiddenDim_; }
 
 private:
     int inputDim_;

@@ -11,6 +11,7 @@ const int hidden_dim = 512;
 const int output_dim = 512;
 const char* outputFileName = "multilayer_nn_training.m";
 
+
 double inputFunc(double index, double timestep) {
     return sin(0.05 * index + 0.1 * timestep);
 }
@@ -94,6 +95,31 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
             dropout->buildBuffers(_pDevice);
             assert(dropout->getOutputBufferAt(0) && "Dropout output buffer at timestep 0 is null after initialization!");
             dynamicLayers_.push_back(dropout);
+        } else if (layerConfig.type == "BatchNormalization") {
+            float epsilon = 0.001f;  // default epsilon
+            if (layerConfig.params.count("epsilon")) {
+                epsilon = layerConfig.params.at("epsilon").get_value<float>();
+            }
+
+            auto batchNorm = new BatchNormalizationLayer(previousLayerOutputSize, sequenceLength_, epsilon);
+
+            batchNorm->buildPipeline(_pDevice, _pComputeLibrary);
+            batchNorm->buildBuffers(_pDevice);
+
+            dynamicLayers_.push_back(batchNorm);
+        } else if (layerConfig.type == "RNN") {
+            int outputSize = layerConfig.params.at("output_size").get_value<int>();
+            auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
+            ActivationFunction activation = parseActivation(activationStr);
+            auto rnn = new RNNLayer(previousLayerOutputSize, outputSize, sequenceLength_, activation);
+
+            rnn->buildPipeline(_pDevice, _pComputeLibrary);
+            rnn->buildBuffers(_pDevice);
+            dynamicLayers_.push_back(rnn);
+
+            previousLayerOutputSize = outputSize;
+        } else {
+            throw new std::invalid_argument("Unsupported layer type");
         }
     }
 

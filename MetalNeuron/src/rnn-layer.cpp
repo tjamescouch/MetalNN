@@ -215,10 +215,11 @@ void RNNLayer::setInputBufferAt(int timestep, MTL::Buffer* inputBuffer) {
     bufferInputs_[timestep] = inputBuffer;
 }
 
+/*
 void RNNLayer::setDenseErrorBuffer(MTL::Buffer* denseErrorBuffer, int timestep) {
     assert(timestep >= 0 && timestep < sequenceLength_);
     bufferDenseErrors_[timestep] = denseErrorBuffer;
-}
+}*/
 
 MTL::Buffer* RNNLayer::getOutputBufferAt(int timestep) const {
     assert(timestep >= 0 && timestep < sequenceLength_);
@@ -254,4 +255,32 @@ void RNNLayer::shiftHiddenStates() {
     bufferHiddenStates_[sequenceLength_-1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
     bufferHiddenPrevStates_[sequenceLength_-1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
 
+}
+
+int RNNLayer::outputSize() const {
+    return hiddenDim_;
+}
+
+void RNNLayer::updateTargetBufferAt(DataSource& targetData, int timestep) {
+    assert(timestep >= 0 && timestep < sequenceLength_);
+    
+    float* denseErrorData = static_cast<float*>(bufferDenseErrors_[timestep]->contents());
+    const float* outputData = static_cast<float*>(bufferHiddenStates_[timestep]->contents());
+    const float* target = targetData.get_data_buffer_at(timestep);
+
+    for (int i = 0; i < hiddenDim_; ++i) {
+        denseErrorData[i] = outputData[i] - target[i]; // Simple mean-squared error gradient
+    }
+
+    bufferDenseErrors_[timestep]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
+}
+
+void RNNLayer::setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) {
+    assert(timestep >= 0 && timestep < sequenceLength_);
+    bufferDenseErrors_[timestep] = buffer;
+}
+
+MTL::Buffer* RNNLayer::getInputErrorBufferAt(int timestep) const {
+    assert(timestep >= 0 && timestep < sequenceLength_);
+    return bufferErrors_[timestep];
 }
