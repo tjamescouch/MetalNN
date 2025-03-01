@@ -41,7 +41,7 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 - [ ] Refine weight initialization and training parameters to resolve amplitude scaling issues.
 - [ ] Implement batch normalization layers to improve training stability.
 - [ ] Add automated tests and diagnostics for gradient checks and debugging.
-- [ ] Implement dynamically selectable activation functions.
+- [x] Implement dynamically selectable activation functions.
 
 ### Medium-term Goals:
 - [ ] Expand support for additional layer types (e.g., GRU, LSTM, Attention layers).
