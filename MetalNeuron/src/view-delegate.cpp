@@ -8,6 +8,8 @@
 #include "view-delegate.h"
 #include "model-config.h"
 #include <iostream>
+#include <filesystem>
+#include <mach-o/dyld.h>
 
 const char* defaultModelFilePath = "model-config.yml";
 
@@ -19,7 +21,7 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice)
 , _pDevice(pDevice)
 , _pComputer(nullptr)
 {
-    loadModelFromFile(defaultModelFilePath);
+    loadModelFromFile(getDefaultModelFilePath());
 }
 
 ViewDelegate::~ViewDelegate()
@@ -66,6 +68,25 @@ void ViewDelegate::drawableSizeWillChange(MTK::View* pView, CGSize size)
 NeuralEngine* ViewDelegate::getComputer()
 {
     return _pComputer;
+}
+
+std::string ViewDelegate::getDefaultModelFilePath() {
+    namespace fs = std::filesystem;
+
+    char path[PATH_MAX];
+    uint32_t size = sizeof(path);
+    if (_NSGetExecutablePath(path, &size) != 0) {
+        throw std::runtime_error("❌ Executable path buffer too small.");
+    }
+
+    fs::path executablePath = fs::canonical(path);
+    fs::path resourcePath = executablePath.parent_path().parent_path() / "Resources" / "model-config.yml";
+
+    if (!fs::exists(resourcePath)) {
+        throw std::runtime_error("❌ Could not find model-config.yml at " + resourcePath.string());
+    }
+
+    return resourcePath.string();
 }
 
 #pragma endregion ViewDelegate }

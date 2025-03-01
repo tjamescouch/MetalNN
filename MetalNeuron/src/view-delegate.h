@@ -23,6 +23,7 @@ public:
     void drawableSizeWillChange(MTK::View* pView, CGSize size) override;
 
     NeuralEngine* getComputer();
+    std::string getDefaultModelFilePath();
 
 private:
     MTL::Device* _pDevice;
