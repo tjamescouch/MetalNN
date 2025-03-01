@@ -10,8 +10,8 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.0001f;
-constant float learning_rate_b = 0.0001f;
+constant float learning_rate_w = 0.00005f;
+constant float learning_rate_b = 0.00005f;
 
 // Activation function and derivative for hidden layers
 inline float hiddenActivation(float x) {
@@ -20,7 +20,7 @@ inline float hiddenActivation(float x) {
 
 inline float hiddenActivationDerivative(float y) {
   // derivative = 1 - y^2 (for tanh)
-  return (1.0f - y * y);
+  return clamp(1.0f - y * y, -0.5, 0.5);
 }
 
 // Activation function and derivative for output layer (linear)
@@ -134,8 +134,8 @@ kernel void learn_rnn(
     device       float* W_hh         [[buffer(3)]],
     device       float* b            [[buffer(4)]],
     device const float* h            [[buffer(5)]],
-    device const float* output_error [[buffer(6)]],  // error from Dense at this timestep
-    device const float* next_hidden_error [[buffer(7)]], // CHANGED: error from next RNN timestep
+    device const float* output_error [[buffer(6)]],
+    device const float* next_hidden_error [[buffer(7)]], 
     device       float* hidden_error [[buffer(8)]],
     device const uint* pX            [[buffer(9)]],
     device const uint* pH            [[buffer(10)]],
