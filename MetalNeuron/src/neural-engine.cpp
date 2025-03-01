@@ -1,5 +1,6 @@
 #include "neural-engine.h"
 #include "multi-layer-kernels.h"
+#include "dropout-layer.h"
 #include <iostream>
 #include <cassert>
 #include <random>
@@ -23,8 +24,8 @@ std::uniform_int_distribution<int> distribution(0, 2*M_PI);
 
 NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength, const ModelConfig& config)
 : _pDevice(pDevice->retain()), sequenceLength_(sequenceLength),
-  areBuffersBuilt(false), currentlyComputing(false),
-  globalTimestep(0)  // initialize the global timestep for animation
+areBuffersBuilt(false), currentlyComputing(false),
+globalTimestep(0)  // initialize the global timestep for animation
 {
     // 🚨 Old hardcoded stuff
     _pLogger = new Logger(outputFileName);
@@ -63,11 +64,11 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength, const Model
     std::cout << "🔧 Number of layers defined: " << config.layers.size() << "\n";
     
     int previousLayerOutputSize = 0; // Track previous layer's output size dynamically
-
+    
     for (size_t i = 0; i < config.layers.size(); ++i) {
         const auto& layerConfig = config.layers[i];
         std::cout << "   Layer " << i+1 << ": " << layerConfig.type << "\n";
-
+        
         if (layerConfig.type == "Dense") {
             int inputSize;
             
@@ -80,24 +81,29 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength, const Model
             } else {
                 throw std::runtime_error("❌ input_size not defined for first Dense layer.");
             }
-
+            
             int outputSize = layerConfig.params.at("output_size").get_value<int>();
-
+            
             std::cout << "🔧 Dynamically creating DenseLayer with inputSize="
-                      << inputSize << ", outputSize=" << outputSize << "\n";
-
+            << inputSize << ", outputSize=" << outputSize << "\n";
+            
             auto dynamicDenseLayer = new DenseLayer(inputSize, outputSize, sequenceLength_);
             dynamicDenseLayer->buildPipeline(_pDevice, _pComputeLibrary);
             dynamicDenseLayer->buildBuffers(_pDevice);
-
+            
             dynamicLayers_.push_back(dynamicDenseLayer);
-
+            
             previousLayerOutputSize = outputSize; // Update for next layer
         }
         else if (layerConfig.type == "Dropout") {
             float rate = layerConfig.params.at("rate").get_value<float>();
-            std::cout << "🔧 Dropout layer detected (rate=" << rate << "), currently not instantiated.\n";
-            // previousLayerOutputSize remains unchanged
+            std::cout << "🔧 Dynamically creating DropoutLayer with rate=" << rate << "\n";
+            
+            auto dynamicDropoutLayer = new DropoutLayer(rate, sequenceLength_);
+            dynamicDropoutLayer->buildPipeline(_pDevice, _pComputeLibrary);
+            dynamicDropoutLayer->buildBuffers(_pDevice);
+            
+            dynamicLayers_.push_back(dynamicDropoutLayer);
         }
         else {
             std::cerr << "⚠️ Unsupported layer type: " << layerConfig.type << "\n";
@@ -139,29 +145,29 @@ void NeuralEngine::buildBuffers() {
     _pRNNLayer1->buildBuffers(_pDevice);
     _pRNNLayer2->buildBuffers(_pDevice);
     _pDenseLayer->buildBuffers(_pDevice);
-
+    
     // Connect Input → RNN1
     for (int t = 0; t < sequenceLength_; ++t) {
         _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
         _pRNNLayer1->setInputBufferAt(t, _pInputLayer->getBufferAt(t));
     }
-
+    
     // Connect RNN1 → RNN2
     for (int t = 0; t < sequenceLength_; ++t) {
         _pRNNLayer2->setInputBufferAt(t, _pRNNLayer1->getOutputBufferAt(t));
     }
-
+    
     // Connect RNN2 → Dense
     for (int t = 0; t < sequenceLength_; ++t) {
         _pDenseLayer->setInputBufferAt(t, _pRNNLayer2->getOutputBufferAt(t));
         _pDenseLayer->updateTargetBufferAt(_pDataSourceManager->y_hat, t);
     }
-
+    
     // Connect Dense errors back to RNN2
     for (int t = 0; t < sequenceLength_; ++t) {
         _pRNNLayer2->setDenseErrorBuffer(_pDenseLayer->getErrorBufferAt(t), t);
     }
-
+    
     // Connect RNN2 errors back to RNN1
     for (int t = 0; t < sequenceLength_; ++t) {
         _pRNNLayer1->setDenseErrorBuffer(_pRNNLayer2->getErrorBufferAt(t), t);
@@ -191,7 +197,7 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     
     cmdBuf->commit();
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
-
+    
     float* outputData = static_cast<float*>(_pDenseLayer->getOutputBufferAt(0)->contents());
 #ifdef DEBUG_NETWORK
     std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ..." << std::endl;
@@ -205,7 +211,7 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     }
     mse /= output_dim;
     std::printf("Mean Squared Error at timestep 0: %f\n", mse);
-
+    
 }
 
 void NeuralEngine::computeBackward(std::function<void()> onComplete) {
