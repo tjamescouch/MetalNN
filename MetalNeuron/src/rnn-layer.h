@@ -24,7 +24,7 @@ public:
 
     MTL::Buffer* getOutputBufferAt(int timestep) const override;
     MTL::Buffer* getErrorBufferAt(int timestep) const override;
-    void setInputBufferAt(int timestep, MTL::Buffer* inputBuffer);
+    void setInputBufferAt(int timestep, MTL::Buffer* inputBuffer) override;
     void setDenseErrorBuffer(MTL::Buffer* denseErrorBuffer, int timestep);
     void updateTargetBufferAt(DataSource&, int) const {};
 

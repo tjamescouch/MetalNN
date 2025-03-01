@@ -131,8 +131,8 @@ void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBuffer(bufferW_xh_,                    0, 3);
         encoder->setBuffer(bufferW_hh_,                    0, 4);
         encoder->setBuffer(bufferBias_,                    0, 5);
-        encoder->setBytes(&inputDim_,    sizeof(int),      6);
-        encoder->setBytes(&hiddenDim_,   sizeof(int),      7);
+        encoder->setBytes(&inputDim_,       sizeof(int),      6);
+        encoder->setBytes(&hiddenDim_,      sizeof(int),      7);
         encoder->setBuffer(bufferDecay_,                   0, 8);
 
         encoder->dispatchThreads(MTL::Size(hiddenDim_, 1, 1),

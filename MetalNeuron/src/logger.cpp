@@ -22,11 +22,9 @@ Logger::~Logger() {
 
 void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount, int hiddenCount, int sequenceLength) {
     float avgOutputError = 0.0f;
-    float avgHiddenError = 0.0f;
     
     for (int t = 0; t < sequenceLength; ++t) {
         float timestepOutputError = 0.0f;
-        float timestepHiddenError = 0.0f;
         
         for (int i = 0; i < outputCount; ++i)
             timestepOutputError += fabs(outputErrors[t][i]);
