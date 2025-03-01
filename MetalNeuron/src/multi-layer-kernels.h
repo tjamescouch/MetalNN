@@ -57,38 +57,6 @@ inline float activate_derivative(const float y, const uint activation) {
     }
 }
 
-//-------------------------------------------------------------------
-// Forward pass for the recurrent layer (RNN cell)
-kernel void forward_rnn(
-    device const float* x            [[buffer(0)]],
-    device const float* h_prev       [[buffer(1)]],
-    device       float* h            [[buffer(2)]],
-    device const float* W_xh         [[buffer(3)]],
-    device const float* W_hh         [[buffer(4)]],
-    device const float* b            [[buffer(5)]],
-    device const uint* pX            [[buffer(6)]],
-    device const uint* pH            [[buffer(7)]],
-    uint tid                         [[thread_position_in_grid]]
-) {
-    uint input_dim = *pX;
-    uint hidden_dim = *pH;
-
-    if (tid >= hidden_dim) return;
-    
-    float sum = b[tid];
-    
-    // Contribution from current input
-    for (uint i = 0; i < input_dim; i++) {
-        sum += x[i] * W_xh[i * hidden_dim + tid];
-    }
-    
-    // Recurrent contribution from previous hidden state
-    for (uint j = 0; j < hidden_dim; j++) {
-        sum += h_prev[j] * W_hh[j * hidden_dim + tid];
-    }
-    
-    h[tid] = hiddenActivation(sum);
-}
 
 //-------------------------------------------------------------------
 // Forward pass for the output layer (feedforward)
@@ -152,6 +120,40 @@ kernel void learn_output_layer(
 }
 
 //-------------------------------------------------------------------
+// Forward pass for the recurrent layer (RNN cell)
+kernel void forward_rnn(
+    device const float* x            [[buffer(0)]],
+    device const float* h_prev       [[buffer(1)]],
+    device       float* h            [[buffer(2)]],
+    device const float* W_xh         [[buffer(3)]],
+    device const float* W_hh         [[buffer(4)]],
+    device const float* b            [[buffer(5)]],
+    device const uint* pX            [[buffer(6)]],
+    device const uint* pH            [[buffer(7)]],
+    device const uint* activation    [[buffer(8)]],
+    uint tid                         [[thread_position_in_grid]]
+) {
+    uint input_dim = *pX;
+    uint hidden_dim = *pH;
+
+    if (tid >= hidden_dim) return;
+    
+    float sum = b[tid];
+    
+    // Contribution from current input
+    for (uint i = 0; i < input_dim; i++) {
+        sum += x[i] * W_xh[i * hidden_dim + tid];
+    }
+    
+    // Recurrent contribution from previous hidden state
+    for (uint j = 0; j < hidden_dim; j++) {
+        sum += h_prev[j] * W_hh[j * hidden_dim + tid];
+    }
+    
+    h[tid] = activate(sum, *activation);
+}
+
+//-------------------------------------------------------------------
 // Learning kernel for the recurrent layer (multi-step BPTT)
 //-------------------------------------------------------------------
 kernel void learn_rnn(
@@ -167,6 +169,7 @@ kernel void learn_rnn(
     device const uint* pX            [[buffer(9)]],
     device const uint* pH            [[buffer(10)]],
     device       float* pDecay       [[buffer(11)]],
+    device const uint* activation    [[buffer(12)]],
     uint tid                         [[thread_position_in_grid]]
 ) {
     uint input_dim = *pX;
@@ -186,8 +189,7 @@ kernel void learn_rnn(
     }
 
     // Multiply by activation derivative of current hidden state
-    float delta = accumulated_err * hiddenActivationDerivative(h[tid]);
-    //delta = clamp(delta, -1.0f, 1.0f);
+    float delta = accumulated_err * activate_derivative(h[tid], *activation);
     hidden_error[tid] = delta;
 
     // Update input-to-hidden weights

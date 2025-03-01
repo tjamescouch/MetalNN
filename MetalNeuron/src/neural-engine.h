@@ -44,7 +44,7 @@ public:
 private:
     void buildComputePipeline();
     void buildBuffers();
-    void shiftBuffers(); // New helper: shifts stored sequence buffers by one time step
+    void shiftBuffers();
 
     DataSourceManager* _pDataSourceManager;
     KeyboardController* _pKeyboardController;

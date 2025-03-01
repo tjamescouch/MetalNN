@@ -13,7 +13,7 @@ namespace MTL {
 
 class RNNLayer : public Layer {
 public:
-    RNNLayer(int inputDim, int hiddenDim, int sequenceLength);
+    RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation);
     virtual ~RNNLayer();
 
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
@@ -37,6 +37,8 @@ private:
     int inputDim_;
     int hiddenDim_;
     int sequenceLength_;
+    
+    ActivationFunction activation_;
 
     std::vector<MTL::Buffer*> bufferInputs_;
     std::vector<MTL::Buffer*> bufferHiddenStates_;

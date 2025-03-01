@@ -33,6 +33,7 @@ private:
     int inputDim_;
     int outputDim_;
     int sequenceLength_;
+    
     ActivationFunction activation_;
 
     std::vector<MTL::Buffer*> bufferInputs_;

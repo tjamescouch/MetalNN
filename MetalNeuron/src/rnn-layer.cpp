@@ -3,7 +3,7 @@
 #include "common.h"
 #include <cstring>
 
-RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength)
+RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation)
 : inputDim_(inputDim),
   hiddenDim_(hiddenDim),
   sequenceLength_(sequenceLength),
@@ -13,7 +13,8 @@ RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength)
   bufferDecay_(nullptr),
   forwardPipelineState_(nullptr),
   backwardPipelineState_(nullptr),
-  zeroBuffer_(nullptr)
+  zeroBuffer_(nullptr),
+  activation_(activation)
 {}
 
 RNNLayer::~RNNLayer() {
@@ -104,6 +105,8 @@ void RNNLayer::buildBuffers(MTL::Device* device) {
 }
 
 void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
+    uint activationRaw = static_cast<uint>(activation_);
+    
     for (int t = 0; t < sequenceLength_; ++t) {
 #ifdef DEBUG_NETWORK
         float* x = static_cast<float*>(bufferInputs_[t]->contents());
@@ -134,6 +137,7 @@ void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBytes(&inputDim_,       sizeof(int),      6);
         encoder->setBytes(&hiddenDim_,      sizeof(int),      7);
         encoder->setBuffer(bufferDecay_,                   0, 8);
+        encoder->setBytes(&activationRaw, sizeof(uint),       9);
 
         encoder->dispatchThreads(MTL::Size(hiddenDim_, 1, 1),
                                  MTL::Size(std::min(hiddenDim_, 1024), 1, 1));
@@ -142,7 +146,8 @@ void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
 }
 
 void RNNLayer::backward(MTL::CommandBuffer* cmdBuf) {
-    // CHANGED: pass next_hidden_error to the Metal kernel, so BPTT can use the future error
+    uint activationRaw = static_cast<uint>(activation_);
+    
     for (int t = sequenceLength_ - 1; t >= 0; --t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(backwardPipelineState_);
@@ -173,6 +178,7 @@ void RNNLayer::backward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBytes(&inputDim_,  sizeof(int), 9);
         encoder->setBytes(&hiddenDim_, sizeof(int), 10);
         encoder->setBuffer(bufferDecay_, 0, 11);
+        encoder->setBytes(&activationRaw, sizeof(uint),       12);
 
         encoder->dispatchThreads(MTL::Size(hiddenDim_, 1, 1),
                                  MTL::Size(std::min(hiddenDim_, 1024), 1, 1));
