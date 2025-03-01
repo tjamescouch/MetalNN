@@ -26,15 +26,7 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength, const Model
   areBuffersBuilt(false), currentlyComputing(false),
   globalTimestep(0)  // initialize the global timestep for animation
 {
-    std::cout << "🔧 [Dynamic Constructor] Loaded ModelConfig: " << config.name << "\n";
-    std::cout << "🔧 Number of layers defined: " << config.layers.size() << "\n";
-
-    for (size_t i = 0; i < config.layers.size(); ++i) {
-        std::cout << "   Layer " << i+1 << ": " << config.layers[i].type << "\n";
-    }
-
-    
-    
+    // 🚨 Old hardcoded stuff
     _pLogger = new Logger(outputFileName);
     _pDataSourceManager = new DataSourceManager(input_dim, hidden_dim, output_dim, sequenceLength_);
     
@@ -65,6 +57,52 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, int sequenceLength, const Model
     _pDenseLayer = new DenseLayer(hidden_dim, output_dim, sequenceLength_);
     
     buildComputePipeline();
+    
+    // 🚧 Dynamic Layer Instantiation
+    std::cout << "🔧 [Dynamic Constructor] Loaded ModelConfig: " << config.name << "\n";
+    std::cout << "🔧 Number of layers defined: " << config.layers.size() << "\n";
+    
+    int previousLayerOutputSize = 0; // Track previous layer's output size dynamically
+
+    for (size_t i = 0; i < config.layers.size(); ++i) {
+        const auto& layerConfig = config.layers[i];
+        std::cout << "   Layer " << i+1 << ": " << layerConfig.type << "\n";
+
+        if (layerConfig.type == "Dense") {
+            int inputSize;
+            
+            // Check if input_size explicitly defined
+            if (layerConfig.params.contains("input_size")) {
+                inputSize = layerConfig.params.at("input_size").get_value<int>();
+            } else if (previousLayerOutputSize > 0) {
+                // Infer input_size from previous layer
+                inputSize = previousLayerOutputSize;
+            } else {
+                throw std::runtime_error("❌ input_size not defined for first Dense layer.");
+            }
+
+            int outputSize = layerConfig.params.at("output_size").get_value<int>();
+
+            std::cout << "🔧 Dynamically creating DenseLayer with inputSize="
+                      << inputSize << ", outputSize=" << outputSize << "\n";
+
+            auto dynamicDenseLayer = new DenseLayer(inputSize, outputSize, sequenceLength_);
+            dynamicDenseLayer->buildPipeline(_pDevice, _pComputeLibrary);
+            dynamicDenseLayer->buildBuffers(_pDevice);
+
+            dynamicLayers_.push_back(dynamicDenseLayer);
+
+            previousLayerOutputSize = outputSize; // Update for next layer
+        }
+        else if (layerConfig.type == "Dropout") {
+            float rate = layerConfig.params.at("rate").get_value<float>();
+            std::cout << "🔧 Dropout layer detected (rate=" << rate << "), currently not instantiated.\n";
+            // previousLayerOutputSize remains unchanged
+        }
+        else {
+            std::cerr << "⚠️ Unsupported layer type: " << layerConfig.type << "\n";
+        }
+    }
 }
 
 NeuralEngine::~NeuralEngine() {
@@ -128,6 +166,9 @@ void NeuralEngine::buildBuffers() {
     for (int t = 0; t < sequenceLength_; ++t) {
         _pRNNLayer1->setDenseErrorBuffer(_pRNNLayer2->getErrorBufferAt(t), t);
     }
+    
+    
+    
     
     
     areBuffersBuilt = true;

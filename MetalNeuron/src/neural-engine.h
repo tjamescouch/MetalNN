@@ -1,14 +1,17 @@
 #ifndef NEURAL_ENGINE_H
 #define NEURAL_ENGINE_H
+#include <vector>
+#include <functional>
 
 #include "model/model-config.h"
 #include "data-source-manager.h"
 #include "keyboard-controller.h"
 #include "logger.h"
+#include "layer.h"
 #include "input-layer.h"
 #include "rnn-layer.h"
 #include "dense-layer.h"
-#include <functional>
+
 
 namespace MTL {
     class Device;
@@ -35,6 +38,7 @@ public:
     void handleKeyStateChange();
 
     static constexpr int kMaxFramesInFlight = 3;
+    std::vector<Layer*> dynamicLayers_;
 
 private:
     void buildComputePipeline();

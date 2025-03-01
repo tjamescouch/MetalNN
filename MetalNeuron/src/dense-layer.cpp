@@ -6,9 +6,9 @@
 #include <iostream>
 
 DenseLayer::DenseLayer(int inputDim, int outputDim, int sequenceLength)
-    : inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(sequenceLength),
-      bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr),
-      forwardPipelineState_(nullptr), backwardPipelineState_(nullptr)
+: inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(sequenceLength),
+bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr),
+forwardPipelineState_(nullptr), backwardPipelineState_(nullptr)
 {
     bufferInputs_.resize(sequenceLength_, nullptr);
     bufferOutputs_.resize(sequenceLength_, nullptr);
@@ -29,7 +29,15 @@ DenseLayer::~DenseLayer() {
 }
 
 void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
+    // Confirm shader function name explicitly
+    std::cout << "🔍 Attempting to load shader function: forward_output_layer\n";
     auto forwardFunc = library->newFunction(NS::String::string("forward_output_layer", NS::UTF8StringEncoding));
+
+    if (!forwardFunc) {
+        std::cerr << "❌ ERROR: Failed to find Metal shader function 'forward_output_layer'.\n";
+        return;
+    }
+
     auto backwardFunc = library->newFunction(NS::String::string("learn_output_layer", NS::UTF8StringEncoding));
     
     NS::Error* error = nullptr;
@@ -56,22 +64,22 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     bufferDecay_ = device->newBuffer(sizeof(float), MTL::ResourceStorageModeManaged);
     memcpy(bufferDecay_->contents(), &decay, sizeof(float));
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
-
+    
     // Shared bias
     bufferBias_ = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     memset(bufferBias_->contents(), 0, outputDim_ * sizeof(float));
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
-
+    
     // Timestep-specific buffers
     for (int t = 0; t < sequenceLength_; ++t) {
         bufferOutputs_[t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         bufferTargets_[t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         bufferErrors_[t]  = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-
+        
         memset(bufferOutputs_[t]->contents(), 0, outputDim_ * sizeof(float));
         memset(bufferTargets_[t]->contents(), 0, outputDim_ * sizeof(float));
         memset(bufferErrors_[t]->contents(), 0, outputDim_ * sizeof(float));
-
+        
         bufferOutputs_[t]->didModifyRange(NS::Range(0, bufferOutputs_[t]->length()));
         bufferTargets_[t]->didModifyRange(NS::Range(0, bufferTargets_[t]->length()));
         bufferErrors_[t]->didModifyRange(NS::Range(0, bufferErrors_[t]->length()));
@@ -93,14 +101,14 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
     for (int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(forwardPipelineState_);
-
+        
         encoder->setBuffer(bufferInputs_[t], 0, 0);
         encoder->setBuffer(bufferOutputs_[t], 0, 1);
         encoder->setBuffer(bufferWeights_, 0, 2);
         encoder->setBuffer(bufferBias_, 0, 3);
         encoder->setBytes(&inputDim_, sizeof(int), 4);
         encoder->setBytes(&outputDim_, sizeof(int), 5);
-
+        
         MTL::Size threadsPerThreadgroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
         MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
         encoder->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
@@ -116,7 +124,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
     for (int t = sequenceLength_ - 1; t >= 0; --t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(backwardPipelineState_);
-
+        
         encoder->setBuffer(bufferInputs_[t], 0, 0);
         encoder->setBuffer(bufferWeights_, 0, 1);
         encoder->setBuffer(bufferBias_, 0, 2);
@@ -126,7 +134,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBytes(&inputDim_, sizeof(int), 6);
         encoder->setBytes(&outputDim_, sizeof(int), 7);
         encoder->setBuffer(bufferDecay_, 0, 8);
-
+        
         MTL::Size threadsPerThreadgroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
         MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
         encoder->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
