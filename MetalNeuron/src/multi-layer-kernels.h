@@ -10,8 +10,10 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.00005f;
-constant float learning_rate_b = 0.00005f;
+constant float learning_rate_w = 0.00002f;
+constant float learning_rate_b = 0.00002f;
+
+constant float decay_factor = 0.9999f;
 
 // Activation function and derivative for hidden layers
 inline float hiddenActivation(float x) {
@@ -105,12 +107,18 @@ kernel void learn_output_layer(
     device       float* error        [[buffer(5)]],
     device const uint* pH            [[buffer(6)]],
     device const uint* pN            [[buffer(7)]],
+    device       float* pDecay       [[buffer(8)]],
     uint tid                         [[thread_position_in_grid]]
 ) {
     uint hidden_dim = *pH;
     uint output_dim = *pN;
 
     if (tid >= output_dim) return;
+
+    if (tid == 0) {
+        *pDecay *= decay_factor;
+    }
+    float decay = *pDecay;
 
     float raw_error = y[tid] - y_hat[tid];
     float delta = raw_error * outputActivationDerivative(y[tid]); 
@@ -121,7 +129,7 @@ kernel void learn_output_layer(
     for (uint i = 0; i < hidden_dim; i++) {
         W[i * output_dim + tid] -= learning_rate_w * delta * h[i];
     }
-    b[tid] -= learning_rate_b * delta;
+    b[tid] -= learning_rate_b * delta * decay;
 }
 
 //-------------------------------------------------------------------
@@ -139,12 +147,18 @@ kernel void learn_rnn(
     device       float* hidden_error [[buffer(8)]],
     device const uint* pX            [[buffer(9)]],
     device const uint* pH            [[buffer(10)]],
+    device       float* pDecay       [[buffer(11)]],
     uint tid                         [[thread_position_in_grid]]
 ) {
     uint input_dim = *pX;
     uint hidden_dim = *pH;
 
     if (tid >= hidden_dim) return;
+
+    if (tid == 0) {
+        *pDecay *= decay_factor;
+    }
+    float decay = *pDecay;
 
     // Combine the next timestep's hidden error plus local output_error
     float accumulated_err = output_error[tid];
@@ -168,7 +182,7 @@ kernel void learn_rnn(
     }
 
     // Update bias
-    b[tid] -= learning_rate_b * delta;
+    b[tid] -= learning_rate_b * delta * decay;
 }
 
 )"; // end of the big string

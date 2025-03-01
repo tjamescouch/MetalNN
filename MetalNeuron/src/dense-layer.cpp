@@ -3,10 +3,11 @@
 #include <cstring>
 #include <cassert>
 #include <algorithm>
+#include <iostream>
 
 DenseLayer::DenseLayer(int inputDim, int outputDim, int sequenceLength)
     : inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(sequenceLength),
-      bufferWeights_(nullptr), bufferBias_(nullptr),
+      bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr),
       forwardPipelineState_(nullptr), backwardPipelineState_(nullptr)
 {
     bufferInputs_.resize(sequenceLength_, nullptr);
@@ -24,6 +25,7 @@ DenseLayer::~DenseLayer() {
     if (bufferBias_) bufferBias_->release();
     if (forwardPipelineState_) forwardPipelineState_->release();
     if (backwardPipelineState_) backwardPipelineState_->release();
+    if (bufferDecay_) bufferDecay_->release();
 }
 
 void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -43,12 +45,17 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
 
 void DenseLayer::buildBuffers(MTL::Device* device) {
     const float scale = 0.01f;
+    const float decay = 1.0f;
     // Shared weights across timesteps
     bufferWeights_ = device->newBuffer(inputDim_ * outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     float* w = static_cast<float*>(bufferWeights_->contents());
     for (int i = 0; i < inputDim_ * outputDim_; ++i)
         w[i] = ((float)rand() / RAND_MAX - 0.5f) * scale;
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
+    
+    bufferDecay_ = device->newBuffer(sizeof(float), MTL::ResourceStorageModeManaged);
+    memcpy(bufferDecay_->contents(), &decay, sizeof(float));
+    bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
 
     // Shared bias
     bufferBias_ = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
@@ -102,6 +109,10 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
 }
 
 void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
+#ifdef DEBUG_NETWORK
+    float* pDecay = static_cast<float*>(bufferDecay_->contents());
+    std::cout << "Dense decay " << *pDecay << std::endl;
+#endif
     for (int t = sequenceLength_ - 1; t >= 0; --t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(backwardPipelineState_);
@@ -114,6 +125,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBuffer(bufferErrors_[t], 0, 5);
         encoder->setBytes(&inputDim_, sizeof(int), 6);
         encoder->setBytes(&outputDim_, sizeof(int), 7);
+        encoder->setBuffer(bufferDecay_, 0, 8);
 
         MTL::Size threadsPerThreadgroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
         MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);

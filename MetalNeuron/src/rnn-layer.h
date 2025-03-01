@@ -44,6 +44,7 @@ private:
     MTL::Buffer* bufferW_xh_;
     MTL::Buffer* bufferW_hh_;
     MTL::Buffer* bufferBias_;
+    MTL::Buffer* bufferDecay_;
 
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;

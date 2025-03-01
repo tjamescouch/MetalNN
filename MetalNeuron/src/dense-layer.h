@@ -26,7 +26,7 @@ public:
 private:
     int inputDim_, outputDim_, sequenceLength_;
     std::vector<MTL::Buffer*> bufferInputs_, bufferOutputs_, bufferErrors_, bufferTargets_;
-    MTL::Buffer *bufferWeights_, *bufferBias_;
+    MTL::Buffer *bufferWeights_, *bufferBias_, *bufferDecay_;
     MTL::ComputePipelineState *forwardPipelineState_, *backwardPipelineState_;
 };
 #endif

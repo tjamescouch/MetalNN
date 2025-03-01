@@ -10,9 +10,10 @@ RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength)
   bufferW_xh_(nullptr),
   bufferW_hh_(nullptr),
   bufferBias_(nullptr),
+  bufferDecay_(nullptr),
   forwardPipelineState_(nullptr),
   backwardPipelineState_(nullptr),
-  zeroBuffer_(nullptr) // CHANGED: init to nullptr
+  zeroBuffer_(nullptr)
 {}
 
 RNNLayer::~RNNLayer() {
@@ -26,6 +27,7 @@ RNNLayer::~RNNLayer() {
     if (bufferW_xh_) bufferW_xh_->release();
     if (bufferW_hh_) bufferW_hh_->release();
     if (bufferBias_) bufferBias_->release();
+    if (bufferDecay_) bufferDecay_->release();
 
     if (forwardPipelineState_)  forwardPipelineState_->release();
     if (backwardPipelineState_) backwardPipelineState_->release();
@@ -35,6 +37,7 @@ RNNLayer::~RNNLayer() {
 
 void RNNLayer::buildBuffers(MTL::Device* device) {
     float scale = 0.001f;
+    float decay = 1.0f;
     
     // Allocate weight buffer: W_xh (inputDim x hiddenDim)
     bufferW_xh_ = device->newBuffer(inputDim_ * hiddenDim_ * sizeof(float),
@@ -44,6 +47,10 @@ void RNNLayer::buildBuffers(MTL::Device* device) {
         w_xh[i] = ((float)rand() / RAND_MAX - 0.5f) * scale;
     }
     bufferW_xh_->didModifyRange(NS::Range(0, bufferW_xh_->length()));
+    
+    bufferDecay_ = device->newBuffer(sizeof(float), MTL::ResourceStorageModeManaged);
+    memcpy(bufferDecay_->contents(), &decay, hiddenDim_ * sizeof(float));
+    bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
     
     // Allocate weight buffer: W_hh (hiddenDim x hiddenDim)
     bufferW_hh_ = device->newBuffer(hiddenDim_ * hiddenDim_ * sizeof(float),
@@ -101,11 +108,13 @@ void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
 #ifdef DEBUG_NETWORK
         float* x = static_cast<float*>(bufferInputs_[t]->contents());
         float* w_xh = static_cast<float*>(bufferW_xh_->contents());
+        float* pDecay = static_cast<float*>(bufferDecay_->contents());
         
         float sumCheck = 0.0f;
         for (int i = 0; i < inputDim_; ++i)
             sumCheck += x[i] * w_xh[i]; // Simple check
         std::cout << "Pre-activation sum at timestep " << t << ": " << sumCheck << std::endl;
+        std::cout << "RNN decay " << *pDecay << std::endl;
 #endif
         
         auto encoder = cmdBuf->computeCommandEncoder();
@@ -124,6 +133,7 @@ void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBuffer(bufferBias_,                    0, 5);
         encoder->setBytes(&inputDim_,    sizeof(int),      6);
         encoder->setBytes(&hiddenDim_,   sizeof(int),      7);
+        encoder->setBuffer(bufferDecay_,                   0, 8);
 
         encoder->dispatchThreads(MTL::Size(hiddenDim_, 1, 1),
                                  MTL::Size(std::min(hiddenDim_, 1024), 1, 1));
@@ -162,6 +172,7 @@ void RNNLayer::backward(MTL::CommandBuffer* cmdBuf) {
 
         encoder->setBytes(&inputDim_,  sizeof(int), 9);
         encoder->setBytes(&hiddenDim_, sizeof(int), 10);
+        encoder->setBuffer(bufferDecay_, 0, 11);
 
         encoder->dispatchThreads(MTL::Size(hiddenDim_, 1, 1),
                                  MTL::Size(std::min(hiddenDim_, 1024), 1, 1));

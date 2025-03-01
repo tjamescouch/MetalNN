@@ -142,10 +142,10 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     cmdBuf->commit();
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
 
-#ifdef DEBUG_NETWORK
     float* outputData = static_cast<float*>(_pDenseLayer->getOutputBufferAt(0)->contents());
+#ifdef DEBUG_NETWORK
     std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ..." << std::endl;
-    
+#endif
     // Compute mean squared error using target data from the DataSource's y_hat buffer at timestep 0.
     float mse = 0.0f;
     float* targetData = _pDataSourceManager->y_hat.get_data_buffer_at(0);
@@ -155,7 +155,7 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     }
     mse /= output_dim;
     std::printf("Mean Squared Error at timestep 0: %f\n", mse);
-#endif
+
 }
 
 void NeuralEngine::computeBackward(std::function<void()> onComplete) {
