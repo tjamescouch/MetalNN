@@ -13,7 +13,7 @@ using namespace metal;
 constant float learning_rate_w = 0.00002f;
 constant float learning_rate_b = 0.00002f;
 
-constant float decay_factor = 0.9999f;
+constant float decay_factor = 0.9995f;
 
 // Activation function and derivative for hidden layers
 inline float hiddenActivation(float x) {
@@ -127,7 +127,7 @@ kernel void learn_output_layer(
 
     // Weight + bias update
     for (uint i = 0; i < hidden_dim; i++) {
-        W[i * output_dim + tid] -= learning_rate_w * delta * h[i];
+        W[i * output_dim + tid] -= learning_rate_w * delta * h[i] * decay;
     }
     b[tid] -= learning_rate_b * delta * decay;
 }
@@ -173,12 +173,12 @@ kernel void learn_rnn(
 
     // Update input-to-hidden weights
     for (uint i = 0; i < input_dim; i++) {
-        W_xh[i * hidden_dim + tid] -= learning_rate_w * delta * x[i];
+        W_xh[i * hidden_dim + tid] -= learning_rate_w * delta * x[i] * decay;
     }
 
     // Update recurrent weights
     for (uint j = 0; j < hidden_dim; j++) {
-        W_hh[j * hidden_dim + tid] -= learning_rate_w * delta * h_prev[j];
+        W_hh[j * hidden_dim + tid] -= learning_rate_w * delta * h_prev[j] * decay;
     }
 
     // Update bias
