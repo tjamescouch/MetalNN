@@ -29,10 +29,15 @@ public:
     void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
                              MTL::Buffer* zeroBuffer, int timestep) override;
     
+    
+    int getParameterCount() const override;
+    float getParameterAt(int index) const override;
+    void setParameterAt(int index, float value) override;
+    float getGradientAt(int index) const override;
+    
     int outputSize() const override;
     void updateTargetBufferAt(DataSource& targetData, int timestep) override;
 
-    // Shifts stored RNN states forward by one step. (Kept as-is)
     void shiftHiddenStates();
     
     void onForwardComplete() override {

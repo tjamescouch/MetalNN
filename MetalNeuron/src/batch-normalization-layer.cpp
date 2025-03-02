@@ -184,3 +184,16 @@ void BatchNormalizationLayer::connectInputBuffers(const Layer* previousLayer, co
                      : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
                      );
 }
+
+int BatchNormalizationLayer::getParameterCount() const {
+    return 2;
+}
+float BatchNormalizationLayer::getParameterAt(int index) const {
+    return 0.0f;
+}
+void BatchNormalizationLayer::setParameterAt(int index, float value) {
+    return;
+}
+float BatchNormalizationLayer::getGradientAt(int index) const {
+    return 0.0f;
+}

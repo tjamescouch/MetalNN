@@ -67,3 +67,16 @@ MTL::Buffer* InputLayer::getInputBufferAt(BufferType, int) const {
 int InputLayer::getSequenceLength() {
     return sequenceLength_;
 }
+
+int InputLayer::getParameterCount() const {
+    return 1;
+}
+float InputLayer::getParameterAt(int index) const {
+    return 0.0f;
+}
+void InputLayer::setParameterAt(int index, float value) {
+    return;
+}
+float InputLayer::getGradientAt(int index) const {
+    return 0.0f;
+}

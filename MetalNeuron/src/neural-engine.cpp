@@ -5,6 +5,10 @@
 #include <cassert>
 #include <random>
 
+#ifdef DEBUG_GRADIENT_CHECKS
+#include "debug/gradient-checker.h"
+#endif
+
 const int num_iterations = 1000;
 const int input_dim  = 512;
 const int hidden_dim = 512;
@@ -77,9 +81,7 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
         delete layer;
     }
     dynamicLayers_.clear();
-    
-    int previousLayerOutputSize = input_dim;
-    
+
     int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
     _pInputLayer = new InputLayer(input_dim, first_layer_time_steps);
     
@@ -298,6 +300,17 @@ void NeuralEngine::computeBackwardIterations(uint32_t iterations) {
     _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
     dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y, slot);
     
+#ifdef DEBUG_GRADIENT_CHECKS
+    try {
+        std::cout << "Before gradient check, iteration: " << iterations << std::endl;
+        GradientChecker checker(this, _pDataSourceManager);
+        checker.checkLayerGradients(dynamicLayers_[0]); // typically the first hidden layer (DenseLayer)
+        std::cout << "After gradient check, iteration: " << iterations << std::endl;
+    } catch (std::exception error) {
+        printf("error: %s", error.what());
+    }
+#endif
+
     computeForward([this, iterations]() {
         computeBackward([this, iterations]() {
             globalTimestep++;
@@ -356,4 +369,20 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
         globalTimestep++;
         computeForwardIterations(iterations - 1);
     });
+}
+
+void NeuralEngine::computeForwardSync() {
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+    computeForward([semaphore]() {
+        dispatch_semaphore_signal(semaphore);
+    });
+    dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+}
+
+void NeuralEngine::computeBackwardSync() {
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+    computeBackward([semaphore]() {
+        dispatch_semaphore_signal(semaphore);
+    });
+    dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
 }

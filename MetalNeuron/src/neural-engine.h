@@ -37,6 +37,9 @@ public:
     void computeForwardIterations(uint32_t iterations);
     void createDynamicLayers(const ModelConfig& config);
     void connectDynamicLayers(const ModelConfig& config);
+
+    void computeForwardSync();
+    void computeBackwardSync();
     
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();

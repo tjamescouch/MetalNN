@@ -64,6 +64,11 @@ public:
     virtual void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) = 0;
     
+    virtual int getParameterCount() const = 0;
+    virtual float getParameterAt(int index) const = 0;
+    virtual void setParameterAt(int index, float value) = 0;
+    virtual float getGradientAt(int index) const = 0;
+    
     virtual void debugLog() = 0;
     virtual void onForwardComplete() = 0;
     virtual void onBackwardComplete() = 0;

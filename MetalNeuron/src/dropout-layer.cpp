@@ -163,3 +163,16 @@ void DropoutLayer::connectInputBuffers(const Layer* previousLayer, const InputLa
             : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
     );
 }
+
+int DropoutLayer::getParameterCount() const {
+    return 1;
+}
+float DropoutLayer::getParameterAt(int index) const {
+    return 0.0f;
+}
+void DropoutLayer::setParameterAt(int index, float value) {
+    return;
+}
+float DropoutLayer::getGradientAt(int index) const {
+    return 0.0f;
+}

@@ -80,10 +80,10 @@ std::string ViewDelegate::getDefaultModelFilePath() {
     }
 
     fs::path executablePath = fs::canonical(path);
-    fs::path resourcePath = executablePath.parent_path().parent_path() / "Resources" / "model-config.yml";
+    fs::path resourcePath = executablePath.parent_path().parent_path() / "Resources" / defaultModelFilePath;
 
     if (!fs::exists(resourcePath)) {
-        throw std::runtime_error("❌ Could not find model-config.yml at " + resourcePath.string());
+        throw std::runtime_error("❌ Could not find confiuration yml at " + resourcePath.string());
     }
 
     return resourcePath.string();

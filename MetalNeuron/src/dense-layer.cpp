@@ -209,3 +209,39 @@ void DenseLayer::connectInputBuffers(const Layer* previousLayer, const InputLaye
                      : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
                      );
 }
+
+
+int DenseLayer::getParameterCount() const {
+    return inputDim_ * outputDim_ + outputDim_;  // weights + biases
+}
+
+float DenseLayer::getParameterAt(int index) const {
+    float* weights = static_cast<float*>(bufferWeights_->contents());
+    float* biases = static_cast<float*>(bufferBias_->contents());
+
+    if (index < inputDim_ * outputDim_) {
+        return weights[index];
+    } else {
+        return biases[index - inputDim_ * outputDim_];
+    }
+}
+
+void DenseLayer::setParameterAt(int index, float value) {
+    float* weights = static_cast<float*>(bufferWeights_->contents());
+    float* biases = static_cast<float*>(bufferBias_->contents());
+
+    if (index < inputDim_ * outputDim_) {
+        weights[index] = value;
+        bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
+    } else {
+        biases[index - inputDim_ * outputDim_] = value;
+        bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
+    }
+}
+
+float DenseLayer::getGradientAt(int index) const {
+    float* deltaBuffer = static_cast<float*>(outputBuffers_.at(BufferType::Delta)[0]->contents());
+
+    // You will need to have stored gradients explicitly in buffers.
+    return deltaBuffer[index];  // Simplified for illustration; adjust accordingly
+}

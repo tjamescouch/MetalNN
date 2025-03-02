@@ -306,3 +306,17 @@ void RNNLayer::connectInputBuffers(const Layer* prevLayer,
                      : getOutputBufferAt(BufferType::Output, timestep - 1)
                      );
 }
+
+
+int RNNLayer::getParameterCount() const {
+    return 1;
+}
+float RNNLayer::getParameterAt(int index) const {
+    return 0.0f;
+}
+void RNNLayer::setParameterAt(int index, float value) {
+    return;
+}
+float RNNLayer::getGradientAt(int index) const {
+    return 0.0f;
+}
