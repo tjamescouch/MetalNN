@@ -1,18 +1,17 @@
-#include "neural-engine.h"
-#include "multi-layer-kernels.h"
-#include "dropout-layer.h"
 #include <iostream>
 #include <cassert>
 #include <random>
+
+#include "neural-engine.h"
+#include "multi-layer-kernels.h"
+#include "dropout-layer.h"
+#include "dataloaders/mnist-data-loader.h"
 
 #ifdef DEBUG_GRADIENT_CHECKS
 #include "debug/gradient-checker.h"
 #endif
 
-const int num_iterations = 1000;
-const int input_dim  = 512;
-const int hidden_dim = 512;
-const int output_dim = 512;
+
 const char* outputFileName = "multilayer_nn_training.m";
 
 
@@ -29,6 +28,7 @@ ActivationFunction parseActivation(const std::string& activation) {
     if (activation == "relu") return ActivationFunction::ReLU;
     if (activation == "tanh") return ActivationFunction::Tanh;
     if (activation == "sigmoid") return ActivationFunction::Sigmoid;
+    if (activation == "softmax") return ActivationFunction::Softmax;
     throw std::invalid_argument("Unknown activation: " + activation);
 }
 
@@ -41,8 +41,6 @@ areBuffersBuilt(false), currentlyComputing(false), globalTimestep(0), _pDataSour
 {
     
     _pLogger = new Logger(outputFileName);
-    
-    
     
     _pKeyboardController = new KeyboardController();
     _pKeyboardController->setForwardCallback([this]() {
@@ -83,14 +81,42 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
     dynamicLayers_.clear();
 
     int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
+
+    // Determine dataset type from YAML configuration
+    Dataset* dataset = nullptr;
+
+    if (config.dataset.type == "mnist") {
+        std::string images = config.dataset.images;
+        std::string labels = config.dataset.labels;
+        dataset = new MNISTDataLoader(images, labels);
+    } else if (config.dataset.type == "function") {
+        dataset = nullptr; // Your existing function-based data source
+        // Initialize your existing function-based approach here
+    } else {
+        throw std::runtime_error("❌ Unsupported dataset type: " + config.dataset.type);
+    }
+
     _pInputLayer = new InputLayer(input_dim, first_layer_time_steps);
     
-    _pDataSourceManager = new DataSourceManager(input_dim, hidden_dim, output_dim, first_layer_time_steps);
-    _pDataSourceManager->initialize([this, config]() {
-        _pLogger->clear();
-        buildBuffers();
-        connectDynamicLayers(config);
-    }, inputFunc, targetFunc);
+    // Set dimensions from dataset if provided
+    if (dataset) {
+        input_dim = dataset->inputDim();
+        output_dim = dataset->outputDim();
+        _pDataSourceManager = new DataSourceManager(dataset, first_layer_time_steps);
+        _pDataSourceManager->initialize([this, config]() {
+            _pLogger->clear();
+            buildBuffers();
+            connectDynamicLayers(config);
+        });
+    } else {
+        // Use existing initialization for non-dataset cases (function-based)
+        _pDataSourceManager = new DataSourceManager(input_dim, hidden_dim, output_dim, first_layer_time_steps);
+        _pDataSourceManager->initialize([this, config]() {
+            _pLogger->clear();
+            buildBuffers();
+            connectDynamicLayers(config);
+        }, inputFunc, targetFunc);
+    }
 }
 
 void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
@@ -385,4 +411,8 @@ void NeuralEngine::computeBackwardSync() {
         dispatch_semaphore_signal(semaphore);
     });
     dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+}
+
+void NeuralEngine::initializeWithDataset(Dataset* dataset) {
+    _pDataSourceManager = new DataSourceManager(dataset);
 }

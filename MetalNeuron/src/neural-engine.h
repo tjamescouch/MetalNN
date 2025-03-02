@@ -12,6 +12,7 @@
 #include "rnn-layer.h"
 #include "dense-layer.h"
 #include "batch-normalization-layer.h"
+#include "dataset.h"
 
 
 namespace MTL {
@@ -35,14 +36,18 @@ public:
     
     void computeBackwardIterations(uint32_t iterations);
     void computeForwardIterations(uint32_t iterations);
-    void createDynamicLayers(const ModelConfig& config);
+   // void createDynamicLayers(const ModelConfig& config);
     void connectDynamicLayers(const ModelConfig& config);
+    void createDynamicLayers(const ModelConfig& config);
 
     void computeForwardSync();
     void computeBackwardSync();
     
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();
+    
+    void initializeWithDataset(Dataset* dataset);
+    
     
     static constexpr int kMaxFramesInFlight = 3;
     std::vector<Layer*> dynamicLayers_;
@@ -70,6 +75,10 @@ private:
     dispatch_semaphore_t _semaphore;
     
     int globalTimestep; // Controls the time offset for generating new data
+    int num_iterations = 10000;
+    int input_dim  = 512;
+    int hidden_dim = 512;
+    int output_dim = 512;
 };
 
 #endif // NEURAL_ENGINE_H

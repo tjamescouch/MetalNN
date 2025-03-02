@@ -25,7 +25,8 @@ enum class ActivationFunction {
     Linear = 0,
     ReLU,
     Tanh,
-    Sigmoid
+    Sigmoid,
+    Softmax
 };
 
 enum class BufferType : unsigned int {

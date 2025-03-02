@@ -9,7 +9,7 @@
 #define GRADIENT_CHECKER_H
 
 #include "../neural-engine.h"
-#include "../data-source-manager.h"
+#include "../dataloaders/data-source-manager.h"
 
 class GradientChecker {
 public:

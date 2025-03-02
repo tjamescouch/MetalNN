@@ -24,6 +24,13 @@ ModelConfig ModelConfig::loadFromFile(const std::string& filePath) {
 
     // Load basic fields
     modelConfig.name = config["name"].get_value<std::string>();
+    modelConfig.dataset.type = config["dataset"]["type"].get_value<std::string>();
+    
+    if (modelConfig.dataset.type == "mnist") {
+        modelConfig.dataset.labels = config["dataset"]["labels"].get_value<std::string>();
+        modelConfig.dataset.images = config["dataset"]["images"].get_value<std::string>();
+    }
+    
 
     // Load layers
     for (const auto& layer : config["layers"]) {

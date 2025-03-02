@@ -33,6 +33,13 @@ struct TrainingConfig {
     int batch_size;
 };
 
+struct ModelDataSet {
+    std::string type;
+    std::string images;
+    std::string labels;
+};
+
+
 // Overall model configuration
 class ModelConfig {
 public:
@@ -41,6 +48,7 @@ public:
     std::vector<LayerConfig> layers;
     TrainingConfig training;
     std::map<std::string, fkyaml::node> metadata;
+    ModelDataSet dataset;
     
     static ModelConfig loadFromFile(const std::string& filePath);
 };

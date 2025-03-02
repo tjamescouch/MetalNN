@@ -1,0 +1,40 @@
+name: "Simple Classification"
+
+layers:
+  - type: Dense
+    input_size: 128
+    output_size: 128
+    activation: relu
+
+  - type: Dropout
+    rate: 0.2
+    
+  - type: Dense
+    input_size: 128
+    output_size: 64
+    activation: relu
+
+  - type: Dense
+    input_size: 64
+    output_size: 10  # 10 classes for digits 0-9
+    activation: softmax
+
+training:
+  optimizer:
+    type: adam
+    learning_rate: 0.001
+    parameters:
+      beta1: 0.9
+      beta2: 0.999
+
+  epochs: 50
+  batch_size: 32
+  
+dataset:
+  type: "mnist"  # could also be "function" or others as you expand
+  images: "train-images-idx3-ubyte"
+  labels: "train-labels-idx1-ubyte"
+
+metadata:
+  author: "James Couch"
+  description: "Simple OCR"
