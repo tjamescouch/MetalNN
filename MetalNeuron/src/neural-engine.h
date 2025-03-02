@@ -33,9 +33,10 @@ public:
     void computeForward(std::function<void()> onComplete);
     void computeBackward(std::function<void()> onComplete);
     
-    void computeLearnAndApplyUpdates(uint32_t iterations);
+    void computeBackwardIterations(uint32_t iterations);
     void computeForwardIterations(uint32_t iterations);
     void createDynamicLayers(const ModelConfig& config);
+    void connectDynamicLayers(const ModelConfig& config);
     
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();
@@ -65,7 +66,6 @@ private:
     bool currentlyComputing;
     dispatch_semaphore_t _semaphore;
     
-    int sequenceLength_;
     int globalTimestep; // Controls the time offset for generating new data
 };
 

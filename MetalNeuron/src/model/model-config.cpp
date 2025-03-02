@@ -24,12 +24,16 @@ ModelConfig ModelConfig::loadFromFile(const std::string& filePath) {
 
     // Load basic fields
     modelConfig.name = config["name"].get_value<std::string>();
-    modelConfig.time_steps = config["time_steps"].get_value<int>();
 
     // Load layers
     for (const auto& layer : config["layers"]) {
         LayerConfig layerConfig;
         layerConfig.type = layer["type"].get_value<std::string>();
+        layerConfig.time_steps = layer["time_steps"].get_value<int>();
+        
+        if (modelConfig.first_layer_time_steps == -1) {
+            modelConfig.first_layer_time_steps = layer["time_steps"].get_value<int>();
+        }
 
         // Load layer parameters
         for (const auto& param : layer.as_map()) {

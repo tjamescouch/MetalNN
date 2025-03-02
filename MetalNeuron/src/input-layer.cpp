@@ -63,3 +63,7 @@ void InputLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* b
 MTL::Buffer* InputLayer::getInputBufferAt(BufferType, int) const {
     return nullptr; // Input layer doesn't propagate error backwards
 }
+
+int InputLayer::getSequenceLength() {
+    return sequenceLength_;
+}

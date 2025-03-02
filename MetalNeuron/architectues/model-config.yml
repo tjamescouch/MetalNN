@@ -1,13 +1,25 @@
 name: "MyNeuralNet"
 
 layers:
+  - type: RNN
+    input_size: 512
+    output_size: 512
+    activation: tanh
+    time_steps: 4
+
+  - type: RNN
+    input_size: 512
+    output_size: 512
+    activation: tanh
+    time_steps: 4
+    
+  - type: Dropout
+    rate: 0.5
 
   - type: Dense
     input_size: 512
     output_size: 512
-    activation: tanh
-
-time_steps: 1
+    activation: linear
 
 training:
   optimizer:

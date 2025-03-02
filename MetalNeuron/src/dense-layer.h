@@ -33,8 +33,8 @@ public:
     void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
                                          MTL::Buffer* zeroBuffer, int timestep) override;
     
-    virtual void onForwardComplete() override {};
-    virtual void onBackwardComplete() override {};
+    void onForwardComplete() override {};
+    void onBackwardComplete() override {};
     
     void debugLog() override {
 #ifdef DEBUG_DENSE_LAYER
@@ -54,6 +54,10 @@ public:
         // Optionally log biases or other important states:
         float* biases = static_cast<float*>(bufferBias_->contents());
         printf("[DenseLayer DebugLog] Biases sample: %f, %f, %f\n", biases[0], biases[1], biases[2]);
+        
+        float* decay = static_cast<float*>(bufferDecay_->contents());
+        printf("[DenseLayer DebugLog] Decay factor: %f\n", *decay);
+        
 #endif
     }
     

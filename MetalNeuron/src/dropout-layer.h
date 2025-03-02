@@ -34,16 +34,28 @@ public:
     
     int outputSize() const override { return featureDim_; }
     
-    virtual void onForwardComplete() override {};
-    virtual void onBackwardComplete() override {};
+    void onForwardComplete() override {};
+    void onBackwardComplete() override {};
     
-    void debugLog() override {/*TODO*/}
+    void debugLog() override {
+#ifdef DEBUG_DROPOUT_LAYER
+        for (int t = 0; t < sequenceLength_; ++t) {
+            float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
+            printf("[DenseLayer Input Debug] timestep %d: ", t);
+            for(int i = 0; i < inputBuffers_[BufferType::Input][t]->length()/sizeof(float); ++i)
+                printf(" %f, ", inputs[i]);
+            printf("\n");
+ 
+            float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
+            printf("[DenseLayer Input Debug] timestep %d: ", t);
+            for(int i = 0; i < outputBuffers_[BufferType::Output][t]->length()/sizeof(float); ++i)
+                printf(" %f, ", outputs[i]);
+            printf("\n");
+        }
+#endif
+    }
     
 private:
-    std::vector<MTL::Buffer*> bufferInputs_;
-    std::vector<MTL::Buffer*> bufferOutputs_;
-    std::vector<MTL::Buffer*> bufferInputErrors_;
-    std::vector<MTL::Buffer*> bufferOutputErrors_;
     float rate_;
     int sequenceLength_;
     int featureDim_;

@@ -16,7 +16,7 @@ class Layer;
 class InputLayer : public Layer {
 public:
     InputLayer(int inputDim, int sequenceLength);
-    virtual ~InputLayer();
+    ~InputLayer();
     
     void buildBuffers(MTL::Device* device) override;
     void updateBufferAt(DataSource& ds, int timestep);
@@ -37,8 +37,10 @@ public:
     void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
                              MTL::Buffer* zeroBuffer, int timestep) override {};
     
-    virtual void onForwardComplete() override {};
-    virtual void onBackwardComplete() override {};
+    void onForwardComplete() override {};
+    void onBackwardComplete() override {};
+    
+    int getSequenceLength();
     
     void debugLog() override {
 #ifdef DEBUG_INPUT_LAYER

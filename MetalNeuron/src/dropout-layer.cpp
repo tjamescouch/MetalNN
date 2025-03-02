@@ -13,16 +13,20 @@
 DropoutLayer::DropoutLayer(float rate, int featureDim, int sequenceLength)
 : rate_(rate), featureDim_(featureDim), sequenceLength_(sequenceLength), bufferRandomMask_(nullptr),forwardPipelineState_(nullptr),
 backwardPipelineState_(nullptr) {
-    inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
-    outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
+    inputBuffers_[BufferType::Input].resize(0, nullptr);
+    outputBuffers_[BufferType::Output].resize(0, nullptr);
 }
 
 DropoutLayer::~DropoutLayer() {
-    for(auto buf : bufferInputs_) buf->release();
-    for(auto buf : bufferOutputs_) buf->release();
-    for(auto buf : bufferInputErrors_) buf->release();
-    for(auto buf : bufferOutputErrors_) buf->release();
-
+    for (int t = 0; t < sequenceLength_; ++t) {
+        for (auto ib : inputBuffers_) {
+            ib.second[t]->release();
+        }
+        for (auto ob : outputBuffers_) {
+            ob.second[t]->release();
+        }
+    }
+    
     if(bufferRandomMask_) bufferRandomMask_->release();
     
     if(forwardPipelineState_) forwardPipelineState_->release();
@@ -57,19 +61,19 @@ void DropoutLayer::buildBuffers(MTL::Device* device) {
     for(int t = 0; t < sequenceLength_; ++t) {
         auto inputBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         assert(inputBuf && "Failed to allocate input buffer");
-        bufferInputs_.push_back(inputBuf);
+        inputBuffers_[BufferType::Input].push_back(inputBuf);
 
         auto outputBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         assert(outputBuf && "Failed to allocate output buffer");
-        bufferOutputs_.push_back(outputBuf);
+        outputBuffers_[BufferType::Output].push_back(outputBuf);
 
         auto inputErrBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         assert(inputErrBuf && "Failed to allocate input error buffer");
-        bufferInputErrors_.push_back(inputErrBuf);
+        inputBuffers_[BufferType::InputErrors].push_back(inputErrBuf);
 
         auto outputErrBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         assert(outputErrBuf && "Failed to allocate output error buffer");
-        bufferOutputErrors_.push_back(outputErrBuf);
+        outputBuffers_[BufferType::OutputErrors].push_back(outputErrBuf);
     }
 
     generateRandomMask(device);
@@ -81,8 +85,8 @@ void DropoutLayer::forward(MTL::CommandBuffer* cmdBuf) {
     for(int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(forwardPipelineState_);
-        encoder->setBuffer(bufferInputs_[t], 0, 0);
-        encoder->setBuffer(bufferOutputs_[t], 0, 1);
+        encoder->setBuffer(inputBuffers_[BufferType::Input][t], 0, 0);
+        encoder->setBuffer(outputBuffers_[BufferType::Output][t], 0, 1);
         encoder->setBuffer(bufferRandomMask_, 0, 2);
         encoder->setBytes(&rate_, sizeof(float), 3);
         encoder->setBytes(&featureDim_, sizeof(int), 4);
@@ -98,8 +102,8 @@ void DropoutLayer::backward(MTL::CommandBuffer* cmdBuf) {
     for(int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(backwardPipelineState_);
-        encoder->setBuffer(bufferOutputErrors_[t], 0, 0);
-        encoder->setBuffer(bufferInputErrors_[t], 0, 1);
+        encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][t], 0, 0);
+        encoder->setBuffer(inputBuffers_[BufferType::InputErrors][t], 0, 1);
         encoder->setBuffer(bufferRandomMask_, 0, 2);
         encoder->setBytes(&rate_, sizeof(float), 3);
         encoder->setBytes(&featureDim_, sizeof(int), 4);

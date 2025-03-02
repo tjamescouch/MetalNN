@@ -14,7 +14,7 @@ namespace MTL {
 class RNNLayer : public Layer {
 public:
     RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation);
-    virtual ~RNNLayer();
+    ~RNNLayer();
 
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
     void buildBuffers(MTL::Device* device) override;
@@ -35,11 +35,11 @@ public:
     // Shifts stored RNN states forward by one step. (Kept as-is)
     void shiftHiddenStates();
     
-    virtual void onForwardComplete() override {
+    void onForwardComplete() override {
         shiftHiddenStates();
     };
     
-    virtual void onBackwardComplete() override {
+    void onBackwardComplete() override {
         shiftHiddenStates();
     };
     

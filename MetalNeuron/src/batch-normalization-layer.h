@@ -33,8 +33,8 @@ public:
     void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
                              MTL::Buffer* zeroBuffer, int timestep) override;
     
-    virtual void onForwardComplete() override {};
-    virtual void onBackwardComplete() override {};
+    void onForwardComplete() override {};
+    void onBackwardComplete() override {};
 
     void debugLog() override {/*TODO*/}
 private:

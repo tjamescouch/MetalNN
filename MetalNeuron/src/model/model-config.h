@@ -16,6 +16,7 @@
 struct LayerConfig {
     std::string type;
     std::map<std::string, fkyaml::node> params;
+    int time_steps = -1;
 };
 
 // Optimizer configuration
@@ -35,7 +36,7 @@ struct TrainingConfig {
 // Overall model configuration
 class ModelConfig {
 public:
-    int time_steps;
+    int first_layer_time_steps = -1;
     std::string name;
     std::vector<LayerConfig> layers;
     TrainingConfig training;
