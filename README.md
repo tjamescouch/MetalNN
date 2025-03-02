@@ -49,6 +49,7 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 - [ ] Allow for saving and restoring parameters
 - [ ] Specify the input layer in the model configuration yaml
 - [ ] Create library of working model configuratikons
+- [ ] Implement classification using MNIST dataset
 
 ### Medium-term Goals:
 - [ ] Expand support for additional layer types (e.g., GRU, LSTM, Attention layers).
