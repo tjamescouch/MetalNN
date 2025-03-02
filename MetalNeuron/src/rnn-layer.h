@@ -37,6 +37,13 @@ public:
     
     
     void debugLog() override {
+     /*
+      [RNNLayer DebugLog] outputs at timestep 0: 0.000000, 0.000000, 0.000000
+      [RNNLayer DebugLog] prev outputs at timestep 0: 0.000000, 0.000000, 0.000000
+      [RNNLayer DebugLog] inputs at timestep 0: 0.000000, 0.049979, 0.099833
+      */
+        
+        
 #ifdef DEBUG_RNN_LAYER
         float* weights = static_cast<float*>(bufferW_xh_->contents());
         printf("[RNNLayer DebugLog] bufferW_xh_ sample: %f, %f, %f\n", weights[0], weights[1], weights[2]);
@@ -52,6 +59,10 @@ public:
             float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
             printf("[RNNLayer DebugLog] outputs at timestep %d: %f, %f, %f\n",
                    t, outputs[0], outputs[1], outputs[2]);
+            
+            float* prev_outputs = static_cast<float*>(inputBuffers_[BufferType::PrevHiddenState][t]->contents());
+            printf("[RNNLayer DebugLog] prev outputs at timestep %d: %f, %f, %f\n",
+                   t, prev_outputs[0], prev_outputs[1], prev_outputs[2]);
 
             float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
             printf("[RNNLayer DebugLog] inputs at timestep %d: %f, %f, %f\n",

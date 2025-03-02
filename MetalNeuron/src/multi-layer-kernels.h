@@ -10,9 +10,10 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.0001f;
-constant float learning_rate_b = 0.0001f;
+constant float learning_rate_w = 0.00001f;
+constant float learning_rate_b = 0.00001f;
 constant float decay_factor = 1.0f;
+constant float threshold = 1.0f;
 
 // Activation functions
 inline float activate(const float x, const uint activation) {
@@ -89,7 +90,7 @@ kernel void learn_dense_layer(
     float raw_error = y[tid] - y_hat[tid];
     debug[tid] = raw_error;
 
-    float delta = raw_error * clamp(activate_derivative(y_hat[tid], *activation), -1.0f, 1.0f);
+    float delta = raw_error * clamp(activate_derivative(y_hat[tid], *activation), -threshold, threshold);
     error[tid] = delta;
 
     for (uint i = 0; i < hidden_dim; i++) {
@@ -104,7 +105,7 @@ kernel void learn_dense_layer(
 // Forward pass for the recurrent layer (RNN cell)
 kernel void forward_rnn(
     device const float* x            [[buffer(0)]],
-    device const float* h_prev       [[buffer(1)]],
+    device       float* h_prev       [[buffer(1)]],
     device       float* h            [[buffer(2)]],
     device const float* W_xh         [[buffer(3)]],
     device const float* W_hh         [[buffer(4)]],
@@ -131,6 +132,7 @@ kernel void forward_rnn(
         sum += h_prev[j] * W_hh[j * hidden_dim + tid];
     }
     
+    h_prev[tid] = h[tid];
     h[tid] = activate(sum, *activation);
 }
 
@@ -163,6 +165,7 @@ kernel void learn_rnn(
     }
     float decay = *pDecay;
 
+
     // Combine the next timestep's hidden error plus local output_error
     float accumulated_err = output_error[tid];
     for (uint k = 0; k < hidden_dim; k++) {
@@ -170,7 +173,7 @@ kernel void learn_rnn(
     }
 
     // Multiply by activation derivative of current hidden state
-    float delta = accumulated_err * clamp(activate_derivative(h[tid], *activation), -1.0f, 1.0f);
+    float delta = accumulated_err * clamp(activate_derivative(h[tid], *activation), -threshold, threshold);
     hidden_error[tid] = delta;
 
     // Update input-to-hidden weights

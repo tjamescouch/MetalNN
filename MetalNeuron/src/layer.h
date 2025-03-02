@@ -30,7 +30,8 @@ enum class ActivationFunction {
 
 enum class BufferType : unsigned int {
     Input = 0,
-    PreviousOutput,
+    HiddenState,
+    PrevHiddenState,
     Output,
     Debug,
     Targets,
