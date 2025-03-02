@@ -8,6 +8,9 @@
 #define COMMON_INCLUDES_H
 
 #define DEBUG_NETWORK
+#define DEBUG_DENSE_LAYER
+#define DEBUG_RNN_LAYER
+#define DEBUG_INPUT_LAYER
 
 #include <Metal/Metal.hpp>
 #include <AppKit/AppKit.hpp>

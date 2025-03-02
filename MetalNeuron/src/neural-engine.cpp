@@ -119,7 +119,7 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
         _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
     }
 
-    // Polymorphic input wiring:
+    // Input wiring:
     for (size_t i = 0; i < dynamicLayers_.size(); ++i) {
         Layer* prevLayer = (i == 0) ? nullptr : dynamicLayers_[i - 1];
 
@@ -231,6 +231,7 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
         dispatch_semaphore_signal(_semaphore);
         
 #ifdef DEBUG_NETWORK
+        _pInputLayer->debugLog();
         for (auto& layer : dynamicLayers_) {
             layer->debugLog();
         }
@@ -243,27 +244,27 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
 }
 
-/*
+
 void NeuralEngine::shiftBuffers() {
     for (int t = 0; t < sequenceLength_ - 1; ++t) {
         memcpy(
-            _pInputLayer->getOutputBufferAt(BufferType::HiddenStateOutput, t)->contents(),
-            _pInputLayer->getOutputBufferAt(BufferType::HiddenStateOutput, t + 1)->contents(),
+           _pInputLayer->getOutputBufferAt(BufferType::Output, t)->contents(),
+           _pInputLayer->getOutputBufferAt(BufferType::Output, t + 1)->contents(),
             input_dim * sizeof(float)
         );
 
         memcpy(
-            _pDataSourceManager->y_hat.get_data_buffer_at(t),
-            _pDataSourceManager->y_hat.get_data_buffer_at(t + 1),
+            _pDataSourceManager->y.get_data_buffer_at(t),
+            _pDataSourceManager->y.get_data_buffer_at(t + 1),
             output_dim * sizeof(float)
         );
     }
-}*/
+}
 
 void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
     if (iterations == 0) return;
 
-    //shiftBuffers();
+    shiftBuffers();
 
     int slot = sequenceLength_ - 1;
     double effectiveTime = distribution(generator);
@@ -301,7 +302,7 @@ void NeuralEngine::runInference() {
 void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     if (iterations == 0) return;
 
-    //shiftBuffers();
+    shiftBuffers();
 
     int slot = sequenceLength_ - 1;
     int effectiveTime = globalTimestep + sequenceLength_ - 1;

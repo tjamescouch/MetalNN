@@ -158,8 +158,11 @@ void RNNLayer::backward(MTL::CommandBuffer* cmdBuf) {
         // buffers:
         encoder->setBuffer(inputBuffers_[BufferType::Input][t], 0, 0);
         encoder->setBuffer((t == 0
-                            ? inputBuffers_[BufferType::PreviousOutput][0]
-                            : outputBuffers_[BufferType::Output][t - 1]),
+                           // ? inputBuffers_[BufferType::PreviousOutput][0]
+                           // : outputBuffers_[BufferType::Output][t - 1]),
+                            ? outputBuffers_[BufferType::Output][0]
+                            : inputBuffers_[BufferType::PreviousOutput][t - 1]),
+                            
                            0, 1);
         encoder->setBuffer(bufferW_xh_, 0, 2);
         encoder->setBuffer(bufferW_hh_, 0, 3);

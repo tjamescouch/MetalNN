@@ -34,6 +34,12 @@ public:
                                          MTL::Buffer* zeroBuffer, int timestep) override;
     
     void debugLog() override {
+#ifdef DEBUG_DENSE_LAYER
+        for (int t = 0; t < sequenceLength_; ++t) {
+            float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
+            printf("[DenseLayer Input Debug] timestep %d: %f, %f, %f\n",
+                   t, inputs[0], inputs[1], inputs[2]);
+        }
         
         float* weights = static_cast<float*>(bufferWeights_->contents());
         printf("[DenseLayer DebugLog] Weights sample: %f, %f, %f\n", weights[0], weights[1], weights[2]);
@@ -41,6 +47,7 @@ public:
         // Optionally log biases or other important states:
         float* biases = static_cast<float*>(bufferBias_->contents());
         printf("[DenseLayer DebugLog] Biases sample: %f, %f, %f\n", biases[0], biases[1], biases[2]);
+#endif
     }
     
 private:

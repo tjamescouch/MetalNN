@@ -90,7 +90,7 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
         outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         outputBuffers_[BufferType::Output][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         
-        outputBuffers_[BufferType::Debug][t]  = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+        outputBuffers_[BufferType::Debug][t]   = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         inputBuffers_[BufferType::Targets][t]  = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
 
         memset(outputBuffers_[BufferType::Output][t]->contents(), 0, outputDim_ * sizeof(float));
@@ -129,10 +129,6 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBytes(&inputDim_, sizeof(int), 4);
         encoder->setBytes(&outputDim_, sizeof(int), 5);
         encoder->setBytes(&activationRaw, sizeof(uint), 6);
-        
-        float* denseInputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
-        printf("[DenseLayer Input Debug] timestep %d: %f, %f, %f\n",
-               t, denseInputs[0], denseInputs[1], denseInputs[2]);
 
         MTL::Size threadsPerThreadgroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
         MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);

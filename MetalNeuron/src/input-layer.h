@@ -37,7 +37,15 @@ public:
     void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
                              MTL::Buffer* zeroBuffer, int timestep) override {};
     
-    void debugLog() override {/*TODO*/}
+    void debugLog() override {
+#ifdef DEBUG_INPUT_LAYER
+        for (int t = 0; t < sequenceLength_; t++) {
+            float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
+            printf("[InputLayer DebugLog] outputs at timestep %d: %f, %f, %f\n",
+                   t, outputs[0], outputs[1], outputs[2]);
+        }
+#endif
+    }
     
 private:
     int inputDim_;
