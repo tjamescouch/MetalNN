@@ -31,7 +31,8 @@ This project implements a dynamic, configurable Recurrent Neural Network (RNN) u
   - **Training:** Press `L`
   - **Forward Pass:** Press `F`
 
-Visualization of results is possible by executing the output MATLAB script in Octave or MATLAB.
+Visualization of results is possible by executing the output MATLAB script in Octave or MATLAB. e.g.
+<img width="564" alt="Screenshot 2025-03-02 at 4 26 58 AM" src="https://github.com/user-attachments/assets/ebe27422-92b8-4c83-9b6b-038d3c93188a" />
 
 ---
 
