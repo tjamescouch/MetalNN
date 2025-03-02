@@ -1,0 +1,19 @@
+layers:
+  - type: Dense
+    params:
+      output_size: 128
+      activation: relu
+
+  - type: Dropout
+    params:
+      rate: 0.2
+
+  - type: Dense
+    params:
+      output_size: 64
+      activation: relu
+
+  - type: Dense
+    params:
+      output_size: 10  # 10 classes for digits 0-9
+      activation: softmax

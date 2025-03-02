@@ -11,7 +11,7 @@
 #include <filesystem>
 #include <mach-o/dyld.h>
 
-const char* defaultModelFilePath = "model-config.yml";
+const char* defaultModelFilePath = "ocr.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {
