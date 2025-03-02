@@ -47,6 +47,7 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 - [x] Implement dropout regularization.
 - [ ] Create sample model configs with good results
 - [ ] Allow for saving and restoring parameters
+- [ ] Specify the input layer in the model configuration yaml
 
 ### Medium-term Goals:
 - [ ] Expand support for additional layer types (e.g., GRU, LSTM, Attention layers).
