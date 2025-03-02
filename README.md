@@ -45,8 +45,10 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 - [ ] Add automated tests and diagnostics for gradient checks and debugging.
 - [x] Implement dynamically selectable activation functions.
 - [x] Implement dropout regularization.
-- [ ] Create sample model configs with good results
+- [x] Create sample model configuration with good results
 - [ ] Allow for saving and restoring parameters
+- [ ] Specify the input layer in the model configuration yaml
+- [ ] Create library of working model configuratikons
 
 ### Medium-term Goals:
 - [ ] Expand support for additional layer types (e.g., GRU, LSTM, Attention layers).
