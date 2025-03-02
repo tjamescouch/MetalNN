@@ -40,11 +40,13 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 
 ### Short-term Goals:
 - [x] Refine weight initialization and training parameters.
-- [ ] Resolve amplitude scaling issues.
+- [x] Resolve amplitude scaling issues.
 - [x] Implement batch normalization layers to improve training stability.
 - [ ] Add automated tests and diagnostics for gradient checks and debugging.
 - [x] Implement dynamically selectable activation functions.
 - [x] Implement dropout regularization.
+- [ ] Create sample model configs with good results
+- [ ] Allow for saving and restoring parameters
 
 ### Medium-term Goals:
 - [ ] Expand support for additional layer types (e.g., GRU, LSTM, Attention layers).
