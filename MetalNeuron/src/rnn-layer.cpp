@@ -236,18 +236,21 @@ void RNNLayer::shiftHiddenStates() {
         outputBuffers_[BufferType::Output][t]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
         inputBuffers_[BufferType::PrevHiddenState][t]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
     }
-    // Preserve continuity in the last slot instead of zeroing
-    memcpy(outputBuffers_[BufferType::Output][sequenceLength_-1]->contents(),
-           outputBuffers_[BufferType::Output][sequenceLength_-2]->contents(),
-           hiddenDim_ * sizeof(float));
 
-    memcpy(inputBuffers_[BufferType::PrevHiddenState][sequenceLength_-1]->contents(),
-           outputBuffers_[BufferType::Output][sequenceLength_-2]->contents(),
-           hiddenDim_ * sizeof(float));
+    if (sequenceLength_ > 1) {
+        // Preserve continuity in the last slot instead of zeroing
+        memcpy(outputBuffers_[BufferType::Output][sequenceLength_-1]->contents(),
+               outputBuffers_[BufferType::Output][sequenceLength_-2]->contents(),
+               hiddenDim_ * sizeof(float));
+        
+        memcpy(inputBuffers_[BufferType::PrevHiddenState][sequenceLength_-1]->contents(),
+               outputBuffers_[BufferType::Output][sequenceLength_-2]->contents(),
+               hiddenDim_ * sizeof(float));
+    }
 
+    // Corrected lines:
     outputBuffers_[BufferType::Output][sequenceLength_-1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
-    outputBuffers_[BufferType::Output][sequenceLength_-1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
-
+    inputBuffers_[BufferType::PrevHiddenState][sequenceLength_-1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
 }
 
 int RNNLayer::outputSize() const {
@@ -297,8 +300,6 @@ void RNNLayer::connectInputBuffers(const Layer* prevLayer,
         );
     }
 
-    if (timestep != 0) assert(getOutputBufferAt(BufferType::Output, timestep - 1) && "Clobbering prev hidden state");
-    
     // Also set the previous hidden state
     setInputBufferAt(BufferType::PrevHiddenState, timestep,
         (timestep == 0)

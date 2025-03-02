@@ -33,12 +33,19 @@ public:
     void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
                                          MTL::Buffer* zeroBuffer, int timestep) override;
     
+    virtual void onForwardComplete() override {};
+    virtual void onBackwardComplete() override {};
+    
     void debugLog() override {
 #ifdef DEBUG_DENSE_LAYER
         for (int t = 0; t < sequenceLength_; ++t) {
             float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
             printf("[DenseLayer Input Debug] timestep %d: %f, %f, %f\n",
                    t, inputs[0], inputs[1], inputs[2]);
+ 
+            float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
+            printf("[DenseLayer Output Debug] timestep %d: %f, %f, %f\n",
+                   t, outputs[0], outputs[1], outputs[2]);
         }
         
         float* weights = static_cast<float*>(bufferWeights_->contents());
@@ -49,6 +56,8 @@ public:
         printf("[DenseLayer DebugLog] Biases sample: %f, %f, %f\n", biases[0], biases[1], biases[2]);
 #endif
     }
+    
+
     
 private:
     int inputDim_;

@@ -37,6 +37,9 @@ public:
     void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
                              MTL::Buffer* zeroBuffer, int timestep) override {};
     
+    virtual void onForwardComplete() override {};
+    virtual void onBackwardComplete() override {};
+    
     void debugLog() override {
 #ifdef DEBUG_INPUT_LAYER
         for (int t = 0; t < sequenceLength_; t++) {

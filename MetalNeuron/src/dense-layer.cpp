@@ -147,8 +147,8 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBuffer(inputBuffers_[BufferType::Input][t], 0, 0);         // Input activations (h)
         encoder->setBuffer(bufferWeights_, 0, 1);           // Weights (W)
         encoder->setBuffer(bufferBias_, 0, 2);              // Biases (b)
-        encoder->setBuffer(inputBuffers_[BufferType::Targets][t], 0, 3);        // Target (y)
-        encoder->setBuffer(outputBuffers_[BufferType::Output][t], 0, 4);        // Predicted output (y_hat)
+        encoder->setBuffer(outputBuffers_[BufferType::Output][t], 0, 3);        // Target (y)
+        encoder->setBuffer(inputBuffers_[BufferType::Targets][t], 0, 4);        // Predicted output (y_hat)
         encoder->setBuffer(outputBuffers_[BufferType::Delta][t], 0, 5);         // Error (delta) ??
         encoder->setBytes(&inputDim_, sizeof(uint), 6);     // Input dimension (pH)
         encoder->setBytes(&outputDim_, sizeof(uint), 7);    // Output dimension (pN)

@@ -38,14 +38,12 @@ void InputLayer::buildBuffers(MTL::Device* device) {
 }
 
 void InputLayer::updateBufferAt(DataSource& ds, int timestep) {
-    if (timestep < 0 || timestep >= sequenceLength_) {
-        // Handle invalid timestep gracefully.
-        return;
-    }
+    assert(timestep >= 0  && timestep < sequenceLength_);
+    
     memcpy(outputBuffers_[BufferType::Output][timestep]->contents(),
            ds.get_data_buffer_at(timestep),
            inputDim_ * sizeof(float));
-    outputBuffers_[BufferType::Output][timestep]->didModifyRange(NS::Range::Make(0, inputDim_ * sizeof(float)));
+    outputBuffers_[BufferType::Output][timestep]->didModifyRange(NS::Range::Make(0, outputBuffers_[BufferType::Output][timestep]->length()));
 }
 
 void InputLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {

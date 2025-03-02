@@ -5,7 +5,7 @@
 #include <cassert>
 #include <random>
 
-const int num_iterations = 1000;
+const int num_iterations = 10000;
 const int input_dim  = 512;
 const int hidden_dim = 512;
 const int output_dim = 512;
@@ -20,7 +20,6 @@ double targetFunc(double index, double timestep) {
     return cos(0.05 * index + 0.1 * timestep);
 }
 
-//FIXME - find a better place for this
 ActivationFunction parseActivation(const std::string& activation) {
     if (activation == "linear") return ActivationFunction::Linear;
     if (activation == "relu") return ActivationFunction::ReLU;
@@ -175,7 +174,7 @@ void NeuralEngine::buildBuffers() {
     }
     
     if (!zeroBuffer_) {
-        zeroBuffer_ = _pDevice->newBuffer(hidden_dim * sizeof(float), MTL::ResourceStorageModeShared);
+        zeroBuffer_ = _pDevice->newBuffer(hidden_dim * sizeof(float), MTL::ResourceStorageModeManaged);
         std::memset(zeroBuffer_->contents(), 0, hidden_dim * sizeof(float));
     }
     
@@ -193,6 +192,13 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
+        
+        
+        _pInputLayer->onForwardComplete();
+        for (auto& layer : dynamicLayers_) {
+            layer->onForwardComplete();
+        }
+        
         onComplete();
     });
 
@@ -230,6 +236,11 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
         
+        _pInputLayer->onBackwardComplete();
+        for (auto& layer : dynamicLayers_) {
+            layer->onBackwardComplete();
+        }
+        
 #ifdef DEBUG_NETWORK
         _pInputLayer->debugLog();
         for (auto& layer : dynamicLayers_) {
@@ -264,7 +275,7 @@ void NeuralEngine::shiftBuffers() {
 void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
     if (iterations == 0) return;
 
-    shiftBuffers();
+    //shiftBuffers();
 
     int slot = sequenceLength_ - 1;
     double effectiveTime = distribution(generator);
@@ -302,7 +313,7 @@ void NeuralEngine::runInference() {
 void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     if (iterations == 0) return;
 
-    shiftBuffers();
+    //shiftBuffers();
 
     int slot = sequenceLength_ - 1;
     int effectiveTime = globalTimestep + sequenceLength_ - 1;

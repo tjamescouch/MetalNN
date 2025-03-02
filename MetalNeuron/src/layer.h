@@ -65,6 +65,8 @@ public:
                                      MTL::Buffer* zeroBuffer, int timestep) = 0;
     
     virtual void debugLog() = 0;
+    virtual void onForwardComplete() = 0;
+    virtual void onBackwardComplete() = 0;
 };
 
 #endif // LAYER_H

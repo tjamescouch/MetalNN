@@ -35,15 +35,15 @@ public:
     // Shifts stored RNN states forward by one step. (Kept as-is)
     void shiftHiddenStates();
     
+    virtual void onForwardComplete() override {
+        shiftHiddenStates();
+    };
+    
+    virtual void onBackwardComplete() override {
+        shiftHiddenStates();
+    };
     
     void debugLog() override {
-     /*
-      [RNNLayer DebugLog] outputs at timestep 0: 0.000000, 0.000000, 0.000000
-      [RNNLayer DebugLog] prev outputs at timestep 0: 0.000000, 0.000000, 0.000000
-      [RNNLayer DebugLog] inputs at timestep 0: 0.000000, 0.049979, 0.099833
-      */
-        
-        
 #ifdef DEBUG_RNN_LAYER
         float* weights = static_cast<float*>(bufferW_xh_->contents());
         printf("[RNNLayer DebugLog] bufferW_xh_ sample: %f, %f, %f\n", weights[0], weights[1], weights[2]);

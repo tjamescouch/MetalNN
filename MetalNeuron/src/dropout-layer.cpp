@@ -55,19 +55,19 @@ void DropoutLayer::buildBuffers(MTL::Device* device) {
     assert(device && "Device is null!");
 
     for(int t = 0; t < sequenceLength_; ++t) {
-        auto inputBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
+        auto inputBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         assert(inputBuf && "Failed to allocate input buffer");
         bufferInputs_.push_back(inputBuf);
 
-        auto outputBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
+        auto outputBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         assert(outputBuf && "Failed to allocate output buffer");
         bufferOutputs_.push_back(outputBuf);
 
-        auto inputErrBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
+        auto inputErrBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         assert(inputErrBuf && "Failed to allocate input error buffer");
         bufferInputErrors_.push_back(inputErrBuf);
 
-        auto outputErrBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
+        auto outputErrBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
         assert(outputErrBuf && "Failed to allocate output error buffer");
         bufferOutputErrors_.push_back(outputErrBuf);
     }
@@ -123,7 +123,7 @@ void DropoutLayer::generateRandomMask(MTL::Device* device) {
 
     if (bufferRandomMask_) bufferRandomMask_->release();
     
-    bufferRandomMask_ = device->newBuffer(maskData.data(), featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
+    bufferRandomMask_ = device->newBuffer(maskData.data(), featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
 }
 
 void DropoutLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {

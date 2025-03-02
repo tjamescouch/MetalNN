@@ -34,6 +34,9 @@ public:
     
     int outputSize() const override { return featureDim_; }
     
+    virtual void onForwardComplete() override {};
+    virtual void onBackwardComplete() override {};
+    
     void debugLog() override {/*TODO*/}
     
 private:

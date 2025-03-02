@@ -10,10 +10,10 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.00001f;
-constant float learning_rate_b = 0.00001f;
-constant float decay_factor = 1.0f;
-constant float threshold = 1.0f;
+constant float learning_rate_w = 0.00001f;  // very low learning rate
+constant float learning_rate_b = 0.000001f;
+constant float decay_factor = 1.f;
+constant float threshold = 0.1f;
 
 // Activation functions
 inline float activate(const float x, const uint activation) {
@@ -36,7 +36,6 @@ inline float activate_derivative(const float y, const uint activation) {
         default: return 0.0f;                  // Error return 0
     }
 }
-
 
 kernel void forward_dense_layer(
     device const float* h            [[buffer(0)]],
@@ -66,8 +65,8 @@ kernel void learn_dense_layer(
     device const float* h              [[buffer(0)]],
     device float* W                    [[buffer(1)]],
     device float* b                    [[buffer(2)]],
-    device const float* y              [[buffer(3)]],
-    device const float* y_hat          [[buffer(4)]],
+    device const float* y_hat          [[buffer(3)]],
+    device const float* y              [[buffer(4)]],
     device float* error                [[buffer(5)]],
     device const uint* pH              [[buffer(6)]],
     device const uint* pN              [[buffer(7)]],
@@ -87,10 +86,11 @@ kernel void learn_dense_layer(
     }
     float decay = *pDecay;
 
-    float raw_error = y[tid] - y_hat[tid];
+    float raw_error = y_hat[tid] - y[tid];
     debug[tid] = raw_error;
 
-    float delta = raw_error * clamp(activate_derivative(y_hat[tid], *activation), -threshold, threshold);
+    float delta = raw_error * activate_derivative(y_hat[tid], *activation);
+    delta = clamp(delta, -threshold, threshold);
     error[tid] = delta;
 
     for (uint i = 0; i < hidden_dim; i++) {
@@ -173,7 +173,8 @@ kernel void learn_rnn(
     }
 
     // Multiply by activation derivative of current hidden state
-    float delta = accumulated_err * clamp(activate_derivative(h[tid], *activation), -threshold, threshold);
+    float delta = accumulated_err * activate_derivative(h[tid], *activation);
+    delta = clamp(delta, -threshold, threshold);
     hidden_error[tid] = delta;
 
     // Update input-to-hidden weights

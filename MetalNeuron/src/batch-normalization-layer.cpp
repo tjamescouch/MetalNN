@@ -51,10 +51,10 @@ void BatchNormalizationLayer::initializeParameters(MTL::Device* device) {
     std::vector<float> runningMean(featureDim_, 0.0f);
     std::vector<float> runningVariance(featureDim_, 1.0f);
     
-    bufferGamma_ = device->newBuffer(gamma.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeShared);
-    bufferBeta_ = device->newBuffer(beta.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeShared);
-    bufferRunningMean_ = device->newBuffer(runningMean.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeShared);
-    bufferRunningVariance_ = device->newBuffer(runningVariance.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeShared);
+    bufferGamma_ = device->newBuffer(gamma.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeManaged);
+    bufferBeta_ = device->newBuffer(beta.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeManaged);
+    bufferRunningMean_ = device->newBuffer(runningMean.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeManaged);
+    bufferRunningVariance_ = device->newBuffer(runningVariance.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeManaged);
 }
 
 void BatchNormalizationLayer::buildBuffers(MTL::Device* device) {
@@ -66,10 +66,10 @@ void BatchNormalizationLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::OutputErrors].clear();
     
     for(int t = 0; t < sequenceLength_; ++t) {
-        inputBuffers_[BufferType::Input].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared));
-        outputBuffers_[BufferType::Output].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared));
-        inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared));
-        outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeShared));
+        inputBuffers_[BufferType::Input].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+        outputBuffers_[BufferType::Output].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+        inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+        outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
     }
 }
 
