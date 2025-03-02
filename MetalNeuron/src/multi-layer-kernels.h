@@ -9,6 +9,22 @@ const inline char* nnKernelSrc = R"(
 #include <metal_stdlib>
 using namespace metal;
 
+inline void softmax(const device float* input, device float* output, uint outputDim) {
+    float maxVal = input[0];
+    for (uint i = 1; i < outputDim; ++i) {
+        maxVal = max(maxVal, input[i]);
+    }
+
+    float sumExp = 0.0f;
+    for (uint i = 0; i < outputDim; ++i) {
+        sumExp += exp(input[i] - maxVal);
+    }
+
+    for (uint i = 0; i < outputDim; ++i) {
+        output[i] = exp(input[i] - maxVal) / sumExp;
+    }
+}
+
 // Global constants
 constant float learning_rate_w = 0.01f;
 constant float learning_rate_b = 0.01f;
@@ -57,7 +73,23 @@ kernel void forward_dense_layer(
         sum += h[i] * W[i * output_dim + tid];
     }
 
-    y[tid] = activate(sum, *activation);
+    // First compute the pre-activation sums.
+    y[tid] = sum;
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    // Handle softmax separately after all sums are computed.
+    if (*activation == 4) {
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        if (tid == 0) { // Single thread computes softmax for stability
+            softmax(y, y, output_dim);
+        }
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    } else {
+        y[tid] = activate(sum, *activation);  // Use existing activate for other activations
+    }
 }
 
 

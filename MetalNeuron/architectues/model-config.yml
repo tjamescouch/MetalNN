@@ -37,6 +37,9 @@ training:
   epochs: 50
   batch_size: 32
 
+dataset:
+  type: "function"
+
 metadata:
   author: "James Couch"
   description: "Simple RNN"

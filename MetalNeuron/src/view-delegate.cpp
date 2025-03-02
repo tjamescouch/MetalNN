@@ -11,7 +11,7 @@
 #include <filesystem>
 #include <mach-o/dyld.h>
 
-const char* defaultModelFilePath = "ocr.yml";
+const char* defaultModelFilePath = "simple-dense-layer.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {
@@ -85,6 +85,7 @@ std::string ViewDelegate::getDefaultModelFilePath() {
     if (!fs::exists(resourcePath)) {
         throw std::runtime_error("❌ Could not find confiuration yml at " + resourcePath.string());
     }
+    std::cout << "📂 Loaded file " << defaultModelFilePath << std::endl;
 
     return resourcePath.string();
 }

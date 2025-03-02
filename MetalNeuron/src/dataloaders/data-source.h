@@ -14,6 +14,10 @@ public:
     size_t get_num_data() const;
     float* get_data_buffer_at(int timestep);
     const float* get_data_buffer_at(int timestep) const;
+    
+    void allocate_buffers();
+    void shift_buffers();
+    void randomize_buffers(double timeOffset);
 
     void buildAtTimestep(std::function<double(double, int)> f, int timestep);
     void initRandomAtTimestep(int timestep);

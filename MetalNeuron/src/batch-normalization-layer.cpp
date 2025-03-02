@@ -65,7 +65,6 @@ void BatchNormalizationLayer::buildBuffers(MTL::Device* device) {
     inputBuffers_[BufferType::InputErrors].clear();
     outputBuffers_[BufferType::OutputErrors].clear();
     
-    int t = 0;
     inputBuffers_[BufferType::Input].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
     outputBuffers_[BufferType::Output].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
     inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));

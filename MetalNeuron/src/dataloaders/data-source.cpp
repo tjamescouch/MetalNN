@@ -1,6 +1,13 @@
 #include "data-source.h"
 #include <random>
 #include <cstdio>
+#include "data-source.h"
+#include <algorithm>
+#include <cmath>
+#include <cstdlib> // for rand()
+#include <ctime>   // for srand()
+
+
 
 // Random number generation setup
 static std::random_device rd;
@@ -12,6 +19,35 @@ DataSource::DataSource(int width, int height, int sequenceLength)
       data_(sequenceLength, std::vector<float>(width * height, 0.0f)) {}
 
 DataSource::~DataSource() {}
+
+void DataSource::allocate_buffers() {
+    // buffers are allocated in the constructor; no additional allocation needed here
+}
+
+void DataSource::shift_buffers() {
+    size_t num_data = get_num_data();
+    for (int t = 0; t < sequenceLength_ - 1; ++t) {
+        float* current = get_data_buffer_at(t);
+        float* next = get_data_buffer_at(t + 1);
+        std::copy(next, next + num_data, current);
+    }
+
+    // Clear the last timestep
+    float* last = get_data_buffer_at(sequenceLength_ - 1);
+    std::fill(last, last + num_data, 0.0f);
+}
+
+
+void DataSource::randomize_buffers(double timeOffset) {
+    srand(static_cast<unsigned>(time(nullptr) + timeOffset));
+    for (int t = 0; t < sequenceLength_; ++t) {
+        float* buffer = get_data_buffer_at(t);
+        size_t num_data = get_num_data();
+        for (int i = 0; i < num_data; ++i) {
+            buffer[i] = static_cast<float>(rand()) / RAND_MAX;
+        }
+    }
+}
 
 size_t DataSource::get_num_data() const {
     return width_ * height_;

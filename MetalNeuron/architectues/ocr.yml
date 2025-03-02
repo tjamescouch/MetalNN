@@ -29,6 +29,11 @@ training:
 
   epochs: 50
   batch_size: 32
+  
+dataset:
+  type: "mnist"  # could also be "function" or others as you expand
+  images: "train-images-idx3-ubyte"
+  labels: "train-labels-idx1-ubyte"
 
 metadata:
   author: "James Couch"
