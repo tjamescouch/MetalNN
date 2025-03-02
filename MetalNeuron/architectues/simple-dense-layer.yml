@@ -22,4 +22,4 @@ dataset:
 
 metadata:
   author: "James Couch"
-  description: "Simple RNN"
+  description: "Simple Dense Layer"
