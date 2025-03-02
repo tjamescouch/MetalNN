@@ -10,8 +10,8 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.00001f;  // very low learning rate
-constant float learning_rate_b = 0.000001f;
+constant float learning_rate_w = 0.0001f;  // very low learning rate
+constant float learning_rate_b = 0.00001f;
 constant float decay_factor = 1.f;
 constant float threshold = 0.1f;
 
