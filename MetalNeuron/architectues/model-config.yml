@@ -1,20 +1,25 @@
 name: "MyNeuralNet"
 
 layers:
+  - type: BatchNormalization
+    input_size: 512
+    output_size: 512
+    
+    
   - type: RNN
     input_size: 512
     output_size: 512
     activation: tanh
-    time_steps: 4
+    time_steps: 5
 
   - type: RNN
     input_size: 512
     output_size: 512
     activation: tanh
-    time_steps: 4
+    time_steps: 5
     
   - type: Dropout
-    rate: 0.5
+    rate: 0.1
 
   - type: Dense
     input_size: 512
@@ -34,4 +39,4 @@ training:
 
 metadata:
   author: "James Couch"
-  description: "Network configuration with 2 RNN layers, dropout regularization, followed by a Dense layer to reproduce original network behavior"
+  description: "Simple RNN"

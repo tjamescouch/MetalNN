@@ -80,7 +80,7 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
     
     int previousLayerOutputSize = input_dim;
     
-    int first_layer_time_steps = config.first_layer_time_steps;
+    int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
     _pInputLayer = new InputLayer(input_dim, first_layer_time_steps);
     
     _pDataSourceManager = new DataSourceManager(input_dim, hidden_dim, output_dim, first_layer_time_steps);
@@ -93,7 +93,7 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
 
 void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
     int previousLayerOutputSize = input_dim;
-    int first_layer_time_steps = config.first_layer_time_steps;
+    int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
     // Build each layer from config
     for (const auto& layerConfig : config.layers) {
         Layer* layer = nullptr;

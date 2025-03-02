@@ -49,6 +49,7 @@
 			buildPhase = DFE032AC2D72E9A000B1B6ED /* CopyFiles */;
 			membershipExceptions = (
 				"architectues/model-config.yml",
+				"architectues/simple-dense-layer.yml",
 			);
 		};
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */

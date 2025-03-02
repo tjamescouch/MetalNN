@@ -20,13 +20,12 @@ zeroBuffer_(nullptr),
 activation_(activation)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
-    inputBuffers_[BufferType::PrevHiddenState].resize(sequenceLength_, nullptr); // <-- ADD THIS
+    inputBuffers_[BufferType::PrevHiddenState].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
-    outputBuffers_[BufferType::OutputErrors].resize(sequenceLength_, nullptr); // (optional, if used)
+    outputBuffers_[BufferType::OutputErrors].resize(sequenceLength_, nullptr);
 }
 
 RNNLayer::~RNNLayer() {
-    // Release all allocated buffers and pipeline states
     for (int t = 0; t < sequenceLength_; ++t) {
         for (auto ib : inputBuffers_) {
             ib.second[t]->release();
@@ -103,16 +102,10 @@ void RNNLayer::buildBuffers(MTL::Device* device) {
         inputBuffers_[BufferType::PrevHiddenState][t]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
         outputBuffers_[BufferType::OutputErrors][t]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
         
-        // Set these to nullptr initially; assigned externally
         inputBuffers_[BufferType::Input][t] = nullptr;
-        //inputBuffers_[BufferType::InputErrors][t] = nullptr;
-        
     }
-    
-    // CHANGED: Allocate zero buffer for next_hidden_error at boundary t = sequenceLength_-1
     zeroBuffer_ = device->newBuffer(hiddenDim_ * sizeof(float),
                                     MTL::ResourceStorageModeManaged);
-    
 }
 
 void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
@@ -167,16 +160,14 @@ void RNNLayer::backward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBuffer(outputBuffers_[BufferType::Output][t], 0, 5);
         encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][t], 0, 6);
         
-        // CHANGED: For t=sequenceLength_-1, no next timestep => pass zeroBuffer_.
-        // Otherwise, pass bufferErrors_[t+1].
         if (t == sequenceLength_ - 1) {
-            encoder->setBuffer(zeroBuffer_, 0, 7); // no next-hidden-error at the last
+            encoder->setBuffer(zeroBuffer_, 0, 7);
         } else {
             encoder->setBuffer(inputBuffers_[BufferType::InputErrors][t + 1], 0, 7);
         }
         
         // Our own hidden error at this timestep
-        encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][t], 0, 8);
+        encoder->setBuffer(inputBuffers_[BufferType::InputErrors][t], 0, 8);
         
         encoder->setBytes(&inputDim_,  sizeof(int), 9);
         encoder->setBytes(&hiddenDim_, sizeof(int), 10);
@@ -259,9 +250,6 @@ void RNNLayer::shiftHiddenStates() {
         outputBuffers_[BufferType::Output][sequenceLength_-1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
         inputBuffers_[BufferType::PrevHiddenState][sequenceLength_-1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
     }
-    
-    // Corrected lines:
-    
 }
 
 int RNNLayer::outputSize() const {

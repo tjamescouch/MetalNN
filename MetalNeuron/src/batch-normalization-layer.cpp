@@ -12,9 +12,9 @@
 #include <cstring>
 #include <iostream>
 
-BatchNormalizationLayer::BatchNormalizationLayer(int featureDim, int sequenceLength, float epsilon)
+BatchNormalizationLayer::BatchNormalizationLayer(int featureDim, int _unused, float epsilon)
 : featureDim_(featureDim),
-sequenceLength_(sequenceLength),
+sequenceLength_(1),
 epsilon_(epsilon),
 bufferGamma_(nullptr),
 bufferBeta_(nullptr),
@@ -65,12 +65,11 @@ void BatchNormalizationLayer::buildBuffers(MTL::Device* device) {
     inputBuffers_[BufferType::InputErrors].clear();
     outputBuffers_[BufferType::OutputErrors].clear();
     
-    for(int t = 0; t < sequenceLength_; ++t) {
-        inputBuffers_[BufferType::Input].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
-        outputBuffers_[BufferType::Output].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
-        inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
-        outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
-    }
+    int t = 0;
+    inputBuffers_[BufferType::Input].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+    outputBuffers_[BufferType::Output].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+    inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+    outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
 }
 
 void BatchNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -143,15 +142,19 @@ int BatchNormalizationLayer::outputSize() const {
     return featureDim_;
 }
 
-void BatchNormalizationLayer::updateTargetBufferAt(DataSource& targetData, int timestep) {}
+void BatchNormalizationLayer::updateTargetBufferAt(DataSource& targetData, int timestep) {
+    assert(timestep==0 && "Timesteps not supported for this layer");
+}
 
 
 void BatchNormalizationLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
+    assert(timestep==0 && "Timesteps not supported for this layer");
     assert(buffer && "Setting input buffer to NULL");
     inputBuffers_[type][timestep] = buffer;
 }
 
 MTL::Buffer* BatchNormalizationLayer::getOutputBufferAt(BufferType type, int timestep) const {
+    assert(timestep==0 && "Timesteps not supported for this layer");
     auto it = outputBuffers_.find(type);
     if (it != outputBuffers_.end()) {
         return it->second[timestep];
@@ -160,10 +163,12 @@ MTL::Buffer* BatchNormalizationLayer::getOutputBufferAt(BufferType type, int tim
 }
 
 void BatchNormalizationLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
+    assert(timestep==0 && "Timesteps not supported for this layer");
     outputBuffers_[type][timestep] = buffer;
 }
 
 MTL::Buffer* BatchNormalizationLayer::getInputBufferAt(BufferType type, int timestep) const {
+    assert(timestep==0 && "Timesteps not supported for this layer");
     auto it = inputBuffers_.find(type);
     if (it != inputBuffers_.end()) {
         return it->second[timestep];
@@ -172,10 +177,10 @@ MTL::Buffer* BatchNormalizationLayer::getInputBufferAt(BufferType type, int time
 }
 
 void BatchNormalizationLayer::connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) {
+                                                  MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
-        previousLayer
-            ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
-            : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
-    );
+                     previousLayer
+                     ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     );
 }

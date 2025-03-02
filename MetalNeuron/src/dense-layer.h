@@ -11,7 +11,7 @@
 
 class DenseLayer : public Layer {
 public:
-    DenseLayer(int inputDim, int outputDim, int sequenceLength, ActivationFunction activationFunction);
+    DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activationFunction);
     ~DenseLayer();
     
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;

@@ -1,0 +1,22 @@
+name: "Simple Dense Layer"
+
+layers:
+  - type: Dense
+    input_size: 512
+    output_size: 512
+    activation: linear
+
+training:
+  optimizer:
+    type: adam
+    learning_rate: 0.001
+    parameters:
+      beta1: 0.9
+      beta2: 0.999
+
+  epochs: 50
+  batch_size: 32
+
+metadata:
+  author: "James Couch"
+  description: "Simple RNN"
