@@ -38,7 +38,7 @@ MNISTDataLoader::MNISTDataLoader(const std::string& imagesFilename, const std::s
 }
 
 int MNISTDataLoader::numSamples() const {
-    return inputs_.size();
+    return (int)inputs_.size();
 }
 
 int MNISTDataLoader::inputDim() const {
