@@ -12,7 +12,7 @@ public:
     ~DataSourceManager();
 
     DataSource x;      // Input data per timestep
-    DataSource y_hat;  // Target data per timestep
+    DataSource y;  // Target data per timestep
 
     void initialize(std::function<void()> onComplete,
                     double (*inputFunc)(double, double),

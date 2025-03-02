@@ -20,15 +20,22 @@ public:
     void buildBuffers(MTL::Device* device) override;
     void forward(MTL::CommandBuffer* cmdBuf) override;
     void backward(MTL::CommandBuffer* cmdBuf) override;
+
+    void updateTargetBufferAt(DataSource&, int) override {}
     
-    void setInputBufferAt(int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getOutputBufferAt(int timestep) const override;
-    MTL::Buffer* getErrorBufferAt(int timestep) const override { return nullptr; };
-    void setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputErrorBufferAt(int timestep) const override;
-    void updateTargetBufferAt(DataSource&, int) override { }
+    
+    void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) const override;
+
+    void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) const override;
+    void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
+                                         MTL::Buffer* zeroBuffer, int timestep) override;
     
     int outputSize() const override { return featureDim_; }
+    
+    void debugLog() override {/*TODO*/}
+    
 private:
     std::vector<MTL::Buffer*> bufferInputs_;
     std::vector<MTL::Buffer*> bufferOutputs_;
@@ -40,6 +47,9 @@ private:
 
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
+    
+    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
+    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
     
     // New member for CPU-fed randomness
     MTL::Buffer* bufferRandomMask_;

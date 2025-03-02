@@ -4,14 +4,19 @@ layers:
   - type: RNN
     input_size: 512
     output_size: 512
-    activation: relu
-
+    activation: tanh
+  
+  - type: RNN
+    input_size: 512
+    output_size: 512
+    activation: tanh
+  
   - type: Dense
     input_size: 512
     output_size: 512
     activation: linear
 
-time_steps: 10
+time_steps: 1
 
 training:
   optimizer:

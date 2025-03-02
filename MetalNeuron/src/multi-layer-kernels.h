@@ -10,9 +10,9 @@ const inline char* nnKernelSrc = R"(
 using namespace metal;
 
 // Global constants
-constant float learning_rate_w = 0.001f;
-constant float learning_rate_b = 0.001f;
-constant float decay_factor = 0.999992f;
+constant float learning_rate_w = 0.0001f;
+constant float learning_rate_b = 0.0001f;
+constant float decay_factor = 1.0f;
 
 // Activation functions
 inline float activate(const float x, const uint activation) {
@@ -37,9 +37,7 @@ inline float activate_derivative(const float y, const uint activation) {
 }
 
 
-//-------------------------------------------------------------------
-// Forward pass for the output layer (feedforward)
-kernel void forward_output_layer(
+kernel void forward_dense_layer(
     device const float* h            [[buffer(0)]],
     device       float* y            [[buffer(1)]],
     device const float* W            [[buffer(2)]],
@@ -62,9 +60,8 @@ kernel void forward_output_layer(
     y[tid] = activate(sum, *activation);
 }
 
-//-------------------------------------------------------------------
-// Learning kernel for the output layer
-kernel void learn_output_layer(
+
+kernel void learn_dense_layer(
     device const float* h              [[buffer(0)]],
     device float* W                    [[buffer(1)]],
     device float* b                    [[buffer(2)]],
@@ -73,8 +70,10 @@ kernel void learn_output_layer(
     device float* error                [[buffer(5)]],
     device const uint* pH              [[buffer(6)]],
     device const uint* pN              [[buffer(7)]],
-    device       float* pDecay         [[buffer(8)]],
+    device float* pDecay               [[buffer(8)]],
     device const uint* activation      [[buffer(9)]],
+    device float* debug                [[buffer(10)]],
+    device float* prevLayerErrors      [[buffer(11)]], // explicitly propagate errors backward
     uint tid                           [[thread_position_in_grid]]
 ) {
     uint hidden_dim = *pH;
@@ -88,13 +87,16 @@ kernel void learn_output_layer(
     float decay = *pDecay;
 
     float raw_error = y[tid] - y_hat[tid];
-    float delta = raw_error * clamp(activate_derivative(y[tid], *activation), -1.0f, 1.0f); 
+    debug[tid] = raw_error;
+
+    float delta = raw_error * clamp(activate_derivative(y_hat[tid], *activation), -1.0f, 1.0f);
     error[tid] = delta;
 
-    // Weight + bias update
     for (uint i = 0; i < hidden_dim; i++) {
+        prevLayerErrors[i] += W[i * output_dim + tid] * delta;
         W[i * output_dim + tid] -= learning_rate_w * delta * h[i] * decay;
     }
+
     b[tid] -= learning_rate_b * delta * decay;
 }
 

@@ -3,7 +3,7 @@
 
 DataSourceManager::DataSourceManager(int inputDim, int hiddenDim, int outputDim, int sequenceLength)
     : x(inputDim, 1, sequenceLength),
-      y_hat(outputDim, 1, sequenceLength),
+      y(outputDim, 1, sequenceLength),
       sequenceLength_(sequenceLength)
 {
 }
@@ -16,7 +16,7 @@ void DataSourceManager::initialize(std::function<void()> onComplete,
 {
     for (int t = 0; t < sequenceLength_; ++t) {
         x.buildAsyncAtTimestep(inputFunc, t, [this, t, targetFunc, onComplete]() {
-            y_hat.buildAsyncAtTimestep(targetFunc, t, [this, onComplete]() {
+            y.buildAsyncAtTimestep(targetFunc, t, [this, onComplete]() {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     completedTimesteps++;
                     if (completedTimesteps.load() == sequenceLength_) {
@@ -37,7 +37,7 @@ void DataSourceManager::buildInputAtTimestep(std::function<double(double, double
 }
 
 void DataSourceManager::buildTargetAtTimestep(std::function<double(double, double)> targetFunc, int timestep, std::function<void()> onComplete) {
-    y_hat.buildAsyncAtTimestep(targetFunc, timestep, [onComplete]() {
+    y.buildAsyncAtTimestep(targetFunc, timestep, [onComplete]() {
         dispatch_async(dispatch_get_main_queue(), ^{
             onComplete();
         });

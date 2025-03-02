@@ -21,18 +21,44 @@ public:
 
     void forward(MTL::CommandBuffer* cmdBuf) override;
     void backward(MTL::CommandBuffer* cmdBuf) override;
-
-    MTL::Buffer* getOutputBufferAt(int timestep) const override;
-    MTL::Buffer* getErrorBufferAt(int timestep) const override;
-    void setInputBufferAt(int timestep, MTL::Buffer* inputBuffer) override;
-    void setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputErrorBufferAt(int timestep) const override;
+    
+    void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) const override;
+    void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) const override;
+    void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
+                             MTL::Buffer* zeroBuffer, int timestep) override;
     
     int outputSize() const override;
     void updateTargetBufferAt(DataSource& targetData, int timestep) override;
 
     // Shifts stored RNN states forward by one step. (Kept as-is)
     void shiftHiddenStates();
+    
+    
+    void debugLog() override {
+#ifdef DEBUG_RNN_LAYER
+        float* weights = static_cast<float*>(bufferW_xh_->contents());
+        printf("[RNNLayer DebugLog] bufferW_xh_ sample: %f, %f, %f\n", weights[0], weights[1], weights[2]);
+        
+        float* weights2 = static_cast<float*>(bufferW_hh_->contents());
+        printf("[RNNLayer DebugLog] bufferW_hh_ sample: %f, %f, %f\n", weights2[0], weights2[1], weights2[2]);
+        
+        // Optionally log biases or other important states:
+        float* biases = static_cast<float*>(bufferBias_->contents());
+        printf("[RNNLayer DebugLog] bufferBias_ sample: %f, %f, %f\n", biases[0], biases[1], biases[2]);
+        
+        for (int t = 0; t < sequenceLength_; t++) {
+            float* outputs = static_cast<float*>(bufferHiddenStates_[t]->contents());
+            printf("[RNNLayer DebugLog] bufferOutputs_ at timestep %d: %f, %f, %f\n",
+                   t, outputs[0], outputs[1], outputs[2]);
+
+            float* hiddenStates = static_cast<float*>(bufferHiddenStates_[t]->contents());
+            printf("[RNNLayer DebugLog] bufferHiddenStates_ at timestep %d: %f, %f, %f\n",
+                   t, hiddenStates[0], hiddenStates[1], hiddenStates[2]);
+        }
+#endif
+    }
     
 
 private:
@@ -42,12 +68,6 @@ private:
     
     ActivationFunction activation_;
 
-    std::vector<MTL::Buffer*> bufferInputs_;
-    std::vector<MTL::Buffer*> bufferHiddenStates_;
-    std::vector<MTL::Buffer*> bufferHiddenPrevStates_;
-    std::vector<MTL::Buffer*> bufferErrors_;
-    std::vector<MTL::Buffer*> bufferDenseErrors_;
-
     MTL::Buffer* bufferW_xh_;
     MTL::Buffer* bufferW_hh_;
     MTL::Buffer* bufferBias_;
@@ -55,6 +75,10 @@ private:
 
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
+    
+    // Explicit mapping of BufferType to buffer arrays
+    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
+    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
 
     MTL::Buffer* zeroBuffer_; // CHANGED: holds zero for next_hidden_error boundary
 };

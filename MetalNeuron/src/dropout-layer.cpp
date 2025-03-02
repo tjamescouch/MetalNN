@@ -5,13 +5,17 @@
 //  Created by James Couch on 2025-03-01.
 //
 
+#include "input-layer.h"
 #include "dropout-layer.h"
 #include <iostream>
 #include <random>
 
 DropoutLayer::DropoutLayer(float rate, int featureDim, int sequenceLength)
 : rate_(rate), featureDim_(featureDim), sequenceLength_(sequenceLength), bufferRandomMask_(nullptr),forwardPipelineState_(nullptr),
-backwardPipelineState_(nullptr) {}
+backwardPipelineState_(nullptr) {
+    inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
+    outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
+}
 
 DropoutLayer::~DropoutLayer() {
     for(auto buf : bufferInputs_) buf->release();
@@ -107,27 +111,6 @@ void DropoutLayer::backward(MTL::CommandBuffer* cmdBuf) {
     }
 }
 
-void DropoutLayer::setInputBufferAt(int timestep, MTL::Buffer* buffer) {
-    assert(timestep >= 0 && timestep < sequenceLength_);
-    bufferInputs_[timestep] = buffer;
-}
-
-MTL::Buffer* DropoutLayer::getOutputBufferAt(int timestep) const {
-    assert(timestep >= 0 && timestep < sequenceLength_);
-    // During inference or after applying dropout, output buffer is returned:
-    return bufferOutputs_[timestep];
-}
-
-void DropoutLayer::setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) {
-    assert(timestep >= 0 && timestep < sequenceLength_);
-    bufferOutputErrors_[timestep] = buffer;
-}
-
-MTL::Buffer* DropoutLayer::getInputErrorBufferAt(int timestep) const {
-    assert(timestep >= 0 && timestep < sequenceLength_);
-    return bufferInputErrors_[timestep];
-}
-
 void DropoutLayer::generateRandomMask(MTL::Device* device) {
     std::vector<float> maskData(featureDim_);
     std::random_device rd;
@@ -141,4 +124,38 @@ void DropoutLayer::generateRandomMask(MTL::Device* device) {
     if (bufferRandomMask_) bufferRandomMask_->release();
     
     bufferRandomMask_ = device->newBuffer(maskData.data(), featureDim_ * sizeof(float), MTL::ResourceStorageModeShared);
+}
+
+void DropoutLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
+    assert(buffer && "Setting input buffer to NULL");
+    inputBuffers_[type][timestep] = buffer;
+}
+
+MTL::Buffer* DropoutLayer::getOutputBufferAt(BufferType type, int timestep) const {
+    auto it = outputBuffers_.find(type);
+    if (it != outputBuffers_.end()) {
+        return it->second[timestep];
+    }
+    return nullptr;
+}
+
+void DropoutLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
+    outputBuffers_[type][timestep] = buffer;
+}
+
+MTL::Buffer* DropoutLayer::getInputBufferAt(BufferType type, int timestep) const {
+    auto it = inputBuffers_.find(type);
+    if (it != inputBuffers_.end()) {
+        return it->second[timestep];
+    }
+    return nullptr;
+}
+
+void DropoutLayer::connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
+                                     MTL::Buffer* zeroBuffer, int timestep) {
+    setInputBufferAt(BufferType::Input, timestep,
+        previousLayer
+            ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
+            : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
+    );
 }

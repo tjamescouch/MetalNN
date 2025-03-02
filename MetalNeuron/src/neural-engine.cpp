@@ -67,80 +67,75 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config)
 }
 
 void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
-    if (!dynamicLayers_.empty()) {
-        for (auto layer : dynamicLayers_)
-            delete layer;
-        dynamicLayers_.clear();
+    // Clear existing layers
+    for (auto layer : dynamicLayers_) {
+        delete layer;
     }
+    dynamicLayers_.clear();
 
     int previousLayerOutputSize = input_dim;
 
+    // Build each layer from config
     for (const auto& layerConfig : config.layers) {
+        Layer* layer = nullptr;
+
         if (layerConfig.type == "Dense") {
             int outputSize = layerConfig.params.at("output_size").get_value<int>();
             auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
             ActivationFunction activation = parseActivation(activationStr);
-            auto dense = new DenseLayer(previousLayerOutputSize, outputSize, sequenceLength_, activation);
-            
-            dense->buildPipeline(_pDevice, _pComputeLibrary);
-            dense->buildBuffers(_pDevice);
-            dynamicLayers_.push_back(dense);
-            
+            layer = new DenseLayer(previousLayerOutputSize, outputSize, sequenceLength_, activation);
             previousLayerOutputSize = outputSize;
-        } else if (layerConfig.type == "Dropout") {
+        }
+        else if (layerConfig.type == "Dropout") {
             float rate = layerConfig.params.at("rate").get_value<float>();
-            auto dropout = new DropoutLayer(rate, previousLayerOutputSize, sequenceLength_);
-            
-            dropout->buildPipeline(_pDevice, _pComputeLibrary);
-            dropout->buildBuffers(_pDevice);
-            assert(dropout->getOutputBufferAt(0) && "Dropout output buffer at timestep 0 is null after initialization!");
-            dynamicLayers_.push_back(dropout);
-        } else if (layerConfig.type == "BatchNormalization") {
-            float epsilon = 0.001f;  // default epsilon
-            if (layerConfig.params.count("epsilon")) {
-                epsilon = layerConfig.params.at("epsilon").get_value<float>();
-            }
-
-            auto batchNorm = new BatchNormalizationLayer(previousLayerOutputSize, sequenceLength_, epsilon);
-
-            batchNorm->buildPipeline(_pDevice, _pComputeLibrary);
-            batchNorm->buildBuffers(_pDevice);
-
-            dynamicLayers_.push_back(batchNorm);
-        } else if (layerConfig.type == "RNN") {
+            layer = new DropoutLayer(rate, previousLayerOutputSize, sequenceLength_);
+        }
+        else if (layerConfig.type == "BatchNormalization") {
+            float epsilon = layerConfig.params.count("epsilon")
+                ? layerConfig.params.at("epsilon").get_value<float>()
+                : 0.001f;
+            layer = new BatchNormalizationLayer(previousLayerOutputSize, sequenceLength_, epsilon);
+        }
+        else if (layerConfig.type == "RNN") {
             int outputSize = layerConfig.params.at("output_size").get_value<int>();
             auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
             ActivationFunction activation = parseActivation(activationStr);
-            auto rnn = new RNNLayer(previousLayerOutputSize, outputSize, sequenceLength_, activation);
-
-            rnn->buildPipeline(_pDevice, _pComputeLibrary);
-            rnn->buildBuffers(_pDevice);
-            dynamicLayers_.push_back(rnn);
-
+            layer = new RNNLayer(previousLayerOutputSize, outputSize, sequenceLength_, activation);
             previousLayerOutputSize = outputSize;
-        } else {
-            throw new std::invalid_argument("Unsupported layer type");
         }
+        else {
+            throw std::invalid_argument("Unsupported layer type");
+        }
+
+        // Build pipeline & buffers
+        layer->buildPipeline(_pDevice, _pComputeLibrary);
+        layer->buildBuffers(_pDevice);
+        dynamicLayers_.push_back(layer);
     }
 
-    // ⚙️ Connect input layer buffers
+    // Build + update input layer
     _pInputLayer->buildBuffers(_pDevice);
     for (int t = 0; t < sequenceLength_; ++t) {
         _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
-        dynamicLayers_.front()->setInputBufferAt(t, _pInputLayer->getOutputBufferAt(t));
     }
 
-    // ⚙️ Connect subsequent layers
-    for (size_t i = 1; i < dynamicLayers_.size(); ++i) {
+    // Polymorphic input wiring:
+    for (size_t i = 0; i < dynamicLayers_.size(); ++i) {
+        Layer* prevLayer = (i == 0) ? nullptr : dynamicLayers_[i - 1];
+
         for (int t = 0; t < sequenceLength_; ++t) {
-            dynamicLayers_[i]->setInputBufferAt(t, dynamicLayers_[i-1]->getOutputBufferAt(t));
+            dynamicLayers_[i]->connectInputBuffers(prevLayer, _pInputLayer, zeroBuffer_, t);
         }
     }
-    
-    // ⚙️ Backward connections (this is where you use setOutputErrorBufferAt/getInputErrorBufferAt):
+
+    // Backward error buffer connections
     for (size_t i = dynamicLayers_.size() - 1; i > 0; --i) {
         for (int t = 0; t < sequenceLength_; ++t) {
-            dynamicLayers_[i-1]->setOutputErrorBufferAt(t, dynamicLayers_[i]->getInputErrorBufferAt(t));
+            dynamicLayers_[i - 1]->setInputBufferAt(
+                BufferType::InputErrors,
+                t,
+                dynamicLayers_[i]->getOutputBufferAt(BufferType::OutputErrors, t)
+            );
         }
     }
 }
@@ -178,6 +173,12 @@ void NeuralEngine::buildBuffers() {
     for (int t = 0; t < sequenceLength_; ++t) {
         _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
     }
+    
+    if (!zeroBuffer_) {
+        zeroBuffer_ = _pDevice->newBuffer(hidden_dim * sizeof(float), MTL::ResourceStorageModeShared);
+        std::memset(zeroBuffer_->contents(), 0, hidden_dim * sizeof(float));
+    }
+    
     areBuffersBuilt = true;
 }
 
@@ -198,14 +199,16 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     cmdBuf->commit();
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
 
-    float* outputData = static_cast<float*>(dynamicLayers_.back()->getOutputBufferAt(0)->contents());
-
-#ifdef DEBUG_NETWORK
+    float* outputData = static_cast<float*>(
+        dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
+    );
+    
+#ifdef DEBUG_NETWORK_OUTPUTS
     std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ...\n";
 #endif
 
     float mse = 0.0f;
-    float* targetData = _pDataSourceManager->y_hat.get_data_buffer_at(0);
+    float* targetData = _pDataSourceManager->y.get_data_buffer_at(0);
     int outputDim = dynamicLayers_.back()->outputSize();
     for (int i = 0; i < outputDim; ++i) {
         float diff = targetData[i] - outputData[i];
@@ -227,11 +230,11 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
         
-        for (int t = 0; t < sequenceLength_; ++t) {
-            auto layer = dynamicLayers_.back(); // Typically check last layer first
-            float* gradients = static_cast<float*>(layer->getErrorBufferAt(t)->contents());
-            printf("Gradients sample timestep %d: %f, %f, %f\n", t, gradients[0], gradients[1], gradients[2]);
+#ifdef DEBUG_NETWORK
+        for (auto& layer : dynamicLayers_) {
+            layer->debugLog();
         }
+#endif
         
         onComplete();
     });
@@ -240,44 +243,45 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
 }
 
+/*
 void NeuralEngine::shiftBuffers() {
     for (int t = 0; t < sequenceLength_ - 1; ++t) {
-        memcpy(_pInputLayer->getOutputBufferAt(t)->contents(),
-               _pInputLayer->getOutputBufferAt(t + 1)->contents(),
-               input_dim * sizeof(float));
-        memcpy(_pDataSourceManager->y_hat.get_data_buffer_at(t),
-               _pDataSourceManager->y_hat.get_data_buffer_at(t + 1),
-               output_dim * sizeof(float));
+        memcpy(
+            _pInputLayer->getOutputBufferAt(BufferType::HiddenStateOutput, t)->contents(),
+            _pInputLayer->getOutputBufferAt(BufferType::HiddenStateOutput, t + 1)->contents(),
+            input_dim * sizeof(float)
+        );
+
+        memcpy(
+            _pDataSourceManager->y_hat.get_data_buffer_at(t),
+            _pDataSourceManager->y_hat.get_data_buffer_at(t + 1),
+            output_dim * sizeof(float)
+        );
     }
-}
+}*/
 
 void NeuralEngine::computeLearnAndApplyUpdates(uint32_t iterations) {
     if (iterations == 0) return;
 
-    shiftBuffers();
+    //shiftBuffers();
 
     int slot = sequenceLength_ - 1;
     double effectiveTime = distribution(generator);
 
     float* inBuffer = _pDataSourceManager->x.get_data_buffer_at(slot);
-    float* tgtBuffer = _pDataSourceManager->y_hat.get_data_buffer_at(slot);
+    float* tgtBuffer = _pDataSourceManager->y.get_data_buffer_at(slot);
     for (int i = 0; i < input_dim; ++i)
         inBuffer[i] = inputFunc(i, effectiveTime);
     for (int i = 0; i < output_dim; ++i)
         tgtBuffer[i] = targetFunc(i, effectiveTime);
 
     _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
-    dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y_hat, slot);
+    dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y, slot);
 
     computeForward([this, iterations]() {
         computeBackward([this, iterations]() {
             globalTimestep++;
             computeLearnAndApplyUpdates(iterations - 1);
-#ifdef DEBUG_NETWORK
-            float* errData = static_cast<float*>(dynamicLayers_.back()->getErrorBufferAt(0)->contents());
-            std::cout << "Error check after backward: "
-                      << errData[0] << ", " << errData[1] << ", ..." << std::endl;
-#endif
         });
     });
 }
@@ -297,21 +301,21 @@ void NeuralEngine::runInference() {
 void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     if (iterations == 0) return;
 
-    shiftBuffers();
+    //shiftBuffers();
 
     int slot = sequenceLength_ - 1;
     int effectiveTime = globalTimestep + sequenceLength_ - 1;
 
     // Update input data for the new slot.
     float* inBuffer = _pDataSourceManager->x.get_data_buffer_at(slot);
-    float* tgtBuffer = _pDataSourceManager->y_hat.get_data_buffer_at(slot);
+    float* tgtBuffer = _pDataSourceManager->y.get_data_buffer_at(slot);
     for (int i = 0; i < input_dim; ++i)
         inBuffer[i] = inputFunc(i, effectiveTime);
     for (int i = 0; i < output_dim; ++i)
         tgtBuffer[i] = targetFunc(i, effectiveTime);
 
     _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
-    dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y_hat, slot);
+    dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y, slot);
     
 
     computeForward([this, iterations]() {
@@ -320,8 +324,10 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
         std::vector<float*> targets(sequenceLength_);
 
         for (int t = 0; t < sequenceLength_; ++t) {
-            outputs[t] = static_cast<float*>(dynamicLayers_.back()->getOutputBufferAt(t)->contents());
-            targets[t] = _pDataSourceManager->y_hat.get_data_buffer_at(t);
+            outputs[t] = static_cast<float*>(
+                dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, t)->contents()
+            );
+            targets[t] = _pDataSourceManager->y.get_data_buffer_at(t);
         }
 
         _pLogger->logIteration(*outputs.data(), output_dim, *targets.data(), output_dim);

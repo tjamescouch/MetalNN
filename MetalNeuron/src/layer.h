@@ -9,8 +9,7 @@
 #define LAYER_H
 
 #include <functional>
-
-#import "data-source.h"
+#include "data-source.h"
 
 // Forward declarations for Metal types.
 namespace MTL {
@@ -20,6 +19,8 @@ class Library;
 class CommandBuffer;
 }
 
+class InputLayer;
+
 enum class ActivationFunction {
     Linear = 0,
     ReLU,
@@ -27,6 +28,18 @@ enum class ActivationFunction {
     Sigmoid
 };
 
+enum class BufferType : unsigned int {
+    Input = 0,
+    PreviousOutput,
+    Output,
+    Debug,
+    Targets,
+    Gradients,
+    Activation,
+    OutputErrors,
+    InputErrors,
+    Delta
+};
 
 class Layer {
 public:
@@ -39,13 +52,18 @@ public:
     virtual void forward(MTL::CommandBuffer* cmdBuf) = 0;
     // Record commands for the backward pass.
     virtual void backward(MTL::CommandBuffer* cmdBuf) = 0;
-    virtual void setInputBufferAt(int timestep, MTL::Buffer* buffer) = 0;
-    virtual MTL::Buffer* getOutputBufferAt(int timestep) const = 0;
+    
+    virtual void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) = 0;
+    virtual MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) const = 0;
+    virtual void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) = 0;
+    virtual MTL::Buffer* getInputBufferAt(BufferType type, int timestep) const = 0;
+    
     virtual int outputSize() const = 0;
-    virtual MTL::Buffer* getErrorBufferAt(int timestep) const = 0;
     virtual void updateTargetBufferAt(DataSource& targetData, int timestep) = 0;
-    virtual void setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) = 0;
-    virtual MTL::Buffer* getInputErrorBufferAt(int timestep) const = 0;
+    virtual void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
+                                     MTL::Buffer* zeroBuffer, int timestep) = 0;
+    
+    virtual void debugLog() = 0;
 };
 
 #endif // LAYER_H

@@ -20,17 +20,21 @@ public:
 
     void forward(MTL::CommandBuffer* cmdBuf) override;
     void backward(MTL::CommandBuffer* cmdBuf) override;
+    
+    void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) const override;
 
-    void setInputBufferAt(int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getOutputBufferAt(int timestep) const override;
-
-    void setOutputErrorBufferAt(int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputErrorBufferAt(int timestep) const override;
+    void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) const override;
     
     int outputSize() const override;
-    MTL::Buffer* getErrorBufferAt(int timestep) const override;
     void updateTargetBufferAt(DataSource& targetData, int timestep) override;
+    
+    void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
+                             MTL::Buffer* zeroBuffer, int timestep) override;
+    
 
+    void debugLog() override {/*TODO*/}
 private:
     int featureDim_;
     int sequenceLength_;
@@ -44,14 +48,11 @@ private:
     MTL::Buffer* bufferRunningMean_;
     MTL::Buffer* bufferRunningVariance_;
 
-    // Intermediate buffers
-    std::vector<MTL::Buffer*> bufferInputs_;
-    std::vector<MTL::Buffer*> bufferOutputs_;
-    std::vector<MTL::Buffer*> bufferInputErrors_;
-    std::vector<MTL::Buffer*> bufferOutputErrors_;
-
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
+    
+    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
+    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
 
     void initializeParameters(MTL::Device* device);
 };
