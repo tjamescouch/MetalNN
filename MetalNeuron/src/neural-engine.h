@@ -75,7 +75,10 @@ private:
     dispatch_semaphore_t _semaphore;
     
     int globalTimestep; // Controls the time offset for generating new data
-    int num_iterations = 10000;
+    int batch_size;
+    int epochs;
+    std::string dataset_type = "function";
+    //FIXME get from model configuration:
     int input_dim  = 512;
     int hidden_dim = 512;
     int output_dim = 512;

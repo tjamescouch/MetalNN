@@ -28,10 +28,10 @@ training:
       beta2: 0.999
 
   epochs: 50
-  batch_size: 32
+  batch_size: 320
   
 dataset:
-  type: "mnist"  # could also be "function" or others as you expand
+  type: "mnist"
   images: "train-images-idx3-ubyte"
   labels: "train-labels-idx1-ubyte"
 

@@ -13,9 +13,15 @@ public:
     void logErrors(const std::vector<float*>& outputErrors, int outputCount, int hiddenCount, int sequenceLength);
     
     // Logs one full iteration's data (inputs, hidden states, outputs, targets) for all timesteps.
-    void logIteration(const float* output, int outputCount,
-                      const float* target, int targetCount);
+    void logRegressionData(const float* output, int outputCount,
+                           const float* target, int targetCount);
     
+    void logClassificationData(const float* output, int outputCount,
+                               const float* target, int targetCount);
+    
+    void logMSE(float* targetData, float* outputData, int dimension);
+    void logCrossEntropyLoss(float* targetData, float* outputData, int dimension);
+
     void clear();
     
 private:

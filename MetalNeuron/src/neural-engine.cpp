@@ -37,19 +37,25 @@ std::uniform_int_distribution<int> distribution(0, 2*M_PI);
 
 NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config)
 : _pDevice(pDevice->retain()),
-areBuffersBuilt(false), currentlyComputing(false), globalTimestep(0), _pDataSourceManager(nullptr), _pInputLayer(nullptr)
+  areBuffersBuilt(false), currentlyComputing(false),
+  globalTimestep(0), _pDataSourceManager(nullptr),
+  _pInputLayer(nullptr)
 {
+    batch_size = config.training.batch_size;
+    epochs = config.training.epochs;
+    
+    dataset_type = config.dataset.type;
     
     _pLogger = new Logger(outputFileName);
     
     _pKeyboardController = new KeyboardController();
     _pKeyboardController->setForwardCallback([this]() {
         _pLogger->clear();
-        computeForwardIterations(num_iterations);
+        computeForwardIterations(batch_size);
     });
     _pKeyboardController->setLearnCallback([this]() {
         _pLogger->clear();
-        computeBackwardIterations(num_iterations);
+        computeBackwardIterations(batch_size);
     });
     _pKeyboardController->setClearCallback([this]() {
         _pLogger->clear();
@@ -247,15 +253,12 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ...\n";
 #endif
     
-    float mse = 0.0f;
-    float* targetData = _pDataSourceManager->y.get_data_buffer_at(0);
-    int outputDim = dynamicLayers_.back()->outputSize();
-    for (int i = 0; i < outputDim; ++i) {
-        float diff = targetData[i] - outputData[i];
-        mse += diff * diff;
+    if (dataset_type == "function"){
+        _pLogger->logMSE(_pDataSourceManager->y.get_data_buffer_at(0), outputData, dynamicLayers_.back()->outputSize());
     }
-    mse /= outputDim;
-    std::printf("Mean Squared Error at timestep 0: %f\n", mse);
+    else {
+        _pLogger->logCrossEntropyLoss(_pDataSourceManager->y.get_data_buffer_at(0), outputData, 10); //FIXME - hardcoded output dimension
+    }
 }
 
 void NeuralEngine::computeBackward(std::function<void()> onComplete) {
@@ -318,10 +321,19 @@ void NeuralEngine::computeBackwardIterations(uint32_t iterations) {
     
     float* inBuffer = _pDataSourceManager->x.get_data_buffer_at(slot);
     float* tgtBuffer = _pDataSourceManager->y.get_data_buffer_at(slot);
-    for (int i = 0; i < input_dim; ++i)
-        inBuffer[i] = inputFunc(i, effectiveTime);
-    for (int i = 0; i < output_dim; ++i)
-        tgtBuffer[i] = targetFunc(i, effectiveTime);
+    
+    if (dataset_type == "function") {
+        for (int i = 0; i < input_dim; ++i)
+            inBuffer[i] = inputFunc(i, effectiveTime);
+        for (int i = 0; i < output_dim; ++i)
+            tgtBuffer[i] = targetFunc(i, effectiveTime);
+    }
+    else {
+        // For MNIST or other dataset types, load samples from dataset directly
+        static int sampleIndex = 0;
+        _pDataSourceManager->loadSample(sampleIndex);
+        sampleIndex = (sampleIndex + 1) % _pDataSourceManager->numSamples();
+    }
     
     _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
     dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y, slot);
@@ -367,13 +379,19 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     int slot = 0;
     int effectiveTime = globalTimestep;
     
-    // Update input data for the new slot.
     float* inBuffer = _pDataSourceManager->x.get_data_buffer_at(slot);
     float* tgtBuffer = _pDataSourceManager->y.get_data_buffer_at(slot);
-    for (int i = 0; i < input_dim; ++i)
-        inBuffer[i] = inputFunc(i, effectiveTime);
-    for (int i = 0; i < output_dim; ++i)
-        tgtBuffer[i] = targetFunc(i, effectiveTime);
+
+    if (dataset_type == "function") {
+        for (int i = 0; i < input_dim; ++i)
+            inBuffer[i] = inputFunc(i, effectiveTime);
+        for (int i = 0; i < output_dim; ++i)
+            tgtBuffer[i] = targetFunc(i, effectiveTime);
+    } else {
+        static int sampleIndex = 0;
+        _pDataSourceManager->loadSample(sampleIndex);
+        sampleIndex = (sampleIndex + 1) % _pDataSourceManager->numSamples();
+    }
     
     _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
     dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y, slot);
@@ -389,8 +407,14 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
                                          );
         targets[0] = _pDataSourceManager->y.get_data_buffer_at(0);
         
-        
-        _pLogger->logIteration(*outputs.data(), output_dim, *targets.data(), output_dim);
+#ifdef GENERATE_MATLAP_OUTPUT
+        if (dataset_type == "mnist") {
+            _pLogger->logClassificationData(*outputs.data(), output_dim, *targets.data(), output_dim);
+        }
+        else {
+            _pLogger->logRegressionData(*outputs.data(), output_dim, *targets.data(), output_dim);
+        }
+#endif
         
         globalTimestep++;
         computeForwardIterations(iterations - 1);

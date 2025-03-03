@@ -1,4 +1,5 @@
 #include "logger.h"
+#include "common.h"
 #include <fstream>
 #include <iostream>
 #include <cmath>
@@ -38,8 +39,8 @@ void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount,
     std::cout << "AVG OUTPUT ERROR (across sequence): " << avgOutputError << std::endl;
 }
 
-void Logger::logIteration(const float* output, int outputCount,
-                          const float* target, int targetCount) {
+void Logger::logRegressionData(const float* output, int outputCount,
+                               const float* target, int targetCount) {
     if (!logFileStream->is_open()) {
         std::cerr << "Error opening log file: " << filename_ << std::endl;
         return;
@@ -70,11 +71,43 @@ void Logger::logIteration(const float* output, int outputCount,
     
     *logFileStream << "legend('show');" << std::endl;
     *logFileStream << "hold off; pause(0.01);" << std::endl;
-    
-
 }
 
+void Logger::logClassificationData(const float* output, int outputCount,
+                                   const float* target, int targetCount) {
+    if (!logFileStream->is_open()) {
+        std::cerr << "Error opening log file: " << filename_ << std::endl;
+        return;
+    }
 
+    // Clear figure and prepare plot
+    *logFileStream << "clf; hold on;" << std::endl;
+    *logFileStream << "xlabel('Class (Digit)'); ylabel('Probability');" << std::endl;
+    *logFileStream << "ylim([0, 1]);" << std::endl;
+    
+    // X-axis: classes 0-9
+    *logFileStream << "x = 0:" << (outputCount - 1) << ";" << std::endl;
+    
+    // Target vector
+    *logFileStream << "target = [";
+    for (int i = 0; i < targetCount; ++i) {
+        *logFileStream << target[i] << (i < targetCount - 1 ? ", " : "") << std::endl;
+    }
+    *logFileStream << "];";
+    
+    // Predicted probabilities
+    *logFileStream << "output = [";
+    for (int i = 0; i < outputCount; ++i) {
+        *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "") << std::endl;
+    }
+    *logFileStream << "];";
+    
+    // Bar plot for clear visual comparison
+    *logFileStream << "bar(x - 0.15, target, 0.3, 'FaceColor', 'b', 'DisplayName', 'Target');" << std::endl;
+    *logFileStream << "bar(x + 0.15, output, 0.3, 'FaceColor', 'r', 'DisplayName', 'Prediction');" << std::endl;
+    *logFileStream << "legend('show');" << std::endl;
+    *logFileStream << "hold off; pause(0.05);" << std::endl;
+}
 
 void Logger::clear() {
     // Close the existing member stream if open.
@@ -94,4 +127,41 @@ void Logger::clear() {
     if (!logFileStream->is_open()) {
         std::cerr << "Error reopening log file: " << filename_ << std::endl;
     }
+}
+
+void Logger::logMSE(float* targetData, float* outputData, int dimension) {
+    float mse = 0.0f;
+    for (int i = 0; i < dimension; ++i) {
+        float diff = targetData[i] - outputData[i];
+        mse += diff * diff;
+    }
+    mse /= dimension;
+    std::printf("Mean Squared Error: %f\n", mse);
+}
+
+void Logger::logCrossEntropyLoss(float *targetData, float *outputData, int dimension) {
+    float epsilon = 1e-10f; // for numerical stability
+    float loss = 0.0f;
+
+    // Since targets are one-hot, we only compute loss for the true class
+    for (int i = 0; i < dimension; ++i) {
+        if (targetData[i] > 0.5f) {  // one-hot target: exactly one entry is 1.0
+            loss = -logf(outputData[i] + epsilon);
+            break; // one-hot encoding; we can safely break here
+        }
+    }
+    std::printf("Cross Entropy Loss: %f\n", loss);
+    
+#ifdef DEBUG_CROSS_ENTROPY_LOSS
+    float sum = 0.0f;
+    for (int i = 0; i < dimension; ++i) {
+        sum += outputData[i];
+    }
+    std::printf("Softmax sum: %f\n", sum);
+    
+    printf("Targets vs Predictions:\n");
+    for (int i = 0; i < dimension; ++i) {
+        printf("Target[%d]: %.2f, Predicted[%d]: %.4f\n", i, targetData[i], i, outputData[i]);
+    }
+#endif
 }

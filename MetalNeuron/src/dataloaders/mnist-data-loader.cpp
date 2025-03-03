@@ -92,21 +92,20 @@ void MNISTDataLoader::loadImages(const std::string& imagesPath) {
 void MNISTDataLoader::loadLabels(const std::string& labelsPath) {
     std::ifstream file(labelsPath, std::ios::binary);
     if (!file) {
-        throw std::runtime_error("❌ Cannot open labels file at: " + labelsPath);
+        throw std::runtime_error("Cannot open labels file.");
     }
 
-    int32_t magic = readBigEndianInt(file);
-    int32_t numLabels = readBigEndianInt(file);
-
-    if (magic != 2049) {
-        throw std::runtime_error("❌ Invalid MNIST label file magic number.");
-    }
+    int32_t magic, numLabels;
+    file.read((char*)&magic, 4);
+    file.read((char*)&numLabels, 4);
+    magic = __builtin_bswap32(magic);
+    numLabels = __builtin_bswap32(numLabels);
 
     targets_.resize(numLabels, std::vector<float>(10, 0.0f));
 
     for (int i = 0; i < numLabels; ++i) {
         unsigned char label;
-        file.read(reinterpret_cast<char*>(&label), 1);
-        targets_[i][label] = 1.0f; // One-hot encoding
+        file.read((char*)&label, 1);
+        targets_[i][label] = 1.0f;  // <-- EXACTLY ONE entry set to 1.0, rest 0.0
     }
 }
