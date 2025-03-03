@@ -39,7 +39,9 @@ public:
     void setParameterAt(int index, float value) override;
     float getGradientAt(int index) const override;
     
-    void onForwardComplete() override {};
+    void onForwardComplete() override {
+        optimizerWeights_->gradientBuffer()->didModifyRange(NS::Range(0, optimizerWeights_->gradientBuffer()->length()));
+    };
     void onBackwardComplete(MTL::CommandQueue* _pCommandQueue) override;
     
     void saveParameters(std::ostream& os) const override;

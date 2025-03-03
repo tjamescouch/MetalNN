@@ -220,33 +220,33 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
         
-        
         _pInputLayer->onForwardComplete();
         for (auto& layer : dynamicLayers_) {
             layer->onForwardComplete();
         }
-        
-        onComplete();
+
+        // This is now inside the completion handler, ensuring GPU is finished
+        float* outputData = static_cast<float*>(
+            dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
+        );
+
+        if (dataset_type == "function"){
+            _pLogger->logMSE(_pDataSourceManager->y.get_data_buffer_at(0), outputData, dynamicLayers_.back()->outputSize());
+        }
+        else {
+            _pLogger->logCrossEntropyLoss(_pDataSourceManager->y.get_data_buffer_at(0), outputData, 10);
+        }
+
+        onComplete(); // Call your provided callback at the end
     });
-    
+
     cmdBuf->commit();
+
+    // Explicitly removed synchronous blocking calls:
+    // cmdBuf->waitUntilCompleted();
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
-    
-    float* outputData = static_cast<float*>(
-                                            dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
-                                            );
-    
-#ifdef DEBUG_NETWORK_OUTPUTS
-    std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ...\n";
-#endif
-    
-    if (dataset_type == "function"){
-        _pLogger->logMSE(_pDataSourceManager->y.get_data_buffer_at(0), outputData, dynamicLayers_.back()->outputSize());
-    }
-    else {
-        _pLogger->logCrossEntropyLoss(_pDataSourceManager->y.get_data_buffer_at(0), outputData, 10); //FIXME - hardcoded output dimension
-    }
 }
+
 void NeuralEngine::computeBackward(std::function<void()> onComplete) {
     if (!areBuffersBuilt || currentlyComputing) return;
     currentlyComputing = true;
@@ -341,6 +341,14 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     int slot = 0;
     _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
     dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y, slot);
+    
+    float* logits = static_cast<float*>(dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents());
+
+    std::cout << "Raw logits before softmax: ";
+    for (int i = 0; i < output_dim; ++i) {
+        std::cout << logits[i] << " ";
+    }
+    std::cout << std::endl;
     
     computeForward([this, iterations]() {
         // Logging outputs clearly to .m file

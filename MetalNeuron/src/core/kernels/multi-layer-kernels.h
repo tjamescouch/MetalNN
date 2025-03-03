@@ -55,40 +55,55 @@ inline float activate_derivative(const float y, const uint activation) {
 
 kernel void forward_dense_layer(
     device const float* h            [[buffer(0)]],
-    device       float* y            [[buffer(1)]],
+    device float* y                  [[buffer(1)]],
     device const float* W            [[buffer(2)]],
     device const float* b            [[buffer(3)]],
     device const uint* pH            [[buffer(4)]],
     device const uint* pN            [[buffer(5)]],
     device const uint* activation    [[buffer(6)]],
-    uint tid                         [[thread_position_in_grid]]
+    uint tid                         [[thread_position_in_grid]],
+    uint threads_per_grid            [[threads_per_grid]],
+    threadgroup float* shared_logits [[threadgroup(0)]]
 ) {
     uint hidden_dim = *pH;
     uint output_dim = *pN;
 
-    if (tid >= output_dim) return;
-
-    float sum = b[tid];
-    for (uint i = 0; i < hidden_dim; i++) {
-        sum += h[i] * W[i * output_dim + tid];
-    }
-
-    // First compute the pre-activation sums.
-    y[tid] = sum;
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    // Handle softmax separately after all sums are computed.
     if (*activation == 4) {
+        if (tid < output_dim) {
+            float sum = b[tid];
+            for (uint i = 0; i < hidden_dim; ++i) {
+                sum += h[i] * W[i * output_dim + tid];
+            }
+            shared_logits[tid] = sum;
+        }
+
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
-        if (tid == 0) { // Single thread computes softmax for stability
-            softmax(y, y, output_dim);
+        if (tid == 0) {
+            float maxLogit = shared_logits[0];
+            for (uint i = 1; i < output_dim; ++i)
+                maxLogit = max(maxLogit, shared_logits[i]);
+
+            float sumExp = 0.0f;
+            for (uint i = 0; i < output_dim; ++i) {
+                shared_logits[i] = exp(shared_logits[i] - maxLogit);
+                sumExp += shared_logits[i];
+            }
+
+            for (uint i = 0; i < output_dim; ++i) {
+                y[i] = shared_logits[i] / sumExp;
+            }
         }
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
     } else {
-        y[tid] = activate(sum, *activation);  // Use existing activate for other activations
+        if (tid < output_dim) {
+            float sum = b[tid];
+            for (uint i = 0; i < hidden_dim; ++i) {
+                sum += h[i] * W[i * output_dim + tid];
+            }
+            y[tid] = activate(sum, *activation);
+        }
     }
 }
 
@@ -105,8 +120,11 @@ kernel void learn_dense_layer(
     device float* pDecay               [[buffer(8)]],
     device const uint* activation      [[buffer(9)]],
     device float* debug                [[buffer(10)]],
-    device float* prevLayerErrors      [[buffer(11)]], // explicitly propagate errors backward
-    uint tid                           [[thread_position_in_grid]]
+    device float* prevLayerErrors      [[buffer(11)]],
+    device float* gradWeights          [[buffer(12)]],  // New buffer explicitly for gradients
+    uint tid                           [[thread_position_in_grid]],
+    uint threads_per_grid              [[threads_per_grid]],
+    threadgroup float* shared_errors   [[threadgroup(0)]]
 ) {
     uint hidden_dim = *pH;
     uint output_dim = *pN;
@@ -116,21 +134,51 @@ kernel void learn_dense_layer(
     if (tid == 0) {
         *pDecay *= decay_factor;
     }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
     float decay = *pDecay;
 
     float raw_error = y_hat[tid] - y[tid];
-    debug[tid] = raw_error;
-
-    float delta = raw_error * activate_derivative(y_hat[tid], *activation);
+    float delta = (*activation == 4) ? raw_error : raw_error * activate_derivative(y_hat[tid], *activation);
     delta = clamp(delta, -threshold, threshold);
     error[tid] = delta;
 
+    // Initialize prevLayerErrors
+    for (uint i = tid; i < hidden_dim; i += output_dim) {
+        shared_errors[i] = 0.0f;
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    // Compute gradients, explicitly store them, and update weights
     for (uint i = 0; i < hidden_dim; i++) {
-        prevLayerErrors[i] += W[i * output_dim + tid] * delta;
-        W[i * output_dim + tid] -= learning_rate_w * delta * h[i] * decay;
+        float grad = h[i] * delta;
+
+        // Explicitly store gradients to gradient buffer
+        gradWeights[i * output_dim + tid] = grad;
+
+        // accumulate prevLayerErrors
+        shared_errors[i] += W[i * output_dim + tid] * delta;
+
+        // update weights
+        W[i * output_dim + tid] -= learning_rate_w * grad * decay;
+
+
+if (tid == 0 && i < 10) {
+    debug[i] = grad; // Explicitly confirm gradient computed
+    gradWeights[i * output_dim + tid] = grad;  // explicitly write gradient
+}
     }
 
+    // Update biases
     b[tid] -= learning_rate_b * delta * decay;
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    // Copy accumulated errors back to global memory
+    for (uint i = tid; i < hidden_dim; i += output_dim) {
+        prevLayerErrors[i] = shared_errors[i];
+    }
+
+
 }
 
 //-------------------------------------------------------------------

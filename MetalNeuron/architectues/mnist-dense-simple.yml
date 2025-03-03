@@ -1,0 +1,30 @@
+name: "Simple Classification"
+
+layers:
+
+
+  - type: Dense
+    input_size: 784    # <-- explicitly corrected for MNIST
+    output_size: 10    # 10 digits (0-9)
+    activation: softmax
+
+training:
+  optimizer:
+    type: adam
+    learning_rate: 0.001
+    parameters:
+      beta1: 0.9
+      beta2: 0.999
+      epsilon: 1e-8
+
+  epochs: 20
+  batch_size: 64
+  
+dataset:
+  type: "mnist"
+  images: "train-images-idx3-ubyte"
+  labels: "train-labels-idx1-ubyte"
+
+metadata:
+  author: "James Couch"
+  description: "Simple OCR"

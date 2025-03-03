@@ -140,28 +140,28 @@ void Logger::logMSE(float* targetData, float* outputData, int dimension) {
 }
 
 void Logger::logCrossEntropyLoss(float *targetData, float *outputData, int dimension) {
-    float epsilon = 1e-10f; // for numerical stability
+    float epsilon = 1e-10f; // Numerical stability
     float loss = 0.0f;
 
-    // Since targets are one-hot, we only compute loss for the true class
+    // Cross-entropy loss for one-hot targets
     for (int i = 0; i < dimension; ++i) {
-        if (targetData[i] > 0.5f) {  // one-hot target: exactly one entry is 1.0
-            loss = -logf(outputData[i] + epsilon);
-            break; // one-hot encoding; we can safely break here
+        if (targetData[i] > 0.5f) {  // Exactly one entry is 1.0
+            loss = -logf(std::max(outputData[i], epsilon));
+            break;
         }
     }
     std::printf("Cross Entropy Loss: %f\n", loss);
-    
+
 #ifdef DEBUG_CROSS_ENTROPY_LOSS
-    float sum = 0.0f;
+    float softmaxSum = 0.0f;
     for (int i = 0; i < dimension; ++i) {
-        sum += outputData[i];
+        softmaxSum += outputData[i];
     }
-    std::printf("Softmax sum: %f\n", sum);
-    
-    printf("Targets vs Predictions:\n");
+    std::printf("Softmax sum: %f\n", softmaxSum);
+
+    std::printf("Targets vs Predictions:\n");
     for (int i = 0; i < dimension; ++i) {
-        printf("Target[%d]: %.2f, Predicted[%d]: %.4f\n", i, targetData[i], i, outputData[i]);
+        std::printf("Target[%d]: %.2f, Predicted[%d]: %.4f\n", i, targetData[i], i, outputData[i]);
     }
 #endif
 }

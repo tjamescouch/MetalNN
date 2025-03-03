@@ -74,6 +74,11 @@ void MNISTDataLoader::loadImages(const std::string& imagesPath) {
     int32_t rows = readBigEndianInt(file);
     int32_t cols = readBigEndianInt(file);
 
+    std::cout << "Image file header: magic = " << magic
+              << ", numImages = " << numImages
+              << ", rows = " << rows
+              << ", cols = " << cols << std::endl;
+
     if (magic != 2051) {
         throw std::runtime_error("❌ Invalid MNIST image file magic number.");
     }
@@ -84,8 +89,15 @@ void MNISTDataLoader::loadImages(const std::string& imagesPath) {
         std::vector<unsigned char> imageData(rows * cols);
         file.read(reinterpret_cast<char*>(imageData.data()), rows * cols);
         for (int px = 0; px < rows * cols; ++px) {
-            inputs_[i][px] = imageData[px] / 255.0f; // Normalize pixel values
+            inputs_[i][px] = imageData[px] / 255.0f;
         }
+#ifdef DEBUG_MNIST_LOADER
+        std::cout << "First MNIST image loaded pixels: ";
+        for (int px = 0; px < rows * cols; ++px) {
+            std::cout << inputs_[i][px] << " ";
+        }
+        std::cout << std::endl;
+#endif
     }
 }
 
@@ -101,11 +113,25 @@ void MNISTDataLoader::loadLabels(const std::string& labelsPath) {
     magic = __builtin_bswap32(magic);
     numLabels = __builtin_bswap32(numLabels);
 
+    if (magic != 2049) {
+        throw std::runtime_error("❌ Invalid MNIST label file magic number.");
+    }
+
     targets_.resize(numLabels, std::vector<float>(10, 0.0f));
 
     for (int i = 0; i < numLabels; ++i) {
         unsigned char label;
         file.read((char*)&label, 1);
-        targets_[i][label] = 1.0f;  // <-- EXACTLY ONE entry set to 1.0, rest 0.0
+        targets_[i][label] = 1.0f;  // Exactly one entry set to 1.0, rest 0.0
+
+        if (i == 0) {
+            std::cout << "First MNIST label loaded (one-hot): ";
+            for (int k = 0; k < 10; ++k) {
+                std::cout << targets_[0][k] << " ";
+            }
+            std::cout << std::endl;
+        }
     }
+
+    std::cout << "Labels magic number: " << magic << ", num_labels: " << numLabels << std::endl;
 }
