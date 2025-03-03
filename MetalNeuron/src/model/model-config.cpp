@@ -31,15 +31,19 @@ ModelConfig ModelConfig::loadFromFile(const std::string& filePath) {
         modelConfig.dataset.images = config["dataset"]["images"].get_value<std::string>();
     }
     
-
+    bool isFirstLayer = true;
     // Load layers
     for (const auto& layer : config["layers"]) {
         LayerConfig layerConfig;
         layerConfig.type = layer["type"].get_value<std::string>();
         layerConfig.time_steps = layer["time_steps"].get_value<int>();
         
-        if (modelConfig.first_layer_time_steps == -1) {
-            modelConfig.first_layer_time_steps = layer["time_steps"].get_value<int>();
+        if (isFirstLayer) {
+            isFirstLayer = false;
+            int first_layer_time_steps = layer["time_steps"].get_value<int>();
+            if (first_layer_time_steps > 0){
+                modelConfig.first_layer_time_steps = first_layer_time_steps;
+            }
         }
 
         // Load layer parameters

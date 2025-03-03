@@ -43,7 +43,7 @@ struct ModelDataSet {
 // Overall model configuration
 class ModelConfig {
 public:
-    int first_layer_time_steps = -1;
+    int first_layer_time_steps = 1;
     std::string name;
     std::vector<LayerConfig> layers;
     TrainingConfig training;
