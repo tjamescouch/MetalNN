@@ -2,6 +2,7 @@
 #define DENSE_LAYER_H
 
 #include "layer.h"
+#include "optimizable-layer.h"
 #include "input-layer.h"
 #include "data-source.h"
 #include <Metal/Metal.hpp>
@@ -9,7 +10,7 @@
 
 
 
-class DenseLayer : public Layer {
+class DenseLayer : public Layer, public OptimizableLayer {
 public:
     DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activationFunction);
     ~DenseLayer();
@@ -45,32 +46,11 @@ public:
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;
     
-    void debugLog() override {
-#ifdef DEBUG_DENSE_LAYER
-        for (int t = 0; t < sequenceLength_; ++t) {
-            float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
-            printf("[DenseLayer Input Debug] timestep %d: %f, %f, %f\n",
-                   t, inputs[0], inputs[1], inputs[2]);
- 
-            float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
-            printf("[DenseLayer Output Debug] timestep %d: %f, %f, %f\n",
-                   t, outputs[0], outputs[1], outputs[2]);
-        }
-        
-        float* weights = static_cast<float*>(bufferWeights_->contents());
-        printf("[DenseLayer DebugLog] Weights sample: %f, %f, %f\n", weights[0], weights[1], weights[2]);
-        
-        // Optionally log biases or other important states:
-        float* biases = static_cast<float*>(bufferBias_->contents());
-        printf("[DenseLayer DebugLog] Biases sample: %f, %f, %f\n", biases[0], biases[1], biases[2]);
-        
-        float* decay = static_cast<float*>(bufferDecay_->contents());
-        printf("[DenseLayer DebugLog] Decay factor: %f\n", *decay);
-        
-#endif
-    }
+    void debugLog() override;
     
-
+    MTL::Buffer* getParameterBuffer() const override;
+    MTL::Buffer* getGradientBuffer() const override;
+    uint32_t parameterCount() const override;
     
 private:
     int inputDim_;
@@ -79,6 +59,7 @@ private:
     
     ActivationFunction activation_;
     
+    MTL::Buffer* bufferWeightGradients_;
     MTL::Buffer* bufferWeights_;
     MTL::Buffer* bufferBias_;
     MTL::Buffer* bufferDecay_;
@@ -89,6 +70,8 @@ private:
     
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
+    
+
 };
 
 #endif // DENSE_LAYER_H

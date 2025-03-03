@@ -2,6 +2,7 @@
 #define RNNLAYER_H
 
 #include "layer.h"
+#include "optimizable-layer.h"
 #include <vector>
 
 namespace MTL {
@@ -11,7 +12,7 @@ namespace MTL {
     class CommandBuffer;
 }
 
-class RNNLayer : public Layer {
+class RNNLayer : public Layer, public OptimizableLayer {
 public:
     RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation);
     ~RNNLayer();
@@ -51,33 +52,12 @@ public:
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;
     
-    void debugLog() override {
-#ifdef DEBUG_RNN_LAYER
-        float* weights = static_cast<float*>(bufferW_xh_->contents());
-        printf("[RNNLayer DebugLog] bufferW_xh_ sample: %f, %f, %f\n", weights[0], weights[1], weights[2]);
-        
-        float* weights2 = static_cast<float*>(bufferW_hh_->contents());
-        printf("[RNNLayer DebugLog] bufferW_hh_ sample: %f, %f, %f\n", weights2[0], weights2[1], weights2[2]);
-        
-        // Optionally log biases or other important states:
-        float* biases = static_cast<float*>(bufferBias_->contents());
-        printf("[RNNLayer DebugLog] bufferBias_ sample: %f, %f, %f\n", biases[0], biases[1], biases[2]);
-        
-        for (int t = 0; t < sequenceLength_; t++) {
-            float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
-            printf("[RNNLayer DebugLog] outputs at timestep %d: %f, %f, %f\n",
-                   t, outputs[0], outputs[1], outputs[2]);
-            
-            float* prev_outputs = static_cast<float*>(inputBuffers_[BufferType::PrevHiddenState][t]->contents());
-            printf("[RNNLayer DebugLog] prev outputs at timestep %d: %f, %f, %f\n",
-                   t, prev_outputs[0], prev_outputs[1], prev_outputs[2]);
-
-            float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
-            printf("[RNNLayer DebugLog] inputs at timestep %d: %f, %f, %f\n",
-                   t, inputs[0], inputs[1], inputs[2]);
-        }
-#endif
-    }
+    
+    MTL::Buffer* getParameterBuffer() const override;
+    MTL::Buffer* getGradientBuffer() const override;
+    uint32_t parameterCount() const override;
+    
+    void debugLog() override;
     
 
 private:
@@ -91,6 +71,7 @@ private:
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
     
+    MTL::Buffer* bufferWeightGradients_;
     MTL::Buffer* bufferW_xh_;
     MTL::Buffer* bufferW_hh_;
     MTL::Buffer* bufferBias_;
@@ -98,7 +79,6 @@ private:
 
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
-    
 
 
     MTL::Buffer* zeroBuffer_; // CHANGED: holds zero for next_hidden_error boundary

@@ -299,6 +299,34 @@ kernel void backward_batch_norm(
     beta[tid] -= 0.001f * outputError[tid];
 }
 
+// The Adam optimizer kernel
+kernel void adam_kernel(device float* params          [[buffer(0)]],
+                        device const float* grads     [[buffer(1)]],
+                        device float* m               [[buffer(2)]],
+                        device float* v               [[buffer(3)]],
+                        constant uint& timestep       [[buffer(4)]],
+                        constant float& learning_rate [[buffer(5)]],
+                        constant float& beta1         [[buffer(6)]],
+                        constant float& beta2         [[buffer(7)]],
+                        constant float& epsilon       [[buffer(8)]],
+                        uint index                    [[thread_position_in_grid]])
+{
+    float grad = grads[index];
+
+    // Update first moment estimate
+    m[index] = beta1 * m[index] + (1.0 - beta1) * grad;
+
+    // Update second moment estimate
+    v[index] = beta2 * v[index] + (1.0 - beta2) * grad * grad;
+
+    // Compute bias-corrected estimates
+    float m_hat = m[index] / (1.0 - pow(beta1, timestep));
+    float v_hat = v[index] / (1.0 - pow(beta2, timestep));
+
+    // Update parameter
+    params[index] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
+}
+
 )";
 
 } // namespace multilayerkernels
