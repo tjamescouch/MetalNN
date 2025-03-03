@@ -7,7 +7,7 @@
 
 DenseLayer::DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activation)
 : inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(1), activation_(activation),
-bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr),
+bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr), bufferWeightGradients_(nullptr),
 forwardPipelineState_(nullptr), backwardPipelineState_(nullptr)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
@@ -49,14 +49,20 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     
     forwardFunc->release();
     backwardFunc->release();
+    
+    buildAdamPipeline(device, library);
 }
 
 #include "weight-initializer.h"
 
 void DenseLayer::buildBuffers(MTL::Device* device) {
     const float decay = 1.0f;
+    const int numWeights = inputDim_ * outputDim_;
+    const int weightBufferSize = numWeights * sizeof(float);
     
-    bufferWeights_ = device->newBuffer(inputDim_ * outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    bufferWeightGradients_ = device->newBuffer(weightBufferSize, MTL::ResourceStorageModeShared);
+    
+    bufferWeights_ = device->newBuffer(weightBufferSize, MTL::ResourceStorageModeManaged);
     float* w = static_cast<float*>(bufferWeights_->contents());
     WeightInitializer::initializeXavier(w, inputDim_, outputDim_);
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
@@ -80,29 +86,29 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::Debug].resize(sequenceLength_);
     
     
-    for (int t = 0; t < sequenceLength_; ++t) {
-        outputBuffers_[BufferType::Delta][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-        outputBuffers_[BufferType::Delta][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Delta][t]->length()));
-    }
+    int t = 0;
     
-    for (int t = 0; t < sequenceLength_; ++t) {
-        
-        outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-        outputBuffers_[BufferType::Output][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-        
-        outputBuffers_[BufferType::Debug][t]   = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-        inputBuffers_[BufferType::Targets][t]  = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-        
-        memset(outputBuffers_[BufferType::Output][t]->contents(), 0, outputDim_ * sizeof(float));
-        memset(inputBuffers_[BufferType::Targets][t]->contents(), 0, outputDim_ * sizeof(float));
-        memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, outputDim_ * sizeof(float));
-        memset(outputBuffers_[BufferType::Debug][t]->contents(), 0, outputDim_ * sizeof(float));
-        
-        inputBuffers_[BufferType::Targets][t]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][t]->length()));
-        outputBuffers_[BufferType::Output][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Output][t]->length()));
-        outputBuffers_[BufferType::OutputErrors][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][t]->length()));
-        outputBuffers_[BufferType::Debug][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Debug][t]->length()));
-    }
+    outputBuffers_[BufferType::Delta][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    outputBuffers_[BufferType::Delta][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Delta][t]->length()));
+
+    
+    outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    outputBuffers_[BufferType::Output][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    
+    outputBuffers_[BufferType::Debug][t]   = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    inputBuffers_[BufferType::Targets][t]  = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    
+    memset(outputBuffers_[BufferType::Output][t]->contents(), 0, outputDim_ * sizeof(float));
+    memset(inputBuffers_[BufferType::Targets][t]->contents(), 0, outputDim_ * sizeof(float));
+    memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, outputDim_ * sizeof(float));
+    memset(outputBuffers_[BufferType::Debug][t]->contents(), 0, outputDim_ * sizeof(float));
+    
+    inputBuffers_[BufferType::Targets][t]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][t]->length()));
+    outputBuffers_[BufferType::Output][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Output][t]->length()));
+    outputBuffers_[BufferType::OutputErrors][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][t]->length()));
+    outputBuffers_[BufferType::Debug][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Debug][t]->length()));
+
+    buildAdamBuffers(device, weightBufferSize);
 }
 void DenseLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
     assert(timestep == 0);
@@ -261,4 +267,41 @@ void DenseLayer::loadParameters(std::istream& is) {
     
     is.read(reinterpret_cast<char*>(bufferDecay_->contents()), bufferDecay_->length());
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
+}
+
+void DenseLayer::debugLog() {
+#ifdef DEBUG_DENSE_LAYER
+    for (int t = 0; t < sequenceLength_; ++t) {
+        float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
+        printf("[DenseLayer Input Debug] timestep %d: %f, %f, %f\n",
+               t, inputs[0], inputs[1], inputs[2]);
+
+        float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
+        printf("[DenseLayer Output Debug] timestep %d: %f, %f, %f\n",
+               t, outputs[0], outputs[1], outputs[2]);
+    }
+    
+    float* weights = static_cast<float*>(bufferWeights_->contents());
+    printf("[DenseLayer DebugLog] Weights sample: %f, %f, %f\n", weights[0], weights[1], weights[2]);
+    
+    // Optionally log biases or other important states:
+    float* biases = static_cast<float*>(bufferBias_->contents());
+    printf("[DenseLayer DebugLog] Biases sample: %f, %f, %f\n", biases[0], biases[1], biases[2]);
+    
+    float* decay = static_cast<float*>(bufferDecay_->contents());
+    printf("[DenseLayer DebugLog] Decay factor: %f\n", *decay);
+    
+#endif
+}
+
+MTL::Buffer* DenseLayer::getParameterBuffer() const {
+    return bufferWeights_;
+}
+
+MTL::Buffer* DenseLayer::getGradientBuffer() const {
+    return bufferWeightGradients_;
+}
+
+uint32_t DenseLayer::parameterCount() const {
+    return inputDim_ * outputDim_;
 }

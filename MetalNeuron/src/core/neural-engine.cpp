@@ -244,53 +244,51 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
         _pLogger->logCrossEntropyLoss(_pDataSourceManager->y.get_data_buffer_at(0), outputData, 10); //FIXME - hardcoded output dimension
     }
 }
-
 void NeuralEngine::computeBackward(std::function<void()> onComplete) {
     if (!areBuffersBuilt || currentlyComputing) return;
     currentlyComputing = true;
-    
+
     auto cmdBuf = _pCommandQueue->commandBuffer();
-    for (auto it = dynamicLayers_.rbegin(); it != dynamicLayers_.rend(); ++it)
-        (*it)->backward(cmdBuf);
     
+    // Encode backward pass for each layer
+    for (auto it = dynamicLayers_.rbegin(); it != dynamicLayers_.rend(); ++it) {
+        (*it)->backward(cmdBuf);
+    }
+
+    // Encode Adam optimizer step for optimizable layers
+    auto encoder = cmdBuf->computeCommandEncoder();
+    for (auto& layer : dynamicLayers_) {
+        auto* optimizable = dynamic_cast<OptimizableLayer*>(layer);
+        if (optimizable) {
+            optimizable->encodeAdamKernel(encoder,
+                                          optimizable->getParameterBuffer(),
+                                          optimizable->getGradientBuffer(),
+                                          optimizable->parameterCount());
+        }
+    }
+    encoder->endEncoding();
+
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
-        
+
         _pInputLayer->onBackwardComplete();
         for (auto& layer : dynamicLayers_) {
             layer->onBackwardComplete();
         }
-        
+
 #ifdef DEBUG_NETWORK
         _pInputLayer->debugLog();
         for (auto& layer : dynamicLayers_) {
             layer->debugLog();
         }
 #endif
-        
+
         onComplete();
     });
-    
+
     cmdBuf->commit();
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
-}
-
-
-void NeuralEngine::shiftBuffers() {
-    for (int t = 0; t < _pInputLayer->getSequenceLength() - 1; ++t) {
-        memcpy(
-               _pInputLayer->getOutputBufferAt(BufferType::Output, t)->contents(),
-               _pInputLayer->getOutputBufferAt(BufferType::Output, t + 1)->contents(),
-               input_dim * sizeof(float)
-               );
-        
-        memcpy(
-               _pDataSourceManager->y.get_data_buffer_at(t),
-               _pDataSourceManager->y.get_data_buffer_at(t + 1),
-               output_dim * sizeof(float)
-               );
-    }
 }
 
 void NeuralEngine::computeBackwardIterations(uint32_t iterations) {
@@ -424,4 +422,20 @@ void NeuralEngine::loadModel(const std::string& filepath) {
 
     file.close();
     std::cout << "✅ Model parameters loaded efficiently (binary) from: " << filepath << std::endl;
+}
+
+void NeuralEngine::shiftBuffers() {
+    for (int t = 0; t < _pInputLayer->getSequenceLength() - 1; ++t) {
+        memcpy(
+               _pInputLayer->getOutputBufferAt(BufferType::Output, t)->contents(),
+               _pInputLayer->getOutputBufferAt(BufferType::Output, t + 1)->contents(),
+               input_dim * sizeof(float)
+               );
+        
+        memcpy(
+               _pDataSourceManager->y.get_data_buffer_at(t),
+               _pDataSourceManager->y.get_data_buffer_at(t + 1),
+               output_dim * sizeof(float)
+               );
+    }
 }

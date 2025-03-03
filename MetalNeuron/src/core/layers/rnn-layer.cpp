@@ -10,6 +10,7 @@ RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFu
 : inputDim_(inputDim),
 hiddenDim_(hiddenDim),
 sequenceLength_(sequenceLength),
+bufferWeightGradients_(nullptr),
 bufferW_xh_(nullptr),
 bufferW_hh_(nullptr),
 bufferBias_(nullptr),
@@ -48,6 +49,11 @@ RNNLayer::~RNNLayer() {
 
 void RNNLayer::buildBuffers(MTL::Device* device) {
     float decay = 1.0f;
+    const int numWeights = inputDim_ * hiddenDim_;
+    const int weightBufferSize = numWeights * sizeof(float);
+    
+    bufferWeightGradients_ = device->newBuffer(weightBufferSize, MTL::ResourceStorageModeShared);
+    
     
     // Allocate weight buffer: W_xh (inputDim x hiddenDim)
     bufferW_xh_ = device->newBuffer(inputDim_ * hiddenDim_ * sizeof(float),
@@ -104,8 +110,11 @@ void RNNLayer::buildBuffers(MTL::Device* device) {
         
         inputBuffers_[BufferType::Input][t] = nullptr;
     }
+    
     zeroBuffer_ = device->newBuffer(hiddenDim_ * sizeof(float),
                                     MTL::ResourceStorageModeManaged);
+    
+    buildAdamBuffers(device, weightBufferSize);
 }
 
 void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
@@ -208,6 +217,8 @@ void RNNLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
         assert(false);
     }
     backwardFunction->release();
+    
+    buildAdamPipeline(device, library);
 }
 
 void RNNLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
@@ -331,13 +342,54 @@ void RNNLayer::saveParameters(std::ostream& os) const {
 void RNNLayer::loadParameters(std::istream& is) {
     is.read(reinterpret_cast<char*>(bufferW_xh_->contents()), bufferW_xh_->length());
     bufferW_xh_->didModifyRange(NS::Range(0, bufferW_xh_->length()));
-
+    
     is.read(reinterpret_cast<char*>(bufferW_hh_->contents()), bufferW_hh_->length());
     bufferW_hh_->didModifyRange(NS::Range(0, bufferW_hh_->length()));
-
+    
     is.read(reinterpret_cast<char*>(bufferBias_->contents()), bufferBias_->length());
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
     
     is.read(reinterpret_cast<char*>(bufferDecay_->contents()), bufferDecay_->length());
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
+}
+
+void RNNLayer::debugLog() {
+#ifdef DEBUG_RNN_LAYER
+    float* weights = static_cast<float*>(bufferW_xh_->contents());
+    printf("[RNNLayer DebugLog] bufferW_xh_ sample: %f, %f, %f\n", weights[0], weights[1], weights[2]);
+    
+    float* weights2 = static_cast<float*>(bufferW_hh_->contents());
+    printf("[RNNLayer DebugLog] bufferW_hh_ sample: %f, %f, %f\n", weights2[0], weights2[1], weights2[2]);
+    
+    // Optionally log biases or other important states:
+    float* biases = static_cast<float*>(bufferBias_->contents());
+    printf("[RNNLayer DebugLog] bufferBias_ sample: %f, %f, %f\n", biases[0], biases[1], biases[2]);
+    
+    for (int t = 0; t < sequenceLength_; t++) {
+        float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
+        printf("[RNNLayer DebugLog] outputs at timestep %d: %f, %f, %f\n",
+               t, outputs[0], outputs[1], outputs[2]);
+        
+        float* prev_outputs = static_cast<float*>(inputBuffers_[BufferType::PrevHiddenState][t]->contents());
+        printf("[RNNLayer DebugLog] prev outputs at timestep %d: %f, %f, %f\n",
+               t, prev_outputs[0], prev_outputs[1], prev_outputs[2]);
+        
+        float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
+        printf("[RNNLayer DebugLog] inputs at timestep %d: %f, %f, %f\n",
+               t, inputs[0], inputs[1], inputs[2]);
+    }
+#endif
+}
+
+
+MTL::Buffer* RNNLayer::getParameterBuffer() const {
+    return bufferW_xh_;
+}
+
+MTL::Buffer* RNNLayer::getGradientBuffer() const {
+    return bufferWeightGradients_;
+}
+
+uint32_t RNNLayer::parameterCount() const {
+    return inputDim_ * hiddenDim_;
 }
