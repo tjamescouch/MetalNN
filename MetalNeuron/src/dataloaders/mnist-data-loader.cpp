@@ -49,11 +49,11 @@ int MNISTDataLoader::outputDim() const {
     return 10; // Digits 0-9
 }
 
-const std::vector<float>& MNISTDataLoader::inputAt(int index) const {
+const std::vector<float>& MNISTDataLoader::inputAt(int index) {
     return inputs_[index];
 }
 
-const std::vector<float>& MNISTDataLoader::targetAt(int index) const {
+const std::vector<float>& MNISTDataLoader::targetAt(int index) {
     return targets_[index];
 }
 

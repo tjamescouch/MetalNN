@@ -15,8 +15,8 @@ public:
     int inputDim() const override;
     int outputDim() const override;
 
-    const std::vector<float>& inputAt(int index) const override;
-    const std::vector<float>& targetAt(int index) const override;
+    const std::vector<float>& inputAt(int index) override;
+    const std::vector<float>& targetAt(int index) override;
 
 private:
     void loadImages(const std::string& imagesPath);

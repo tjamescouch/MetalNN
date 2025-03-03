@@ -19,8 +19,8 @@ public:
     virtual int inputDim() const = 0;
     virtual int outputDim() const = 0;
 
-    virtual const std::vector<float>& inputAt(int index) const = 0;
-    virtual const std::vector<float>& targetAt(int index) const = 0;
+    virtual const std::vector<float>& inputAt(int index) = 0;
+    virtual const std::vector<float>& targetAt(int index) = 0;
 };
 
 #endif // DATASET_H
