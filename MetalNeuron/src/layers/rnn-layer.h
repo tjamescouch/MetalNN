@@ -15,10 +15,10 @@ class RNNLayer : public Layer {
 public:
     RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation);
     ~RNNLayer();
-
+    
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
     void buildBuffers(MTL::Device* device) override;
-
+    
     void forward(MTL::CommandBuffer* cmdBuf) override;
     void backward(MTL::CommandBuffer* cmdBuf) override;
     
@@ -37,7 +37,7 @@ public:
     
     int outputSize() const override;
     void updateTargetBufferAt(DataSource& targetData, int timestep) override;
-
+    
     void shiftHiddenStates();
     
     void onForwardComplete() override {
@@ -47,6 +47,9 @@ public:
     void onBackwardComplete() override {
         shiftHiddenStates();
     };
+    
+    void saveParameters(std::ostream& os) const;
+    void loadParameters(std::istream& is);
     
     void debugLog() override {
 #ifdef DEBUG_RNN_LAYER
@@ -84,6 +87,10 @@ private:
     
     ActivationFunction activation_;
 
+    // Explicit mapping of BufferType to buffer arrays
+    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
+    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
+    
     MTL::Buffer* bufferW_xh_;
     MTL::Buffer* bufferW_hh_;
     MTL::Buffer* bufferBias_;
@@ -92,9 +99,7 @@ private:
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
     
-    // Explicit mapping of BufferType to buffer arrays
-    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
-    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
+
 
     MTL::Buffer* zeroBuffer_; // CHANGED: holds zero for next_hidden_error boundary
 };

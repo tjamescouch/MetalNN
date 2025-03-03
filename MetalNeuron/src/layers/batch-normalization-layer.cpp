@@ -196,3 +196,24 @@ void BatchNormalizationLayer::setParameterAt(int index, float value) {
 float BatchNormalizationLayer::getGradientAt(int index) const {
     return 0.0f;
 }
+
+void BatchNormalizationLayer::saveParameters(std::ostream& os) const {
+    os.write(reinterpret_cast<const char*>(bufferGamma_->contents()), bufferGamma_->length());
+    os.write(reinterpret_cast<const char*>(bufferBeta_->contents()), bufferBeta_->length());
+    os.write(reinterpret_cast<const char*>(bufferRunningMean_->contents()), bufferRunningMean_->length());
+    os.write(reinterpret_cast<const char*>(bufferRunningVariance_->contents()), bufferRunningVariance_->length());
+}
+
+void BatchNormalizationLayer::loadParameters(std::istream& is) {
+    is.read(reinterpret_cast<char*>(bufferGamma_->contents()), bufferGamma_->length());
+    bufferGamma_->didModifyRange(NS::Range(0, bufferGamma_->length()));
+
+    is.read(reinterpret_cast<char*>(bufferBeta_->contents()), bufferBeta_->length());
+    bufferBeta_->didModifyRange(NS::Range(0, bufferBeta_->length()));
+
+    is.read(reinterpret_cast<char*>(bufferRunningMean_->contents()), bufferRunningMean_->length());
+    bufferRunningMean_->didModifyRange(NS::Range(0, bufferRunningMean_->length()));
+
+    is.read(reinterpret_cast<char*>(bufferRunningVariance_->contents()), bufferRunningVariance_->length());
+    bufferRunningVariance_->didModifyRange(NS::Range(0, bufferRunningVariance_->length()));
+}

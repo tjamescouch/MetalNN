@@ -176,3 +176,11 @@ void DropoutLayer::setParameterAt(int index, float value) {
 float DropoutLayer::getGradientAt(int index) const {
     return 0.0f;
 }
+
+void DropoutLayer::saveParameters(std::ostream& os) const {
+    // No parameters to save
+}
+
+void DropoutLayer::loadParameters(std::istream& is) {
+    // No parameters to load
+}

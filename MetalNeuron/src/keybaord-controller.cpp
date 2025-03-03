@@ -4,8 +4,8 @@
 //
 //  Created by James Couch on 2025-02-26.
 //
-
 #include "keyboard-controller.h"
+
 
 KeyboardController::KeyboardController() {
 }
@@ -22,22 +22,34 @@ void KeyboardController::keyPress(KeyPress* kp) {
 }
 
 void KeyboardController::handleKeyStateChange() {
-    // Check for key code 9 ('F') to trigger the forward pass.
+    // F
     auto it = keyState.find(9);
     if (it != keyState.end() && it->second && forwardCallback) {
         forwardCallback();
     }
     
-    // Check for key code 15 ('L') to trigger learning.
+    // L
     it = keyState.find(15);
     if (it != keyState.end() && it->second && learnCallback) {
         learnCallback();
     }
     
-    // Check for key code 6 ('C') to trigger clearing.
+    // C
     it = keyState.find(6);
     if (it != keyState.end() && it->second && clearCallback) {
         clearCallback();
+    }
+    
+    // S
+    it = keyState.find(22);
+    if (it != keyState.end() && it->second && clearCallback) {
+        saveCallback();
+    }
+    
+    // O
+    it = keyState.find(18);
+    if (it != keyState.end() && it->second && clearCallback) {
+        loadCallback();
     }
 }
 
@@ -51,4 +63,12 @@ void KeyboardController::setLearnCallback(std::function<void()> callback) {
 
 void KeyboardController::setClearCallback(std::function<void()> callback) {
     clearCallback = callback;
+}
+
+void KeyboardController::setSaveCallback(std::function<void()> callback) {
+    saveCallback = callback;
+}
+
+void KeyboardController::setLoadCallback(std::function<void()> callback) {
+    loadCallback = callback;
 }

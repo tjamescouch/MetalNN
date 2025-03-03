@@ -1,11 +1,13 @@
 #include <iostream>
 #include <cassert>
 #include <random>
+#include <fstream>
 
 #include "neural-engine.h"
 #include "multi-layer-kernels.h"
 #include "dropout-layer.h"
 #include "dataloaders/mnist-data-loader.h"
+
 
 #ifdef DEBUG_GRADIENT_CHECKS
 #include "debug/gradient-checker.h"
@@ -60,6 +62,15 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config)
     _pKeyboardController->setClearCallback([this]() {
         _pLogger->clear();
     });
+    
+    _pKeyboardController->setSaveCallback([this]() {
+        saveModel("./model.bin");
+    });
+    
+    _pKeyboardController->setLoadCallback([this]() {
+        loadModel("./model.bin");
+    });
+    
     
     _semaphore = dispatch_semaphore_create(kMaxFramesInFlight);
     
@@ -439,4 +450,34 @@ void NeuralEngine::computeBackwardSync() {
 
 void NeuralEngine::initializeWithDataset(Dataset* dataset) {
     _pDataSourceManager = new DataSourceManager(dataset);
+}
+
+
+void NeuralEngine::saveModel(const std::string& filepath) {
+    std::ofstream file(filepath, std::ios::binary);
+
+    size_t layerCount = dynamicLayers_.size();
+    file.write(reinterpret_cast<const char*>(&layerCount), sizeof(layerCount));
+
+    for (Layer* layer : dynamicLayers_) {
+        layer->saveParameters(file);
+    }
+
+    file.close();
+    std::cout << "✅ Model parameters saved efficiently (binary) to: " << filepath << std::endl;
+}
+
+void NeuralEngine::loadModel(const std::string& filepath) {
+    std::ifstream file(filepath, std::ios::binary);
+
+    int layerCount = 0;
+    file.read(reinterpret_cast<char*>(&layerCount), sizeof(layerCount));
+    assert(layerCount == dynamicLayers_.size() && "Layer count mismatch!");
+
+    for (Layer* layer : dynamicLayers_) {
+        layer->loadParameters(file);
+    }
+
+    file.close();
+    std::cout << "✅ Model parameters loaded efficiently (binary) from: " << filepath << std::endl;
 }

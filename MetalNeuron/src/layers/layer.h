@@ -73,6 +73,9 @@ public:
     virtual void debugLog() = 0;
     virtual void onForwardComplete() = 0;
     virtual void onBackwardComplete() = 0;
+    
+    virtual void saveParameters(std::ostream& os) const = 0;
+    virtual void loadParameters(std::istream& is) = 0;
 };
 
 #endif // LAYER_H

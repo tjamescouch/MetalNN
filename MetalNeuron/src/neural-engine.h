@@ -48,6 +48,9 @@ public:
     
     void initializeWithDataset(Dataset* dataset);
     
+    void saveModel(const std::string& filepath);
+    void loadModel(const std::string& filepath);
+    
     
     static constexpr int kMaxFramesInFlight = 3;
     std::vector<Layer*> dynamicLayers_;
