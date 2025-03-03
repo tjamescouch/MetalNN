@@ -5,6 +5,7 @@
 #include "rnn-layer.h"
 #include "common.h"
 #include "weight-initializer.h"
+#include "adam-optimizer.h"
 
 RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation)
 : inputDim_(inputDim),
@@ -114,7 +115,10 @@ void RNNLayer::buildBuffers(MTL::Device* device) {
     zeroBuffer_ = device->newBuffer(hiddenDim_ * sizeof(float),
                                     MTL::ResourceStorageModeManaged);
     
-    buildAdamBuffers(device, weightBufferSize);
+    optimizerInput_->buildBuffers(device, inputDim_ * hiddenDim_ * sizeof(float));
+    optimizerHidden_->buildBuffers(device, hiddenDim_ * hiddenDim_ * sizeof(float));
+    optimizerBias_->buildBuffers(device, hiddenDim_ * sizeof(float));
+
 }
 
 void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
@@ -218,7 +222,13 @@ void RNNLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     }
     backwardFunction->release();
     
-    buildAdamPipeline(device, library);
+    optimizerInput_ = std::make_unique<AdamOptimizer>(0.001f, 0.9f, 0.999f, 1e-8f);
+    optimizerHidden_ = std::make_unique<AdamOptimizer>(0.001f, 0.9f, 0.999f, 1e-8f);
+    optimizerBias_ = std::make_unique<AdamOptimizer>(0.001f, 0.9f, 0.999f, 1e-8f);
+
+    optimizerInput_->buildPipeline(device, library);
+    optimizerHidden_->buildPipeline(device, library);
+    optimizerBias_->buildPipeline(device, library);
 }
 
 void RNNLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
@@ -382,14 +392,15 @@ void RNNLayer::debugLog() {
 }
 
 
-MTL::Buffer* RNNLayer::getParameterBuffer() const {
-    return bufferW_xh_;
-}
+void RNNLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue) {
+    auto cmdBuf = _pCommandQueue->commandBuffer();
+    auto encoder = cmdBuf->computeCommandEncoder();
 
-MTL::Buffer* RNNLayer::getGradientBuffer() const {
-    return bufferWeightGradients_;
-}
+    optimizerInput_->encode(encoder, bufferW_xh_, inputDim_ * hiddenDim_);
+    optimizerHidden_->encode(encoder, bufferW_hh_, hiddenDim_ * hiddenDim_);
+    optimizerBias_->encode(encoder, bufferBias_, hiddenDim_);
 
-uint32_t RNNLayer::parameterCount() const {
-    return inputDim_ * hiddenDim_;
+    encoder->endEncoding();
+
+    shiftHiddenStates();
 }

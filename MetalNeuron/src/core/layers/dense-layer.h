@@ -2,7 +2,6 @@
 #define DENSE_LAYER_H
 
 #include "layer.h"
-#include "optimizable-layer.h"
 #include "input-layer.h"
 #include "data-source.h"
 #include <Metal/Metal.hpp>
@@ -10,7 +9,7 @@
 
 
 
-class DenseLayer : public Layer, public OptimizableLayer {
+class DenseLayer : public Layer {
 public:
     DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activationFunction);
     ~DenseLayer();
@@ -41,16 +40,13 @@ public:
     float getGradientAt(int index) const override;
     
     void onForwardComplete() override {};
-    void onBackwardComplete() override {};
+    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue) override;
     
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;
     
     void debugLog() override;
     
-    MTL::Buffer* getParameterBuffer() const override;
-    MTL::Buffer* getGradientBuffer() const override;
-    uint32_t parameterCount() const override;
     
 private:
     int inputDim_;
@@ -59,7 +55,6 @@ private:
     
     ActivationFunction activation_;
     
-    MTL::Buffer* bufferWeightGradients_;
     MTL::Buffer* bufferWeights_;
     MTL::Buffer* bufferBias_;
     MTL::Buffer* bufferDecay_;
@@ -71,7 +66,8 @@ private:
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
     
-
+    std::unique_ptr<Optimizer> optimizerWeights_;
+    std::unique_ptr<Optimizer> optimizerBiases_;
 };
 
 #endif // DENSE_LAYER_H
