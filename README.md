@@ -55,6 +55,7 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 - [x] Allow for saving and restoring parameters
 - [ ] Specify the input layer in the model configuration yaml
 - [ ] Create library of working model configuratikons
+- [ ] Fix convergence issues.
 - [x] Implement classification using MNIST dataset
 
 ### Medium-term Goals:
