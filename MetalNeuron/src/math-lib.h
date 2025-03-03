@@ -119,6 +119,16 @@ inline float fastExpf(float x)
     return fastExp2(1.442695f * x);
 }
 
+
+
+inline double inputFunc(double index, double timestep) {
+    return sin(0.05 * index + 0.1 * timestep);
+}
+
+inline double targetFunc(double index, double timestep) {
+    return cos(0.05 * index + 0.1 * timestep);
+}
+
 }
 
 #endif

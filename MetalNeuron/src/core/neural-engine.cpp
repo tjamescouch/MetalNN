@@ -17,13 +17,6 @@
 const char* outputFileName = "multilayer_nn_training.m";
 
 
-double inputFunc(double index, double timestep) {
-    return sin(0.05 * index + 0.1 * timestep);
-}
-
-double targetFunc(double index, double timestep) {
-    return cos(0.05 * index + 0.1 * timestep);
-}
 
 ActivationFunction parseActivation(const std::string& activation) {
     if (activation == "linear") return ActivationFunction::Linear;
@@ -41,7 +34,6 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config, Data
 : _pDevice(pDevice->retain()),
   areBuffersBuilt(false),
   currentlyComputing(false),
-  globalTimestep(0),
   _pDataManager(pDataManager),
   _pDataSourceManager(pDataManager->getDataSourceManager()),
   _pInputLayer(nullptr)
@@ -329,7 +321,6 @@ void NeuralEngine::computeBackwardIterations(uint32_t iterations) {
 
     computeForward([this, iterations]() {
         computeBackward([this, iterations]() {
-            globalTimestep++;
             computeBackwardIterations(iterations - 1);
         });
     });
@@ -381,7 +372,6 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
         }
 #endif
         
-        globalTimestep++;
         computeForwardIterations(iterations - 1);
     });
 }

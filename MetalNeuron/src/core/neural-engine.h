@@ -79,7 +79,6 @@ private:
     bool currentlyComputing;
     dispatch_semaphore_t _semaphore;
     
-    int globalTimestep; // Controls the time offset for generating new data
     int batch_size;
     int epochs;
     std::string dataset_type = "function";

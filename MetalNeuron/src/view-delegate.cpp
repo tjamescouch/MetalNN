@@ -11,8 +11,10 @@
 #include <filesystem>
 #include <mach-o/dyld.h>
 #include "mnist-data-loader.h"
+#include "function-dataset.h"
+#include "math-lib.h"
 
-const char* defaultModelFilePath = "ocr.yml";
+const char* defaultModelFilePath = "simple-dense-layer.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {
@@ -32,8 +34,10 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice)
             config.dataset.images,
             config.dataset.labels
         );
+    } else if (config.dataset.type == "function") {
+        dataset = new FunctionDataset(mathlib::inputFunc, mathlib::targetFunc, 512, 512); //FIXME - hardcoded input dimensions
     } else {
-        throw std::runtime_error("Unsupported dataset type");
+        throw std::runtime_error("Unsupported dataset type: " + config.dataset.type);
     }
 
     _pDataManager = new DataManager(dataset, config.first_layer_time_steps);
