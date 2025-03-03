@@ -11,6 +11,7 @@
 #include <random>
 #include <cstring>
 #include <iostream>
+#include "training-manager.h"
 
 BatchNormalizationLayer::BatchNormalizationLayer(int featureDim, int _unused, float epsilon)
 : featureDim_(featureDim),
@@ -94,7 +95,7 @@ void BatchNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* l
 }
 
 void BatchNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf) {
-    bool isTraining = true; // Set accordingly or maintain a class-level state if dynamic.
+    bool isTraining = TrainingManager::instance().isTraining();
     
     for(int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();

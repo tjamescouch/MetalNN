@@ -1,6 +1,10 @@
 name: "Simple Classification"
 
 layers:
+  - type: BatchNormalization
+    input_size: 128
+    output_size: 128
+    
   - type: Dense
     input_size: 128
     output_size: 128
@@ -27,8 +31,8 @@ training:
       beta1: 0.9
       beta2: 0.999
 
-  epochs: 50
-  batch_size: 320
+  epochs: 1
+  batch_size: 100000
   
 dataset:
   type: "mnist"

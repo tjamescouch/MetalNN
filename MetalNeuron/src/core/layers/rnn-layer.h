@@ -2,7 +2,7 @@
 #define RNNLAYER_H
 
 #include "layer.h"
-#include "optimizable-layer.h"
+#include "optimizer.h"
 #include <vector>
 
 namespace MTL {
@@ -12,7 +12,7 @@ namespace MTL {
     class CommandBuffer;
 }
 
-class RNNLayer : public Layer, public OptimizableLayer {
+class RNNLayer : public Layer {
 public:
     RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation);
     ~RNNLayer();
@@ -45,17 +45,11 @@ public:
         shiftHiddenStates();
     };
     
-    void onBackwardComplete() override {
-        shiftHiddenStates();
-    };
+    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue) override;
     
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;
     
-    
-    MTL::Buffer* getParameterBuffer() const override;
-    MTL::Buffer* getGradientBuffer() const override;
-    uint32_t parameterCount() const override;
     
     void debugLog() override;
     
@@ -72,6 +66,15 @@ private:
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
     
     MTL::Buffer* bufferWeightGradients_;
+    
+    // Adam buffers for W_xh (input-to-hidden)
+    MTL::Buffer* bufferM_xh_;
+    MTL::Buffer* bufferV_xh_;
+
+    // Adam buffers for W_hh (hidden-to-hidden)
+    MTL::Buffer* bufferM_hh_;
+    MTL::Buffer* bufferV_hh_;
+    
     MTL::Buffer* bufferW_xh_;
     MTL::Buffer* bufferW_hh_;
     MTL::Buffer* bufferBias_;
@@ -80,8 +83,12 @@ private:
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
 
+    // Optimizers for different parameter matrices
+    std::unique_ptr<Optimizer> optimizerInput_;
+    std::unique_ptr<Optimizer> optimizerHidden_;
+    std::unique_ptr<Optimizer> optimizerBias_;
 
-    MTL::Buffer* zeroBuffer_; // CHANGED: holds zero for next_hidden_error boundary
+    MTL::Buffer* zeroBuffer_;
 };
 
 #endif

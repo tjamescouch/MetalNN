@@ -7,6 +7,7 @@
 #include "multi-layer-kernels.h"
 #include "dropout-layer.h"
 #include "mnist-data-loader.h"
+#include "training-manager.h"
 
 
 #ifdef DEBUG_GRADIENT_CHECKS
@@ -51,10 +52,12 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config, Data
     _pKeyboardController = new KeyboardController();
     _pKeyboardController->setForwardCallback([this]() {
         _pLogger->clear();
+        TrainingManager::instance().setTraining(true);
         computeForwardIterations(batch_size);
     });
     _pKeyboardController->setLearnCallback([this]() {
         _pLogger->clear();
+        TrainingManager::instance().setTraining(false);
         computeBackwardIterations(batch_size);
     });
     _pKeyboardController->setClearCallback([this]() {
@@ -255,26 +258,14 @@ void NeuralEngine::computeBackward(std::function<void()> onComplete) {
         (*it)->backward(cmdBuf);
     }
 
-    // Encode Adam optimizer step for optimizable layers
-    auto encoder = cmdBuf->computeCommandEncoder();
-    for (auto& layer : dynamicLayers_) {
-        auto* optimizable = dynamic_cast<OptimizableLayer*>(layer);
-        if (optimizable) {
-            optimizable->encodeAdamKernel(encoder,
-                                          optimizable->getParameterBuffer(),
-                                          optimizable->getGradientBuffer(),
-                                          optimizable->parameterCount());
-        }
-    }
-    encoder->endEncoding();
 
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
 
-        _pInputLayer->onBackwardComplete();
+        _pInputLayer->onBackwardComplete(_pCommandQueue);
         for (auto& layer : dynamicLayers_) {
-            layer->onBackwardComplete();
+            layer->onBackwardComplete(_pCommandQueue);
         }
 
 #ifdef DEBUG_NETWORK

@@ -44,7 +44,7 @@ public:
     float getGradientAt(int index) const override;
     
     void onForwardComplete() override {};
-    void onBackwardComplete() override {};
+    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue) override {};
     
     int getSequenceLength();
     

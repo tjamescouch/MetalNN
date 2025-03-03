@@ -1,13 +1,15 @@
-#include "dense-layer.h"
-#include "common.h"
 #include <cstring>
 #include <cassert>
 #include <algorithm>
 #include <iostream>
 
+#include "adam-optimizer.h"
+#include "dense-layer.h"
+#include "common.h"
+
 DenseLayer::DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activation)
 : inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(1), activation_(activation),
-bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr), bufferWeightGradients_(nullptr),
+bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr),
 forwardPipelineState_(nullptr), backwardPipelineState_(nullptr)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
@@ -50,19 +52,23 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     forwardFunc->release();
     backwardFunc->release();
     
-    buildAdamPipeline(device, library);
+    
+    optimizerWeights_ = std::make_unique<AdamOptimizer>(0.001f, 0.9f, 0.999f, 1e-8f);
+    optimizerBiases_ = std::make_unique<AdamOptimizer>(0.001f, 0.9f, 0.999f, 1e-8f);
+    
+    optimizerWeights_->buildPipeline(device, library);
+    optimizerBiases_->buildPipeline(device, library);
 }
 
 #include "weight-initializer.h"
 
 void DenseLayer::buildBuffers(MTL::Device* device) {
     const float decay = 1.0f;
-    const int numWeights = inputDim_ * outputDim_;
-    const int weightBufferSize = numWeights * sizeof(float);
     
-    bufferWeightGradients_ = device->newBuffer(weightBufferSize, MTL::ResourceStorageModeShared);
+    size_t weightSize = inputDim_ * outputDim_ * sizeof(float);
+    size_t biasSize = outputDim_ * sizeof(float);
     
-    bufferWeights_ = device->newBuffer(weightBufferSize, MTL::ResourceStorageModeManaged);
+    bufferWeights_ = device->newBuffer(weightSize, MTL::ResourceStorageModeManaged);
     float* w = static_cast<float*>(bufferWeights_->contents());
     WeightInitializer::initializeXavier(w, inputDim_, outputDim_);
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
@@ -90,7 +96,7 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     
     outputBuffers_[BufferType::Delta][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::Delta][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Delta][t]->length()));
-
+    
     
     outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::Output][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
@@ -107,9 +113,11 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::Output][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Output][t]->length()));
     outputBuffers_[BufferType::OutputErrors][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][t]->length()));
     outputBuffers_[BufferType::Debug][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Debug][t]->length()));
-
-    buildAdamBuffers(device, weightBufferSize);
+    
+    optimizerWeights_->buildBuffers(device, weightSize);
+    optimizerBiases_->buildBuffers(device, biasSize);
 }
+
 void DenseLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
     assert(timestep == 0);
     assert(buffer && "Setting input buffer to NULL");
@@ -169,6 +177,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
     MTL::Size threadsPerThreadgroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
     MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
     encoder->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+    
     encoder->endEncoding();
     
     // Sync buffer contents back to CPU (existing logic preserved)
@@ -224,7 +233,7 @@ int DenseLayer::getParameterCount() const {
 float DenseLayer::getParameterAt(int index) const {
     float* weights = static_cast<float*>(bufferWeights_->contents());
     float* biases = static_cast<float*>(bufferBias_->contents());
-
+    
     if (index < inputDim_ * outputDim_) {
         return weights[index];
     } else {
@@ -235,7 +244,7 @@ float DenseLayer::getParameterAt(int index) const {
 void DenseLayer::setParameterAt(int index, float value) {
     float* weights = static_cast<float*>(bufferWeights_->contents());
     float* biases = static_cast<float*>(bufferBias_->contents());
-
+    
     if (index < inputDim_ * outputDim_) {
         weights[index] = value;
         bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
@@ -247,7 +256,7 @@ void DenseLayer::setParameterAt(int index, float value) {
 
 float DenseLayer::getGradientAt(int index) const {
     float* deltaBuffer = static_cast<float*>(outputBuffers_.at(BufferType::Delta)[0]->contents());
-
+    
     // You will need to have stored gradients explicitly in buffers.
     return deltaBuffer[index];  // Simplified for illustration; adjust accordingly
 }
@@ -261,7 +270,7 @@ void DenseLayer::saveParameters(std::ostream& os) const {
 void DenseLayer::loadParameters(std::istream& is) {
     is.read(reinterpret_cast<char*>(bufferWeights_->contents()), bufferWeights_->length());
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
-
+    
     is.read(reinterpret_cast<char*>(bufferBias_->contents()), bufferBias_->length());
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
     
@@ -275,7 +284,7 @@ void DenseLayer::debugLog() {
         float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
         printf("[DenseLayer Input Debug] timestep %d: %f, %f, %f\n",
                t, inputs[0], inputs[1], inputs[2]);
-
+        
         float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
         printf("[DenseLayer Output Debug] timestep %d: %f, %f, %f\n",
                t, outputs[0], outputs[1], outputs[2]);
@@ -294,14 +303,12 @@ void DenseLayer::debugLog() {
 #endif
 }
 
-MTL::Buffer* DenseLayer::getParameterBuffer() const {
-    return bufferWeights_;
-}
+void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue) {
+    auto cmdBuf = _pCommandQueue->commandBuffer();
+    auto encoder = cmdBuf->computeCommandEncoder();
 
-MTL::Buffer* DenseLayer::getGradientBuffer() const {
-    return bufferWeightGradients_;
-}
+    optimizerWeights_->encode(encoder, bufferWeights_, inputDim_ * outputDim_);
+    optimizerBiases_->encode(encoder, bufferBias_, outputDim_);
 
-uint32_t DenseLayer::parameterCount() const {
-    return inputDim_ * outputDim_;
+    encoder->endEncoding();
 }

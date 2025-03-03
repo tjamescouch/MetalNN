@@ -40,7 +40,7 @@ public:
     float getGradientAt(int index) const override;
     
     void onForwardComplete() override {};
-    void onBackwardComplete() override {};
+    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue) override {};
     
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;
