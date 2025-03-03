@@ -1,6 +1,6 @@
-# MetalNN: Dynamic, GPU-Accelerated RNN using BPTT in Metal 🚀
+# MetalNN: Dynamic, GPU-Accelerated Neural Network Framework in Metal 🚀
 
-This project implements a dynamic, configurable Recurrent Neural Network (RNN) using **Backpropagation Through Time (BPTT)**, accelerated by GPU computing via Apple's Metal Shading Language. It's built to flexibly support complex neural architectures and streamline iterative development.
+This project implements a dynamic, configurable Neural Network framework. Currently supports Recurrent Neural Network (RNN) using **Backpropagation Through Time (BPTT)**, and simple dense layers, accelerated by GPU computing via Apple's Metal Shading Language. It's built to flexibly support complex neural architectures and streamline iterative development.
 
 ---
 
