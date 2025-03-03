@@ -31,8 +31,13 @@ This project implements a dynamic, configurable Neural Network framework. Curren
   - **Training:** Press `L`
   - **Forward Pass:** Press `F`
 
-Visualization of results is possible by executing the output MATLAB script in Octave or MATLAB. e.g.
+Visualization of results is possible by executing the output MATLAB script in Octave or MATLAB.
+
+- Example regression output:
 <img width="579" alt="Screenshot 2025-03-02 at 3 50 40 PM" src="https://github.com/user-attachments/assets/8616c562-ceb4-4ea0-a454-7b8a6fd61904" />
+
+- Example classification output (WIP):
+<img width="567" alt="Screenshot 2025-03-02 at 5 57 26 PM" src="https://github.com/user-attachments/assets/12aa7d74-6c3e-4d4d-9709-bfeb009162a9" />
 
 
 ---
