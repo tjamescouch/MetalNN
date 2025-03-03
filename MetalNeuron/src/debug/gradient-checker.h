@@ -8,8 +8,8 @@
 #ifndef GRADIENT_CHECKER_H
 #define GRADIENT_CHECKER_H
 
-#include "../neural-engine.h"
-#include "../dataloaders/data-source-manager.h"
+#include "neural-engine.h"
+#include "data-source-manager.h"
 
 class GradientChecker {
 public:
