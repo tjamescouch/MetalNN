@@ -37,19 +37,25 @@ ActivationFunction parseActivation(const std::string& activation) {
 std::default_random_engine generator;
 std::uniform_int_distribution<int> distribution(0, 2*M_PI);
 
-NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config)
+NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config, DataManager* pDataManager)
 : _pDevice(pDevice->retain()),
-  areBuffersBuilt(false), currentlyComputing(false),
-  globalTimestep(0), _pDataSourceManager(nullptr),
+  areBuffersBuilt(false),
+  currentlyComputing(false),
+  globalTimestep(0),
+  _pDataManager(pDataManager),
+  _pDataSourceManager(pDataManager->getDataSourceManager()),
   _pInputLayer(nullptr)
 {
     batch_size = config.training.batch_size;
     epochs = config.training.epochs;
-    
+
     dataset_type = config.dataset.type;
-    
+
+    input_dim = _pDataManager->inputDim();
+    output_dim = _pDataManager->outputDim();
+
     _pLogger = new Logger(outputFileName);
-    
+
     _pKeyboardController = new KeyboardController();
     _pKeyboardController->setForwardCallback([this]() {
         _pLogger->clear();
@@ -62,18 +68,17 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config)
     _pKeyboardController->setClearCallback([this]() {
         _pLogger->clear();
     });
-    
+
     _pKeyboardController->setSaveCallback([this]() {
         saveModel("./model.bin");
     });
-    
+
     _pKeyboardController->setLoadCallback([this]() {
         loadModel("./model.bin");
     });
-    
-    
+
     _semaphore = dispatch_semaphore_create(kMaxFramesInFlight);
-    
+
     buildComputePipeline();
     createDynamicLayers(config);
 }
@@ -90,6 +95,7 @@ NeuralEngine::~NeuralEngine() {
     if (_pDevice) _pDevice->release();
 }
 
+
 void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
     // Clear existing layers
     for (auto layer : dynamicLayers_) {
@@ -99,41 +105,16 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
 
     int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
 
-    // Determine dataset type from YAML configuration
-    Dataset* dataset = nullptr;
-
-    if (config.dataset.type == "mnist") {
-        std::string images = config.dataset.images;
-        std::string labels = config.dataset.labels;
-        dataset = new MNISTDataLoader(images, labels);
-    } else if (config.dataset.type == "function") {
-        dataset = nullptr; // Your existing function-based data source
-        // Initialize your existing function-based approach here
-    } else {
-        throw std::runtime_error("❌ Unsupported dataset type: " + config.dataset.type);
-    }
+    input_dim = _pDataManager->inputDim();
+    output_dim = _pDataManager->outputDim();
 
     _pInputLayer = new InputLayer(input_dim, first_layer_time_steps);
-    
-    // Set dimensions from dataset if provided
-    if (dataset) {
-        input_dim = dataset->inputDim();
-        output_dim = dataset->outputDim();
-        _pDataSourceManager = new DataSourceManager(dataset, first_layer_time_steps);
-        _pDataSourceManager->initialize([this, config]() {
-            _pLogger->clear();
-            buildBuffers();
-            connectDynamicLayers(config);
-        });
-    } else {
-        // Use existing initialization for non-dataset cases (function-based)
-        _pDataSourceManager = new DataSourceManager(input_dim, hidden_dim, output_dim, first_layer_time_steps);
-        _pDataSourceManager->initialize([this, config]() {
-            _pLogger->clear();
-            buildBuffers();
-            connectDynamicLayers(config);
-        }, inputFunc, targetFunc);
-    }
+
+    _pDataManager->initialize([this, config]() {
+        _pLogger->clear();
+        buildBuffers();
+        connectDynamicLayers(config);
+    });
 }
 
 void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
@@ -326,26 +307,12 @@ void NeuralEngine::computeBackwardIterations(uint32_t iterations) {
     std::cout << "Backward iterations remaining: " << iterations << std::endl;
     
     shiftBuffers();
-    
+
+    // Load next sample clearly via DataManager
+    _pDataManager->loadNextSample();
+
+    // Update input and target buffers for the current iteration
     int slot = 0;
-    double effectiveTime = distribution(generator);
-    
-    float* inBuffer = _pDataSourceManager->x.get_data_buffer_at(slot);
-    float* tgtBuffer = _pDataSourceManager->y.get_data_buffer_at(slot);
-    
-    if (dataset_type == "function") {
-        for (int i = 0; i < input_dim; ++i)
-            inBuffer[i] = inputFunc(i, effectiveTime);
-        for (int i = 0; i < output_dim; ++i)
-            tgtBuffer[i] = targetFunc(i, effectiveTime);
-    }
-    else {
-        // For MNIST or other dataset types, load samples from dataset directly
-        static int sampleIndex = 0;
-        _pDataSourceManager->loadSample(sampleIndex);
-        sampleIndex = (sampleIndex + 1) % _pDataSourceManager->numSamples();
-    }
-    
     _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
     dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y, slot);
     
@@ -355,8 +322,8 @@ void NeuralEngine::computeBackwardIterations(uint32_t iterations) {
         GradientChecker checker(this, _pDataSourceManager);
         checker.checkLayerGradients(dynamicLayers_[0]); // typically the first hidden layer (DenseLayer)
         std::cout << "After gradient check, iteration: " << iterations << std::endl;
-    } catch (std::exception error) {
-        printf("error: %s", error.what());
+    } catch (std::exception& error) {
+        printf("Gradient check error: %s\n", error.what());
     }
 #endif
 
@@ -386,27 +353,14 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     std::cout << "Forward iterations remaining: " << iterations << std::endl;
     
     shiftBuffers();
-    
-    int slot = 0;
-    int effectiveTime = globalTimestep;
-    
-    float* inBuffer = _pDataSourceManager->x.get_data_buffer_at(slot);
-    float* tgtBuffer = _pDataSourceManager->y.get_data_buffer_at(slot);
 
-    if (dataset_type == "function") {
-        for (int i = 0; i < input_dim; ++i)
-            inBuffer[i] = inputFunc(i, effectiveTime);
-        for (int i = 0; i < output_dim; ++i)
-            tgtBuffer[i] = targetFunc(i, effectiveTime);
-    } else {
-        static int sampleIndex = 0;
-        _pDataSourceManager->loadSample(sampleIndex);
-        sampleIndex = (sampleIndex + 1) % _pDataSourceManager->numSamples();
-    }
-    
+    // Load next sample clearly via DataManager
+    _pDataManager->loadNextSample();
+
+    // Update input and target buffers for the current iteration
+    int slot = 0;
     _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
     dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y, slot);
-    
     
     computeForward([this, iterations]() {
         // Logging outputs clearly to .m file
@@ -414,8 +368,8 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
         std::vector<float*> targets(1);
         
         outputs[0] = static_cast<float*>(
-                                         dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
-                                         );
+            dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
+        );
         targets[0] = _pDataSourceManager->y.get_data_buffer_at(0);
         
 #ifdef GENERATE_MATLAP_OUTPUT

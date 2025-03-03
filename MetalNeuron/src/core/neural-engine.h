@@ -13,6 +13,7 @@
 #include "dense-layer.h"
 #include "batch-normalization-layer.h"
 #include "dataset.h"
+#include "data-manager.h"
 
 
 namespace MTL {
@@ -26,7 +27,7 @@ class Buffer;
 
 class NeuralEngine {
 public:
-    NeuralEngine(MTL::Device* pDevice, const ModelConfig& config);
+    NeuralEngine(MTL::Device* pDevice, const ModelConfig& config, DataManager* pDataManager);
     ~NeuralEngine();
     
     void runInference();
@@ -63,6 +64,7 @@ private:
     DataSourceManager* _pDataSourceManager;
     KeyboardController* _pKeyboardController;
     Logger* _pLogger;
+    DataManager* _pDataManager;
     
     InputLayer* _pInputLayer;
     

@@ -1,7 +1,7 @@
 //
 //  view-delegate.h
 //  LearnMetalCPP
-//n
+//
 //  Created by James Couch on 2024-12-07.
 //
 #ifndef VIEW_DELEGATE_H
@@ -12,6 +12,7 @@
 #include "common.h"
 #include "model/model-config.h"
 #include "neural-engine.h"
+#include "data-manager.h"
 
 class ViewDelegate : public MTK::ViewDelegate {
 public:
@@ -28,7 +29,7 @@ public:
 private:
     MTL::Device* _pDevice;
     NeuralEngine* _pComputer;
+    DataManager* _pDataManager;
 };
-
 
 #endif

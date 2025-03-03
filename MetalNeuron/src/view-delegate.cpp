@@ -10,6 +10,7 @@
 #include <iostream>
 #include <filesystem>
 #include <mach-o/dyld.h>
+#include "mnist-data-loader.h"
 
 const char* defaultModelFilePath = "ocr.yml";
 
@@ -20,34 +21,32 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice)
 : MTK::ViewDelegate()
 , _pDevice(pDevice)
 , _pComputer(nullptr)
+, _pDataManager(nullptr)
 {
-    loadModelFromFile(getDefaultModelFilePath());
+    ModelConfig config = ModelConfig::loadFromFile(getDefaultModelFilePath());
+
+    // Instantiate DataManager first with dataset from config
+    Dataset* dataset = nullptr;
+    if (config.dataset.type == "mnist") {
+        dataset = new MNISTDataLoader(
+            config.dataset.images,
+            config.dataset.labels
+        );
+    } else {
+        throw std::runtime_error("Unsupported dataset type");
+    }
+
+    _pDataManager = new DataManager(dataset, config.first_layer_time_steps);
+
+    // Instantiate NeuralEngine using the updated constructor with DataManager
+    _pComputer = new NeuralEngine(_pDevice, config, _pDataManager);
+
+    std::cout << "✅ NeuralEngine loaded with model: " << config.name << std::endl;
 }
 
 ViewDelegate::~ViewDelegate()
 {
     delete _pComputer;
-}
-
-bool ViewDelegate::loadModelFromFile(const std::string& filePath)
-{
-    try {
-        ModelConfig config = ModelConfig::loadFromFile(filePath);
-
-        if (_pComputer != nullptr) {
-            delete _pComputer; // Clean up existing engine, if any
-        }
-
-        // Instantiate NeuralEngine using your existing constructor
-        _pComputer = new NeuralEngine(_pDevice, config);
-
-        std::cout << "✅ NeuralEngine loaded with model: " << config.name << std::endl;
-        return true;
-    }
-    catch (const std::exception& e) {
-        std::cerr << "❌ Error loading model: " << e.what() << std::endl;
-        return false;
-    }
 }
 
 void ViewDelegate::drawInMTKView(MTK::View* pView)

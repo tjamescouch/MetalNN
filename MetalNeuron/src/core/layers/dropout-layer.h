@@ -43,8 +43,8 @@ public:
     void onForwardComplete() override {};
     void onBackwardComplete() override {};
     
-    void saveParameters(std::ostream& os) const;
-    void loadParameters(std::istream& is);
+    void saveParameters(std::ostream& os) const override;
+    void loadParameters(std::istream& is) override;
     
     void debugLog() override {
 #ifdef DEBUG_DROPOUT_LAYER
