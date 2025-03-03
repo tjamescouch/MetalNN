@@ -41,7 +41,7 @@
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			buildPhase = DF5F23FA2D6A711A00D915B2 /* Sources */;
 			membershipExceptions = (
-				"src/layers/rnn-layer.h",
+				"src/core/layers/rnn-layer.h",
 			);
 		};
 		DFE032AE2D72E9B900B1B6ED /* Exceptions for "MetalNeuron" folder in "Copy Files" phase from "MetalNeuron" target */ = {

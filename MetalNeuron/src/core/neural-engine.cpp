@@ -6,7 +6,7 @@
 #include "neural-engine.h"
 #include "multi-layer-kernels.h"
 #include "dropout-layer.h"
-#include "dataloaders/mnist-data-loader.h"
+#include "mnist-data-loader.h"
 
 
 #ifdef DEBUG_GRADIENT_CHECKS

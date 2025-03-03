@@ -3,7 +3,7 @@
 #include <vector>
 #include <functional>
 
-#include "model/model-config.h"
+#include "model-config.h"
 #include "data-source-manager.h"
 #include "keyboard-controller.h"
 #include "logger.h"
