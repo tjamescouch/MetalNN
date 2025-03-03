@@ -64,6 +64,7 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 - [ ] Enhance GPU memory management and computation scheduling for better performance.
 
 ### Long-term Goals:
+- [ ] Build a Transfomer based language model
 - [ ] Develop a distributed training framework for community-driven computation sharing.
 - [ ] Provide pre-trained models and tools for easy deployment on macOS/iOS devices.
 - [ ] Integrate with Swift-based frameworks for easy end-user application development.
