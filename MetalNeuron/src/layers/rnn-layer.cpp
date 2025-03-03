@@ -320,3 +320,24 @@ void RNNLayer::setParameterAt(int index, float value) {
 float RNNLayer::getGradientAt(int index) const {
     return 0.0f;
 }
+
+void RNNLayer::saveParameters(std::ostream& os) const {
+    os.write(reinterpret_cast<const char*>(bufferW_xh_->contents()), bufferW_xh_->length());
+    os.write(reinterpret_cast<const char*>(bufferW_hh_->contents()), bufferW_hh_->length());
+    os.write(reinterpret_cast<const char*>(bufferBias_->contents()), bufferBias_->length());
+    os.write(reinterpret_cast<const char*>(bufferDecay_->contents()), bufferDecay_->length());
+}
+
+void RNNLayer::loadParameters(std::istream& is) {
+    is.read(reinterpret_cast<char*>(bufferW_xh_->contents()), bufferW_xh_->length());
+    bufferW_xh_->didModifyRange(NS::Range(0, bufferW_xh_->length()));
+
+    is.read(reinterpret_cast<char*>(bufferW_hh_->contents()), bufferW_hh_->length());
+    bufferW_hh_->didModifyRange(NS::Range(0, bufferW_hh_->length()));
+
+    is.read(reinterpret_cast<char*>(bufferBias_->contents()), bufferBias_->length());
+    bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
+    
+    is.read(reinterpret_cast<char*>(bufferDecay_->contents()), bufferDecay_->length());
+    bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
+}

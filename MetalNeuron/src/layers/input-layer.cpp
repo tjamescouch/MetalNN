@@ -80,3 +80,11 @@ void InputLayer::setParameterAt(int index, float value) {
 float InputLayer::getGradientAt(int index) const {
     return 0.0f;
 }
+
+void InputLayer::saveParameters(std::ostream& os) const {
+    // No parameters to save
+}
+
+void InputLayer::loadParameters(std::istream& is) {
+    // No parameters to load
+}

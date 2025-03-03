@@ -42,6 +42,9 @@ public:
     void onForwardComplete() override {};
     void onBackwardComplete() override {};
     
+    void saveParameters(std::ostream& os) const;
+    void loadParameters(std::istream& is);
+    
     void debugLog() override {
 #ifdef DEBUG_DENSE_LAYER
         for (int t = 0; t < sequenceLength_; ++t) {

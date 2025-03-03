@@ -10,3 +10,4 @@ struct KeyPress {
     long code;
     bool pressed;
 };
+
