@@ -6,13 +6,14 @@
 
 class Logger {
 public:
-    Logger(const std::string& filename);
+    Logger(const std::string& filename, bool isRegression);
     ~Logger();
     
-    // Logs average errors computed from output and hidden errors across all timesteps.
     void logErrors(const std::vector<float*>& outputErrors, int outputCount, int hiddenCount, int sequenceLength);
     
-    // Logs one full iteration's data (inputs, hidden states, outputs, targets) for all timesteps.
+    void logAnalytics(const float* output, int outputCount,
+                      const float* target, int targetCount);
+    
     void logRegressionData(const float* output, int outputCount,
                            const float* target, int targetCount);
     
@@ -23,6 +24,9 @@ public:
     void logCrossEntropyLoss(float* targetData, float* outputData, int dimension);
 
     void clear();
+    void logLoss(float loss);
+    
+    bool isRegression_ = true;
     
 private:
     std::ofstream *logFileStream = nullptr;

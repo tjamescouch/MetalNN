@@ -1,26 +1,28 @@
-//
-//  dataset.h
-//  MetalNeuron
-//
-//  Created by James Couch on 2025-03-02.
-//
-
-// Dataset.h
 #ifndef DATASET_H
 #define DATASET_H
 
-#include <vector>
-
 class Dataset {
 public:
-    virtual ~Dataset() {}
+    virtual ~Dataset() = default;
 
+    // Required methods:
+    virtual void loadData() = 0;
+    
+    virtual float* getInputDataBuffer() = 0;
+    virtual float* getTargetDataBuffer() = 0;
+
+    virtual float* getInputDataAt(int timestep) = 0;
+    virtual float* getTargetDataAt(int timestep) = 0;
     virtual int numSamples() const = 0;
+
+    virtual int getDatasetSize() const = 0;
+    virtual float calculateLoss(const float* predictedData, int outputDim) = 0;
+
+
     virtual int inputDim() const = 0;
     virtual int outputDim() const = 0;
-
-    virtual const std::vector<float>& inputAt(int index) = 0;
-    virtual const std::vector<float>& targetAt(int index) = 0;
+    
+    virtual void loadSample(int sampleIndex) = 0;
 };
 
-#endif // DATASET_H
+#endif

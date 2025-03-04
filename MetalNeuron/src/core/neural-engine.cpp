@@ -1,13 +1,13 @@
 #include <iostream>
 #include <cassert>
-#include <random>
 #include <fstream>
 
 #include "neural-engine.h"
 #include "multi-layer-kernels.h"
 #include "dropout-layer.h"
-#include "mnist-data-loader.h"
+#include "mnist-dataset.h"
 #include "training-manager.h"
+#include "math-lib.h"
 
 
 #ifdef DEBUG_GRADIENT_CHECKS
@@ -16,7 +16,7 @@
 
 
 const char* outputFileName = "multilayer_nn_training.m";
-
+int globalTimestep = 0;
 
 
 ActivationFunction parseActivation(const std::string& activation) {
@@ -28,52 +28,48 @@ ActivationFunction parseActivation(const std::string& activation) {
     throw std::invalid_argument("Unknown activation: " + activation);
 }
 
-std::default_random_engine generator;
-std::uniform_int_distribution<int> distribution(0, 2*M_PI);
+
 
 NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config, DataManager* pDataManager)
 : _pDevice(pDevice->retain()),
-  areBuffersBuilt(false),
-  currentlyComputing(false),
-  _pDataManager(pDataManager),
-  _pDataSourceManager(pDataManager->getDataSourceManager()),
-  _pInputLayer(nullptr)
+areBuffersBuilt(false),
+currentlyComputing(false),
+_pDataManager(pDataManager),
+_pInputLayer(nullptr)
 {
     batch_size = config.training.batch_size;
     epochs = config.training.epochs;
-
-    dataset_type = config.dataset.type;
-
+    
     input_dim = _pDataManager->inputDim();
     output_dim = _pDataManager->outputDim();
-
-    _pLogger = new Logger(outputFileName);
-
+    
+    _pLogger = new Logger(outputFileName, config.dataset.type == "function");
+    
     _pKeyboardController = new KeyboardController();
     _pKeyboardController->setForwardCallback([this]() {
         _pLogger->clear();
-        TrainingManager::instance().setTraining(true);
+        TrainingManager::instance().setTraining(false);
         computeForwardIterations(batch_size);
     });
     _pKeyboardController->setLearnCallback([this]() {
         _pLogger->clear();
-        TrainingManager::instance().setTraining(false);
+        TrainingManager::instance().setTraining(true);
         computeBackwardIterations(batch_size);
     });
     _pKeyboardController->setClearCallback([this]() {
         _pLogger->clear();
     });
-
+    
     _pKeyboardController->setSaveCallback([this]() {
         saveModel("./model.bin");
     });
-
+    
     _pKeyboardController->setLoadCallback([this]() {
         loadModel("./model.bin");
     });
-
+    
     _semaphore = dispatch_semaphore_create(kMaxFramesInFlight);
-
+    
     buildComputePipeline();
     createDynamicLayers(config);
 }
@@ -82,7 +78,6 @@ NeuralEngine::~NeuralEngine() {
     for (auto layer : dynamicLayers_)
         delete layer;
     
-    delete _pDataSourceManager;
     delete _pKeyboardController;
     delete _pLogger;
     
@@ -97,14 +92,14 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
         delete layer;
     }
     dynamicLayers_.clear();
-
+    
     int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
-
+    
     input_dim = _pDataManager->inputDim();
     output_dim = _pDataManager->outputDim();
-
+    
     _pInputLayer = new InputLayer(input_dim, first_layer_time_steps);
-
+    
     _pDataManager->initialize([this, config]() {
         _pLogger->clear();
         buildBuffers();
@@ -115,6 +110,7 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
 void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
     int previousLayerOutputSize = input_dim;
     int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
+    
     // Build each layer from config
     for (const auto& layerConfig : config.layers) {
         Layer* layer = nullptr;
@@ -156,7 +152,7 @@ void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
     // Build + update input layer
     _pInputLayer->buildBuffers(_pDevice);
     for (int t = 0; t < first_layer_time_steps; ++t) {
-        _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
+        _pInputLayer->updateBufferAt(_pDataManager->getCurrentDataset()->getInputDataAt(t), t);
     }
     
     // Input wiring:
@@ -196,8 +192,10 @@ void NeuralEngine::buildComputePipeline() {
 
 void NeuralEngine::buildBuffers() {
     _pInputLayer->buildBuffers(_pDevice);
+    Dataset* currentDataset = _pDataManager->getCurrentDataset();
     for (int t = 0; t < _pInputLayer->getSequenceLength(); ++t) {
-        _pInputLayer->updateBufferAt(_pDataSourceManager->x, t);
+        float* inputData = currentDataset->getInputDataAt(t);
+        _pInputLayer->updateBufferAt(inputData, t);
     }
     
     if (!zeroBuffer_) {
@@ -232,52 +230,43 @@ void NeuralEngine::computeForward(std::function<void()> onComplete) {
     cmdBuf->commit();
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
     
-    float* outputData = static_cast<float*>(
-                                            dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
-                                            );
-    
 #ifdef DEBUG_NETWORK_OUTPUTS
     std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ...\n";
 #endif
     
-    if (dataset_type == "function"){
-        _pLogger->logMSE(_pDataSourceManager->y.get_data_buffer_at(0), outputData, dynamicLayers_.back()->outputSize());
-    }
-    else {
-        _pLogger->logCrossEntropyLoss(_pDataSourceManager->y.get_data_buffer_at(0), outputData, 10); //FIXME - hardcoded output dimension
-    }
 }
+
 void NeuralEngine::computeBackward(std::function<void()> onComplete) {
     if (!areBuffersBuilt || currentlyComputing) return;
     currentlyComputing = true;
-
+    
     auto cmdBuf = _pCommandQueue->commandBuffer();
     
     // Encode backward pass for each layer
     for (auto it = dynamicLayers_.rbegin(); it != dynamicLayers_.rend(); ++it) {
         (*it)->backward(cmdBuf);
     }
-
-
+    
+    
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
-
+        
         _pInputLayer->onBackwardComplete(_pCommandQueue);
         for (auto& layer : dynamicLayers_) {
             layer->onBackwardComplete(_pCommandQueue);
         }
-
+        
 #ifdef DEBUG_NETWORK
         _pInputLayer->debugLog();
         for (auto& layer : dynamicLayers_) {
             layer->debugLog();
         }
 #endif
-
+        
         onComplete();
     });
-
+    
     cmdBuf->commit();
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
 }
@@ -288,28 +277,40 @@ void NeuralEngine::computeBackwardIterations(uint32_t iterations) {
     std::cout << "Backward iterations remaining: " << iterations << std::endl;
     
     shiftBuffers();
-
-    // Load next sample clearly via DataManager
-    _pDataManager->loadNextSample();
-
-    // Update input and target buffers for the current iteration
-    int slot = 0;
-    _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
-    dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y, slot);
     
-#ifdef DEBUG_GRADIENT_CHECKS
-    try {
-        std::cout << "Before gradient check, iteration: " << iterations << std::endl;
-        GradientChecker checker(this, _pDataSourceManager);
-        checker.checkLayerGradients(dynamicLayers_[0]); // typically the first hidden layer (DenseLayer)
-        std::cout << "After gradient check, iteration: " << iterations << std::endl;
-    } catch (std::exception& error) {
-        printf("Gradient check error: %s\n", error.what());
-    }
-#endif
-
+    _pDataManager->loadNextSample();
+    
+    int slot = 0;
+    
+    float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(slot);
+    float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(slot);
+    
+    _pInputLayer->updateBufferAt(inBuffer, slot);
+    dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, slot);
+    
+    
+    
     computeForward([this, iterations]() {
         computeBackward([this, iterations]() {
+            float* predictedData = static_cast<float*>(
+                                                       dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
+                                                       );
+            
+            float loss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim);
+            _pLogger->logLoss(loss);
+            
+#ifdef DEBUG_GRADIENT_CHECKS
+            try {
+                std::cout << "Before gradient check, iteration: " << iterations << std::endl;
+                GradientChecker checker(this, _pDataManager);
+                checker.checkLayerGradients(dynamicLayers_[0]);
+                std::cout << "After gradient check, iteration: " << iterations << std::endl;
+            } catch (std::exception& error) {
+                printf("error: %s\n", error.what());
+            }
+#endif
+            
+            globalTimestep++;
             computeBackwardIterations(iterations - 1);
         });
     });
@@ -333,31 +334,31 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     std::cout << "Forward iterations remaining: " << iterations << std::endl;
     
     shiftBuffers();
-
-    // Load next sample clearly via DataManager
+    
     _pDataManager->loadNextSample();
-
-    // Update input and target buffers for the current iteration
+    
     int slot = 0;
-    _pInputLayer->updateBufferAt(_pDataSourceManager->x, slot);
-    dynamicLayers_.back()->updateTargetBufferAt(_pDataSourceManager->y, slot);
+    float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(slot);
+    float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(slot);
+    
+    _pInputLayer->updateBufferAt(inBuffer, slot);
+    dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, slot);
     
     computeForward([this, iterations]() {
-        // Logging outputs clearly to .m file
-        std::vector<float*> outputs(1);
-        std::vector<float*> targets(1);
+        float* predictedData = static_cast<float*>(
+                                                   dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
+                                                   );
         
-        outputs[0] = static_cast<float*>(
-            dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
-        );
-        targets[0] = _pDataSourceManager->y.get_data_buffer_at(0);
+        float* targetData =  _pDataManager->getCurrentDataset()->getTargetDataAt(0);
         
-#ifdef GENERATE_MATLAP_OUTPUT
-        if (dataset_type == "mnist") {
-            _pLogger->logClassificationData(*outputs.data(), output_dim, *targets.data(), output_dim);
-        }
-        else {
-            _pLogger->logRegressionData(*outputs.data(), output_dim, *targets.data(), output_dim);
+        
+        float loss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim);
+        _pLogger->logLoss(loss);
+        _pLogger->logAnalytics(predictedData, _pDataManager->getCurrentDataset()->outputDim(), targetData, _pDataManager->getCurrentDataset()->outputDim());
+        
+#ifdef DEBUG_NETWORK_OUTPUT
+        for (int i = 0; i < output_dim; ++i) {
+            printf("Output[%d]: %.4f\n", i, predictedData[i]);
         }
 #endif
         
@@ -382,35 +383,35 @@ void NeuralEngine::computeBackwardSync() {
 }
 
 void NeuralEngine::initializeWithDataset(Dataset* dataset) {
-    _pDataSourceManager = new DataSourceManager(dataset);
+    _pDataManager = new DataManager(dataset);
 }
 
 
 void NeuralEngine::saveModel(const std::string& filepath) {
     std::ofstream file(filepath, std::ios::binary);
-
+    
     size_t layerCount = dynamicLayers_.size();
     file.write(reinterpret_cast<const char*>(&layerCount), sizeof(layerCount));
-
+    
     for (Layer* layer : dynamicLayers_) {
         layer->saveParameters(file);
     }
-
+    
     file.close();
     std::cout << "✅ Model parameters saved efficiently (binary) to: " << filepath << std::endl;
 }
 
 void NeuralEngine::loadModel(const std::string& filepath) {
     std::ifstream file(filepath, std::ios::binary);
-
+    
     int layerCount = 0;
     file.read(reinterpret_cast<char*>(&layerCount), sizeof(layerCount));
     assert(layerCount == dynamicLayers_.size() && "Layer count mismatch!");
-
+    
     for (Layer* layer : dynamicLayers_) {
         layer->loadParameters(file);
     }
-
+    
     file.close();
     std::cout << "✅ Model parameters loaded efficiently (binary) from: " << filepath << std::endl;
 }
@@ -424,8 +425,8 @@ void NeuralEngine::shiftBuffers() {
                );
         
         memcpy(
-               _pDataSourceManager->y.get_data_buffer_at(t),
-               _pDataSourceManager->y.get_data_buffer_at(t + 1),
+               _pDataManager->getCurrentDataset()->getTargetDataAt(t),
+               _pDataManager->getCurrentDataset()->getTargetDataAt(t + 1),
                output_dim * sizeof(float)
                );
     }

@@ -1,31 +1,25 @@
-//
-//  data-manager.h
-//  MetalNeuron
-//
-//  Created by James Couch on 2025-03-02.
-//
-
 #pragma once
 
 #include "dataset.h"
-#include "data-source-manager.h"
+#include <functional>
+#include <string>
 
 class DataManager {
 public:
-    DataManager(Dataset* dataset, int sequence_length);
+    DataManager(Dataset* dataset);
+    ~DataManager();
 
-    void initialize(std::function<void()> onInitialized);
+    void setDataset(Dataset* dataset);
+    Dataset* getCurrentDataset() const;
 
-    DataSourceManager* getDataSourceManager() const;
+    void initialize(std::function<void()> callback);
 
     int inputDim() const;
     int outputDim() const;
-    int numSamples() const;
-
     void loadNextSample();
 
 private:
-    DataSourceManager* _pDataSourceManager;
-    Dataset* _pDataset;
-    int sampleIndex_;
+    Dataset* current_dataset_;
+    int sampleIndex_ = 0;
+
 };

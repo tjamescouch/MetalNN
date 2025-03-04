@@ -19,14 +19,13 @@ public:
     ~InputLayer();
     
     void buildBuffers(MTL::Device* device) override;
-    void updateBufferAt(DataSource& ds, int timestep);
+    void updateBufferAt(const float*, int timestep);
     void buildPipeline(MTL::Device* device, MTL::Library* library) override {};
     void forward(MTL::CommandBuffer* cmdBuf) override {};
     void backward(MTL::CommandBuffer* cmdBuf) override {};
 
-    void updateTargetBufferAt(DataSource& targetData, int timestep) const {};
     int outputSize() const override { return inputDim_; }
-    void updateTargetBufferAt(DataSource& targetData, int timestep) override {};
+    void updateTargetBufferAt(const float* targetData, int timestep) override {};
 
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
     MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) const override;

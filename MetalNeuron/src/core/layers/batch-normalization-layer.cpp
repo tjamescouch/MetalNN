@@ -142,7 +142,7 @@ int BatchNormalizationLayer::outputSize() const {
     return featureDim_;
 }
 
-void BatchNormalizationLayer::updateTargetBufferAt(DataSource& targetData, int timestep) {
+void BatchNormalizationLayer::updateTargetBufferAt(const float* targetData, int timestep) {
     assert(timestep==0 && "Timesteps not supported for this layer");
 }
 

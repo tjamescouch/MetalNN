@@ -124,9 +124,9 @@ void DenseLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* bu
     inputBuffers_[type][timestep] = buffer;
 }
 
-void DenseLayer::updateTargetBufferAt(DataSource& targetData, int timestep) {
+void DenseLayer::updateTargetBufferAt(const float* targetData, int timestep) {
     assert(timestep == 0);
-    memcpy(inputBuffers_[BufferType::Targets][timestep]->contents(), targetData.get_data_buffer_at(timestep), outputDim_ * sizeof(float));
+    memcpy(inputBuffers_[BufferType::Targets][timestep]->contents(), targetData, outputDim_ * sizeof(float));
     inputBuffers_[BufferType::Targets][timestep]->didModifyRange(NS::Range(0, outputDim_ * sizeof(float)));
 }
 

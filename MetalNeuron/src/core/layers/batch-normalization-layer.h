@@ -28,7 +28,7 @@ public:
     MTL::Buffer* getInputBufferAt(BufferType type, int timestep) const override;
     
     int outputSize() const override;
-    void updateTargetBufferAt(DataSource& targetData, int timestep) override;
+    void updateTargetBufferAt(const float* targetData, int timestep) override;
     
     void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
                              MTL::Buffer* zeroBuffer, int timestep) override;

@@ -37,11 +37,11 @@ void InputLayer::buildBuffers(MTL::Device* device) {
     }
 }
 
-void InputLayer::updateBufferAt(DataSource& ds, int timestep) {
+void InputLayer::updateBufferAt(const float* data, int timestep) {
     assert(timestep >= 0  && timestep < sequenceLength_);
     
     memcpy(outputBuffers_[BufferType::Output][timestep]->contents(),
-           ds.get_data_buffer_at(timestep),
+           data,
            inputDim_ * sizeof(float));
     outputBuffers_[BufferType::Output][timestep]->didModifyRange(NS::Range::Make(0, outputBuffers_[BufferType::Output][timestep]->length()));
 }

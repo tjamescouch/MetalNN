@@ -4,12 +4,9 @@
 //
 //  Created by James Couch on 2025-03-02.
 //
-
-#ifndef GRADIENT_CHECKER_H
-#define GRADIENT_CHECKER_H
+#ifdef FUTURE_CLASS
 
 #include "neural-engine.h"
-#include "data-source-manager.h"
 
 class GradientChecker {
 public:
@@ -33,4 +30,4 @@ private:
     float computeLoss();
 };
 
-#endif // GRADIENT_CHECKER_H
+#endif

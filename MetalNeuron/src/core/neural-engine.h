@@ -4,7 +4,6 @@
 #include <functional>
 
 #include "model-config.h"
-#include "data-source-manager.h"
 #include "keyboard-controller.h"
 #include "logger.h"
 #include "layer.h"
@@ -37,7 +36,6 @@ public:
     
     void computeBackwardIterations(uint32_t iterations);
     void computeForwardIterations(uint32_t iterations);
-   // void createDynamicLayers(const ModelConfig& config);
     void connectDynamicLayers(const ModelConfig& config);
     void createDynamicLayers(const ModelConfig& config);
 
@@ -61,7 +59,6 @@ private:
     void buildBuffers();
     void shiftBuffers();
     
-    DataSourceManager* _pDataSourceManager;
     KeyboardController* _pKeyboardController;
     Logger* _pLogger;
     DataManager* _pDataManager;
@@ -81,7 +78,6 @@ private:
     
     int batch_size;
     int epochs;
-    std::string dataset_type = "function";
     //FIXME get from model configuration:
     int input_dim  = 512;
     int hidden_dim = 512;

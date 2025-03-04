@@ -4,35 +4,49 @@
 //
 //  Created by James Couch on 2025-03-02.
 //
+#include <stdexcept>
 
 #include "data-manager.h"
 
-DataManager::DataManager(Dataset* dataset, int sequence_length)
-: _pDataset(dataset), sampleIndex_(0) {
-    _pDataSourceManager = new DataSourceManager(dataset, sequence_length);
+
+DataManager::DataManager(Dataset* dataset)
+: current_dataset_(dataset) {
 }
 
-void DataManager::initialize(std::function<void()> onInitialized) {
-    _pDataSourceManager->initialize(onInitialized);
+DataManager::~DataManager() {
+    if (current_dataset_) delete current_dataset_;
 }
 
-DataSourceManager* DataManager::getDataSourceManager() const {
-    return _pDataSourceManager;
+void DataManager::setDataset(Dataset* dataset) {
+    if (current_dataset_) delete current_dataset_;
+    current_dataset_ = dataset;
+}
+
+Dataset* DataManager::getCurrentDataset() const {
+    if (!current_dataset_) {
+        throw std::runtime_error("Dataset has not been set.");
+    }
+    return current_dataset_;
+}
+
+void DataManager::initialize(std::function<void()> callback) {
+    if (!current_dataset_) {
+        throw std::runtime_error("Cannot initialize DataManager: no dataset set.");
+    }
+
+    current_dataset_->loadData();
+    callback();
 }
 
 int DataManager::inputDim() const {
-    return _pDataset->inputDim();
+    return current_dataset_->inputDim();
 }
 
 int DataManager::outputDim() const {
-    return _pDataset->outputDim();
-}
-
-int DataManager::numSamples() const {
-    return _pDataset->numSamples();
+    return current_dataset_->outputDim();
 }
 
 void DataManager::loadNextSample() {
-    _pDataSourceManager->loadSample(sampleIndex_);
-    sampleIndex_ = (sampleIndex_ + 1) % numSamples();
+    current_dataset_->loadSample(sampleIndex_);
+    sampleIndex_ = (sampleIndex_ + 1) % current_dataset_->getDatasetSize();
 }

@@ -21,7 +21,7 @@ public:
     void forward(MTL::CommandBuffer* cmdBuf) override;
     void backward(MTL::CommandBuffer* cmdBuf) override;
 
-    void updateTargetBufferAt(DataSource&, int) override {}
+    void updateTargetBufferAt(const float*, int) override {}
     
     
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
