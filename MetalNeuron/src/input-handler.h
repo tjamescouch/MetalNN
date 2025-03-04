@@ -1,6 +1,6 @@
 //
 //  input-handler.h
-//  LearnMetalCPP
+//  MetalNN
 //
 //  Created by James Couch on 2025-02-02.
 //  Copyright © 2025 Apple. All rights reserved.

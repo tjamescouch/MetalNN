@@ -1,6 +1,6 @@
 //
 //  common.h
-//  LearnMetalCPP
+//  MetalNN
 //
 //  Created by James Couch on 2024-12-07.
 //
