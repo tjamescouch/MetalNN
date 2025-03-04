@@ -4,11 +4,12 @@
 //
 //  Created by James Couch on 2025-03-01.
 //
+#include <iostream>
+#include <random>
 
 #include "input-layer.h"
 #include "dropout-layer.h"
-#include <iostream>
-#include <random>
+#include "training-manager.h"
 
 DropoutLayer::DropoutLayer(float rate, int featureDim, int sequenceLength)
 : rate_(rate), featureDim_(featureDim), sequenceLength_(sequenceLength), bufferRandomMask_(nullptr),forwardPipelineState_(nullptr),
@@ -19,9 +20,6 @@ backwardPipelineState_(nullptr) {
 
 DropoutLayer::~DropoutLayer() {
     for (int t = 0; t < sequenceLength_; ++t) {
-        for (auto ib : inputBuffers_) {
-            ib.second[t]->release();
-        }
         for (auto ob : outputBuffers_) {
             ob.second[t]->release();
         }
@@ -35,6 +33,7 @@ DropoutLayer::~DropoutLayer() {
 
 void DropoutLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     NS::Error* error = nullptr;
+    _pDevice = device;
 
     auto forwardFunction = library->newFunction(NS::String::string("forward_dropout", NS::UTF8StringEncoding));
     forwardPipelineState_ = device->newComputePipelineState(forwardFunction, &error);
@@ -76,12 +75,14 @@ void DropoutLayer::buildBuffers(MTL::Device* device) {
         outputBuffers_[BufferType::OutputErrors].push_back(outputErrBuf);
     }
 
-    generateRandomMask(device);
+    generateRandomMask();
     assert(bufferRandomMask_ && "Random mask buffer allocation failed");
 }
 
 
 void DropoutLayer::forward(MTL::CommandBuffer* cmdBuf) {
+    bool isTraining = TrainingManager::instance().isTraining();
+    
     for(int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(forwardPipelineState_);
@@ -90,11 +91,14 @@ void DropoutLayer::forward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBuffer(bufferRandomMask_, 0, 2);
         encoder->setBytes(&rate_, sizeof(float), 3);
         encoder->setBytes(&featureDim_, sizeof(int), 4);
+        encoder->setBytes(&isTraining, sizeof(bool), 5);
 
         MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
         MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
         encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
         encoder->endEncoding();
+        
+        inputBuffers_[BufferType::Input][t]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][t]->length()));
     }
 }
 
@@ -102,8 +106,8 @@ void DropoutLayer::backward(MTL::CommandBuffer* cmdBuf) {
     for(int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(backwardPipelineState_);
-        encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][t], 0, 0);
-        encoder->setBuffer(inputBuffers_[BufferType::InputErrors][t], 0, 1);
+        encoder->setBuffer(inputBuffers_[BufferType::InputErrors][t], 0, 0);
+        encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][t], 0, 1);
         encoder->setBuffer(bufferRandomMask_, 0, 2);
         encoder->setBytes(&rate_, sizeof(float), 3);
         encoder->setBytes(&featureDim_, sizeof(int), 4);
@@ -115,7 +119,7 @@ void DropoutLayer::backward(MTL::CommandBuffer* cmdBuf) {
     }
 }
 
-void DropoutLayer::generateRandomMask(MTL::Device* device) {
+void DropoutLayer::generateRandomMask() {
     std::vector<float> maskData(featureDim_);
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -127,7 +131,7 @@ void DropoutLayer::generateRandomMask(MTL::Device* device) {
 
     if (bufferRandomMask_) bufferRandomMask_->release();
     
-    bufferRandomMask_ = device->newBuffer(maskData.data(), featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    bufferRandomMask_ = _pDevice->newBuffer(maskData.data(), featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
 }
 
 void DropoutLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
@@ -135,44 +139,39 @@ void DropoutLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* 
     inputBuffers_[type][timestep] = buffer;
 }
 
-MTL::Buffer* DropoutLayer::getOutputBufferAt(BufferType type, int timestep) const {
-    auto it = outputBuffers_.find(type);
-    if (it != outputBuffers_.end()) {
-        return it->second[timestep];
-    }
-    return nullptr;
+MTL::Buffer* DropoutLayer::getOutputBufferAt(BufferType type, int timestep) {
+    return outputBuffers_[BufferType::Output][timestep];
 }
 
 void DropoutLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
     outputBuffers_[type][timestep] = buffer;
 }
 
-MTL::Buffer* DropoutLayer::getInputBufferAt(BufferType type, int timestep) const {
-    auto it = inputBuffers_.find(type);
-    if (it != inputBuffers_.end()) {
-        return it->second[timestep];
-    }
-    return nullptr;
+MTL::Buffer* DropoutLayer::getInputBufferAt(BufferType type, int timestep) {
+    return inputBuffers_[type][timestep];
 }
 
-void DropoutLayer::connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
+void DropoutLayer::connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
-        previousLayer
-            ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
-            : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
-    );
+                     previousLayer
+                     ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     );
 }
 
 int DropoutLayer::getParameterCount() const {
     return 1;
 }
+
 float DropoutLayer::getParameterAt(int index) const {
     return 0.0f;
 }
+
 void DropoutLayer::setParameterAt(int index, float value) {
     return;
 }
+
 float DropoutLayer::getGradientAt(int index) const {
     return 0.0f;
 }

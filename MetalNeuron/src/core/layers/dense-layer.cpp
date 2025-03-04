@@ -194,7 +194,7 @@ void DenseLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* b
     outputBuffers_[type][timestep] = buffer;
 }
 
-MTL::Buffer* DenseLayer::getInputBufferAt(BufferType type, int timestep) const {
+MTL::Buffer* DenseLayer::getInputBufferAt(BufferType type, int timestep) {
     auto it = inputBuffers_.find(type);
     if (it != inputBuffers_.end()) {
         return it->second[timestep];
@@ -202,7 +202,7 @@ MTL::Buffer* DenseLayer::getInputBufferAt(BufferType type, int timestep) const {
     return nullptr;  // Explicitly handle missing keys appropriately
 }
 
-MTL::Buffer* DenseLayer::getOutputBufferAt(BufferType type, int timestep) const {
+MTL::Buffer* DenseLayer::getOutputBufferAt(BufferType type, int timestep) {
     assert(timestep == 0);
     auto it = outputBuffers_.find(type);
     if (it != outputBuffers_.end()) {
@@ -216,7 +216,7 @@ int DenseLayer::outputSize() const {
 }
 
 
-void DenseLayer::connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
+void DenseLayer::connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
                      previousLayer
@@ -280,15 +280,17 @@ void DenseLayer::loadParameters(std::istream& is) {
 
 void DenseLayer::debugLog() {
 #ifdef DEBUG_DENSE_LAYER
-    for (int t = 0; t < sequenceLength_; ++t) {
-        float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
-        printf("[DenseLayer Input Debug] timestep %d: %f, %f, %f\n",
-               t, inputs[0], inputs[1], inputs[2]);
-        
-        float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
-        printf("[DenseLayer Output Debug] timestep %d: %f, %f, %f\n",
-               t, outputs[0], outputs[1], outputs[2]);
-    }
+    float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][0]->contents());
+    printf("[DenseLayer Input Debug] timestep %d: ", 0);
+    for(int i = 0; i < inputBuffers_[BufferType::Input][0]->length()/sizeof(float); ++i)
+        printf(" %f, ", inputs[i]);
+    printf("\n");
+    
+    float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][0]->contents());
+    printf("[DenseLayer Output Debug] timestep %d: ", 0);
+    for(int i = 0; i < outputBuffers_[BufferType::Output][0]->length()/sizeof(float); ++i)
+        printf(" %f, ", outputs[i]);
+    printf("\n");
     
     float* weights = static_cast<float*>(bufferWeights_->contents());
     printf("[DenseLayer DebugLog] Weights sample: %f, %f, %f\n", weights[0], weights[1], weights[2]);

@@ -51,7 +51,7 @@ void InputLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* bu
     inputBuffers_[type][timestep] = buffer;
 }
 
-MTL::Buffer* InputLayer::getOutputBufferAt(BufferType type, int timestep) const {
+MTL::Buffer* InputLayer::getOutputBufferAt(BufferType type, int timestep) {
     auto it = outputBuffers_.find(type);
     return (it != outputBuffers_.end()) ? it->second[timestep] : nullptr;
 }
@@ -60,7 +60,7 @@ void InputLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* b
     inputBuffers_[type][timestep] = buffer;
 }
 
-MTL::Buffer* InputLayer::getInputBufferAt(BufferType, int) const {
+MTL::Buffer* InputLayer::getInputBufferAt(BufferType, int) {
     return nullptr; // Input layer doesn't propagate error backwards
 }
 

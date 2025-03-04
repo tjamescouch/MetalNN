@@ -56,13 +56,13 @@ public:
     virtual void backward(MTL::CommandBuffer* cmdBuf) = 0;
     
     virtual void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) = 0;
-    virtual MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) const = 0;
+    virtual MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) = 0;
     virtual void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) = 0;
-    virtual MTL::Buffer* getInputBufferAt(BufferType type, int timestep) const = 0;
+    virtual MTL::Buffer* getInputBufferAt(BufferType type, int timestep) = 0;
     
     virtual int outputSize() const = 0;
     virtual void updateTargetBufferAt(const float* targetData, int timestep) = 0;
-    virtual void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
+    virtual void connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) = 0;
     
     virtual int getParameterCount() const = 0;

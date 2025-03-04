@@ -1,39 +1,31 @@
-name: "Simple Classification"
+name: "Improved OCR"
 
 layers:
-  - type: BatchNormalization
-    input_size: 128
-    output_size: 128
-    
   - type: Dense
-    input_size: 128
-    output_size: 128
+    input_size: 784    # MNIST input dimension: 28x28 images
+    output_size: 256
     activation: relu
 
   - type: Dropout
-    rate: 0.2
-    
-  - type: Dense
-    input_size: 128
-    output_size: 64
-    activation: relu
+    rate: 0.3
 
   - type: Dense
-    input_size: 64
-    output_size: 10  # 10 classes for digits 0-9
+    input_size: 256
+    output_size: 10
     activation: softmax
 
 training:
   optimizer:
     type: adam
-    learning_rate: 0.001
+    learning_rate: 0.0005  # Reduced to stabilize early training
     parameters:
       beta1: 0.9
       beta2: 0.999
+      epsilon: 1e-8
 
-  epochs: 1
-  batch_size: 1000
-  
+  epochs: 10
+  batch_size: 1280  # Smaller batch size for more frequent updates
+
 dataset:
   type: "mnist"
   images: "train-images-idx3-ubyte"
@@ -41,4 +33,4 @@ dataset:
 
 metadata:
   author: "James Couch"
-  description: "Simple OCR"
+  description: "Improved OCR with BatchNorm and Dropout"

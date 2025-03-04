@@ -229,13 +229,16 @@ kernel void forward_dropout(
     device const float* randomMask  [[buffer(2)]],
     device const float* rate        [[buffer(3)]],
     device const uint* featureDim   [[buffer(4)]],
+    constant bool& isTraining       [[buffer(5)]],
     uint tid                        [[thread_position_in_grid]]
 ) {
     if (tid >= *featureDim) return;
 
-    float keep_prob = 1.0f - *rate;
-    float mask = randomMask[tid] < keep_prob ? (1.0f / keep_prob) : 0.0f;
-    output[tid] = input[tid] * mask;
+    if (isTraining) {
+        output[tid] = (1.0f - *rate) * input[tid];
+    } else {
+        output[tid] = randomMask[tid] >= *rate ? input[tid] : 0;
+    }
 }
 
 //-------------------------------------------------------------------
@@ -250,9 +253,7 @@ kernel void backward_dropout(
 ) {
     if (tid >= *featureDim) return;
 
-    float keep_prob = 1.0f - *rate;
-    float mask = randomMask[tid] < keep_prob ? (1.0f / keep_prob) : 0.0f;
-    input_error[tid] = output_error[tid] * mask;
+    input_error[tid] = randomMask[tid] >= *rate ? output_error[tid] : 0;
 }
 
 kernel void forward_batch_norm(

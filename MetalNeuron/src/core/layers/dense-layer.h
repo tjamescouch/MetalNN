@@ -25,12 +25,12 @@ public:
 
     int outputSize() const override;
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) const override;
+    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;
 
     void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) const override;
+    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) override;
     
-    void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
+    void connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
                                          MTL::Buffer* zeroBuffer, int timestep) override;
     
     

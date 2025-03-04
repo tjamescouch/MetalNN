@@ -28,12 +28,12 @@ public:
     void updateTargetBufferAt(const float* targetData, int timestep) override {};
 
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) const override;
+    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;
 
     void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) const override;
+    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) override;
     
-    void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
+    void connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
                              MTL::Buffer* zeroBuffer, int timestep) override {};
     
     
@@ -54,8 +54,10 @@ public:
 #ifdef DEBUG_INPUT_LAYER
         for (int t = 0; t < sequenceLength_; t++) {
             float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
-            printf("[InputLayer DebugLog] outputs at timestep %d: %f, %f, %f\n",
-                   t, outputs[0], outputs[1], outputs[2]);
+            printf("[InputLayer Output Debug] timestep %d: ", t);
+            for(int i = 0; i < outputBuffers_[BufferType::Output][t]->length()/sizeof(float); ++i)
+                printf(" %f, ", outputs[i]);
+            printf("\n");
         }
 #endif
     }

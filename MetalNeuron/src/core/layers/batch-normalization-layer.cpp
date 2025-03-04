@@ -153,7 +153,7 @@ void BatchNormalizationLayer::setInputBufferAt(BufferType type, int timestep, MT
     inputBuffers_[type][timestep] = buffer;
 }
 
-MTL::Buffer* BatchNormalizationLayer::getOutputBufferAt(BufferType type, int timestep) const {
+MTL::Buffer* BatchNormalizationLayer::getOutputBufferAt(BufferType type, int timestep) {
     assert(timestep==0 && "Timesteps not supported for this layer");
     auto it = outputBuffers_.find(type);
     if (it != outputBuffers_.end()) {
@@ -167,7 +167,7 @@ void BatchNormalizationLayer::setOutputBufferAt(BufferType type, int timestep, M
     outputBuffers_[type][timestep] = buffer;
 }
 
-MTL::Buffer* BatchNormalizationLayer::getInputBufferAt(BufferType type, int timestep) const {
+MTL::Buffer* BatchNormalizationLayer::getInputBufferAt(BufferType type, int timestep) {
     assert(timestep==0 && "Timesteps not supported for this layer");
     auto it = inputBuffers_.find(type);
     if (it != inputBuffers_.end()) {
@@ -176,7 +176,7 @@ MTL::Buffer* BatchNormalizationLayer::getInputBufferAt(BufferType type, int time
     return nullptr;
 }
 
-void BatchNormalizationLayer::connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
+void BatchNormalizationLayer::connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
                                                   MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
                      previousLayer
