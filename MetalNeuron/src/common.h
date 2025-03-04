@@ -10,11 +10,13 @@
 //#define DEBUG_GRADIENT_CHECKS
 //#define DEBUG_CROSS_ENTROPY_LOSS
 
-//#define DEBUG_NETWORK
-#define DEBUG_DENSE_LAYER
-#define DEBUG_RNN_LAYER
-#define DEBUG_INPUT_LAYER
-#define DEBUG_DROPOUT_LAYER
+#define DEBUG_NETWORK
+//#define DEBUG_GRADIENTS
+#define DEBUG_RNN_FORWARD_PASS
+//#define DEBUG_DENSE_LAYER
+//#define DEBUG_RNN_LAYER
+//#define DEBUG_INPUT_LAYER
+//#define DEBUG_DROPOUT_LAYER
 
 #include <Metal/Metal.hpp>
 #include <AppKit/AppKit.hpp>

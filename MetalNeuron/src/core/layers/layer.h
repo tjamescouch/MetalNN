@@ -45,6 +45,7 @@ enum class BufferType : unsigned int {
     Output,
     Debug,
     Targets,
+    HiddenErrors,
     Gradients,
     Activation,
     OutputErrors,
@@ -85,6 +86,9 @@ public:
     
     virtual void saveParameters(std::ostream& os) const = 0;
     virtual void loadParameters(std::istream& is) = 0;
+    
+    virtual int getSequenceLength() = 0;
+    virtual void setIsTerminal(bool isTerminal) = 0;
 };
 
 #endif // LAYER_H

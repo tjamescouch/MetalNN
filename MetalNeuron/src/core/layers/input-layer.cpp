@@ -11,7 +11,7 @@
 #include <vector>
 
 InputLayer::InputLayer(int inputDim, int sequenceLength)
-    : inputDim_(inputDim), sequenceLength_(sequenceLength)
+    : inputDim_(inputDim), sequenceLength_(sequenceLength), isTerminal_(false)
 {
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
 }

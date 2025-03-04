@@ -9,7 +9,7 @@
 
 DenseLayer::DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activation)
 : inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(1), activation_(activation),
-bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr),
+bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr),isTerminal_(false),
 forwardPipelineState_(nullptr), backwardPipelineState_(nullptr)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);

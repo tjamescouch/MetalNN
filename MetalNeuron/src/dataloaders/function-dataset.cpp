@@ -62,11 +62,9 @@ float FunctionDataset::calculateLoss(const float* predictedData, int outputDim) 
 void FunctionDataset::loadData() {
     bool isTraining = TrainingManager::instance().isTraining();
     if (isTraining) {
-        printf("isTraining\n");
         shuffleIndices();
         generateDataset(offset_);
     }else {
-        printf("is inference\n");
         generateDataset(offset_++);
     }
 }
