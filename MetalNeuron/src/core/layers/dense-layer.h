@@ -17,7 +17,7 @@ public:
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
     void buildBuffers(MTL::Device* device) override;
     
-    void updateTargetBufferAt(DataSource& targetData, int timestep) override;
+    void updateTargetBufferAt(const float* targetData, int timestep) override;
     
     void forward(MTL::CommandBuffer* cmdBuf) override;
     void backward(MTL::CommandBuffer* cmdBuf) override;

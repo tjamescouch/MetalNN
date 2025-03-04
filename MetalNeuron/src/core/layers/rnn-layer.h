@@ -37,7 +37,7 @@ public:
     float getGradientAt(int index) const override;
     
     int outputSize() const override;
-    void updateTargetBufferAt(DataSource& targetData, int timestep) override;
+    void updateTargetBufferAt(const float* targetData, int timestep) override;
     
     void shiftHiddenStates();
     

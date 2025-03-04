@@ -277,15 +277,14 @@ int RNNLayer::outputSize() const {
     return hiddenDim_;
 }
 
-void RNNLayer::updateTargetBufferAt(DataSource& targetData, int timestep) {
+void RNNLayer::updateTargetBufferAt(const float* targetData, int timestep) {
     assert(timestep >= 0 && timestep < sequenceLength_);
     
     float* inputErrorData = static_cast<float*>(inputBuffers_[BufferType::InputErrors][timestep]->contents());
     const float* outputData = static_cast<float*>(outputBuffers_[BufferType::Output][timestep]->contents());
-    const float* target = targetData.get_data_buffer_at(timestep);
     
     for (int i = 0; i < hiddenDim_; ++i) {
-        inputErrorData[i] = outputData[i] - target[i]; // Simple mean-squared error gradient
+        inputErrorData[i] = outputData[i] - targetData[i]; // Simple mean-squared error gradient
     }
     
     inputBuffers_[BufferType::InputErrors][timestep]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));

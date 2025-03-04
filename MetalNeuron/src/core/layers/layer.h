@@ -61,7 +61,7 @@ public:
     virtual MTL::Buffer* getInputBufferAt(BufferType type, int timestep) const = 0;
     
     virtual int outputSize() const = 0;
-    virtual void updateTargetBufferAt(DataSource& targetData, int timestep) = 0;
+    virtual void updateTargetBufferAt(const float* targetData, int timestep) = 0;
     virtual void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) = 0;
     
