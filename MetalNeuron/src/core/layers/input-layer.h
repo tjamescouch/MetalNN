@@ -19,7 +19,7 @@ public:
     ~InputLayer();
     
     void buildBuffers(MTL::Device* device) override;
-    void updateBufferAt(DataSource& ds, int timestep);
+    void updateBufferAt(const float*, int timestep);
     void buildPipeline(MTL::Device* device, MTL::Library* library) override {};
     void forward(MTL::CommandBuffer* cmdBuf) override {};
     void backward(MTL::CommandBuffer* cmdBuf) override {};

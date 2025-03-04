@@ -4,8 +4,8 @@
 #include <iostream>
 #include <cmath>
 
-Logger::Logger(const std::string& filename)
-: filename_(filename), logFileStream(nullptr) {
+Logger::Logger(const std::string& filename, bool isRegression)
+: filename_(filename), logFileStream(nullptr), isRegression_(isRegression) {
     logFileStream = new std::ofstream(filename_, std::ios::app);
     if (!logFileStream->is_open()) {
         std::cerr << "Error opening log file: " << filename_ << std::endl;
@@ -37,6 +37,15 @@ void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount,
     avgOutputError /= sequenceLength;
     
     std::cout << "AVG OUTPUT ERROR (across sequence): " << avgOutputError << std::endl;
+}
+
+void Logger::logAnalytics(const float* output, int outputCount,
+                          const float* target, int targetCount) {
+    if (isRegression_) {
+        return logRegressionData(output, outputCount, target, targetCount);
+    }
+    
+    return logClassificationData(output, outputCount, target, targetCount);
 }
 
 void Logger::logRegressionData(const float* output, int outputCount,
@@ -129,39 +138,6 @@ void Logger::clear() {
     }
 }
 
-void Logger::logMSE(float* targetData, float* outputData, int dimension) {
-    float mse = 0.0f;
-    for (int i = 0; i < dimension; ++i) {
-        float diff = targetData[i] - outputData[i];
-        mse += diff * diff;
-    }
-    mse /= dimension;
-    std::printf("Mean Squared Error: %f\n", mse);
-}
-
-void Logger::logCrossEntropyLoss(float *targetData, float *outputData, int dimension) {
-    float epsilon = 1e-10f; // for numerical stability
-    float loss = 0.0f;
-
-    // Since targets are one-hot, we only compute loss for the true class
-    for (int i = 0; i < dimension; ++i) {
-        if (targetData[i] > 0.5f) {  // one-hot target: exactly one entry is 1.0
-            loss = -logf(outputData[i] + epsilon);
-            break; // one-hot encoding; we can safely break here
-        }
-    }
-    std::printf("Cross Entropy Loss: %f\n", loss);
-    
-#ifdef DEBUG_CROSS_ENTROPY_LOSS
-    float sum = 0.0f;
-    for (int i = 0; i < dimension; ++i) {
-        sum += outputData[i];
-    }
-    std::printf("Softmax sum: %f\n", sum);
-    
-    printf("Targets vs Predictions:\n");
-    for (int i = 0; i < dimension; ++i) {
-        printf("Target[%d]: %.2f, Predicted[%d]: %.4f\n", i, targetData[i], i, outputData[i]);
-    }
-#endif
+void Logger::logLoss(float loss) {
+    std::printf("Loss: %f\n", loss);
 }

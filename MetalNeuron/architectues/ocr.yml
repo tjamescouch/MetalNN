@@ -32,7 +32,7 @@ training:
       beta2: 0.999
 
   epochs: 1
-  batch_size: 100000
+  batch_size: 1000
   
 dataset:
   type: "mnist"

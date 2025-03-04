@@ -1,69 +1,107 @@
-//
-//  function-dataset.cpp
-//  MetalNeuron
-//
-//  Created by James Couch on 2025-03-02.
-//
-#include "function-dataset.h"
 #include <random>
+#include <stdexcept>
+
 #include "math-lib.h"
+#include "training-manager.h"
+#include "function-dataset.h"
 
-FunctionDataset::FunctionDataset(InputFunction inputFunc,
-                                 TargetFunction targetFunc,
-                                 int inputDim,
-                                 int outputDim)
-: _inputFunc(inputFunc)
-, _targetFunc(targetFunc)
-, _inputDim(inputDim)
-, _outputDim(outputDim)
-{ }
 
-int FunctionDataset::inputDim() const {
-    return _inputDim;
+
+std::default_random_engine generator;
+std::uniform_int_distribution<int> distribution(0, 2*M_PI);
+
+
+FunctionDataset::FunctionDataset(InputFunction inputFunc, TargetFunction targetFunc,
+                                 int inputDim, int outputDim, int datasetSize)
+: inputFunc_(inputFunc),
+  targetFunc_(targetFunc),
+  inputDim_(inputDim),
+  outputDim_(outputDim),
+  datasetSize_(datasetSize),
+  currentInputBuffer_(inputDim, 0.0f),
+  currentTargetBuffer_(outputDim, 0.0f),
+  inputs_(datasetSize, std::vector<float>(inputDim)),
+  targets_(datasetSize, std::vector<float>(outputDim)) {
 }
 
-int FunctionDataset::outputDim() const {
-    return _outputDim;
+
+
+float* FunctionDataset::getInputDataAt(int timestep) {
+    if (timestep < 0 || timestep >= datasetSize_) {
+        throw std::out_of_range("❌ getInputDataAt: timestep out of range");
+    }
+    return inputs_[timestep].data();
+}
+
+float* FunctionDataset::getTargetDataAt(int timestep) {
+    if (timestep < 0 || timestep >= datasetSize_) {
+        throw std::out_of_range("❌ getTargetDataAt: timestep out of range");
+    }
+    return targets_[timestep].data();
+}
+
+int FunctionDataset::getDatasetSize() const {
+    return datasetSize_;
+}
+
+float FunctionDataset::calculateLoss(const float* predictedData, int outputDim) {
+    const float* targetData = getTargetDataAt(0);  // Assuming current timestep
+    float mse = 0.0f;
+
+    for (int i = 0; i < outputDim; ++i) {
+        float diff = predictedData[i] - targetData[i];
+        mse += diff * diff;
+    }
+
+    mse /= static_cast<float>(outputDim);
+    return mse;
+}
+
+
+
+void FunctionDataset::loadData() {
+    bool isTraining = TrainingManager::instance().isTraining();
+    if (isTraining) {
+        printf("isTraining\n");
+        shuffleIndices();
+        generateDataset(offset_);
+    }else {
+        printf("is inference\n");
+        generateDataset(offset_++);
+    }
+}
+
+void FunctionDataset::generateDataset(double offset) {
+    inputs_.resize(datasetSize_);
+    targets_.resize(datasetSize_);
+    for (int t = 0; t < datasetSize_; ++t) {
+        double effectiveTime = static_cast<double>(t);
+        for (int i = 0; i < inputDim_; ++i) {
+            inputs_[t][i] = inputFunc_(i, effectiveTime + offset);
+        }
+        for (int i = 0; i < outputDim_; ++i) {
+            targets_[t][i] = targetFunc_(i, effectiveTime + offset);
+        }
+    }
+}
+
+void FunctionDataset::loadSample(int _) {
+    loadData();
+}
+
+void FunctionDataset::shuffleIndices() {
+    offset_ = distribution(generator);
 }
 
 int FunctionDataset::numSamples() const {
-    // Typically infinite or arbitrary for generated functions
-    return 10000; // Placeholder number, adjust as needed
+    // Returns the total number of samples in this dataset
+    return datasetSize_;
 }
 
-void FunctionDataset::loadSample(int index, float* inputBuffer, float* targetBuffer) {
-    // Generate data at a random or sequential timestamp
-    static std::default_random_engine generator;
-    static std::uniform_real_distribution<double> distribution(0.0, 2.0*M_PI);
-    double effectiveTime = distribution(generator);
-
-    for (int i = 0; i < _inputDim; ++i) {
-        inputBuffer[i] = _inputFunc(i, effectiveTime);
-    }
-    
-    for (int i = 0; i < _outputDim; ++i) {
-        targetBuffer[i] = _targetFunc(i, effectiveTime);
-    }
+float* FunctionDataset::getInputDataBuffer() {
+    return inputs_[0].data();
 }
 
-const std::vector<float>& FunctionDataset::inputAt(int index) {
-    static std::vector<float> inputBuffer(_inputDim);
-    static std::default_random_engine generator;
-    static std::uniform_real_distribution<double> distribution(0.0, 1.0);
-
-    for (int i = 0; i < _inputDim; ++i) {
-        inputBuffer[i] = _inputFunc(i, index);
-    }
-    return inputBuffer;
-}
-
-const std::vector<float>& FunctionDataset::targetAt(int index) {
-    static std::vector<float> targetBuffer(_outputDim);
-    static std::default_random_engine generator;
-    static std::uniform_real_distribution<double> distribution(0.0, 1.0);
-
-    for (int i = 0; i < _outputDim; ++i) {
-        targetBuffer[i] = _targetFunc(i, index);
-    }
-    return targetBuffer;
+float* FunctionDataset::getTargetDataBuffer() {
+    return targets_[0].data();
 }

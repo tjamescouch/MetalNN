@@ -4,7 +4,7 @@
 //
 //  Created by James Couch on 2025-03-02.
 //
-
+#ifdef FUTURE_CLASS
 #include "gradient-checker.h"
 #include <cassert>
 #include <iostream>
@@ -73,3 +73,4 @@ void GradientChecker::checkLayerGradients(Layer* layer, float tolerance) {
         }
     }
 }
+#endif
