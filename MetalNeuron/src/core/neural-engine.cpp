@@ -130,6 +130,8 @@ void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
                                                 dynamicLayers_[i]->getOutputBufferAt(BufferType::OutputErrors, 0)
                                                 );
     }
+    
+    dynamicLayers_.back()->setIsTerminal(true);
 }
 
 
@@ -240,14 +242,15 @@ void NeuralEngine::computeBackwardIterations(uint32_t iterations) {
     
     _pDataManager->loadNextSample();
     
-    int slot = 0;
-    
-    float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(slot);
-    float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(slot);
-    
-    _pInputLayer->updateBufferAt(inBuffer, slot);
-    dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, slot);
-    
+    int terminalSeqLen = dynamicLayers_.back()->getSequenceLength();
+    for (int t = 0; t < terminalSeqLen; ++t) {
+        float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(t);
+        float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(t);
+        
+        _pInputLayer->updateBufferAt(inBuffer, t);
+        dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, t);
+    }
+
     
     
     computeForward([this, iterations]() {
@@ -297,12 +300,19 @@ void NeuralEngine::computeForwardIterations(uint32_t iterations) {
     
     _pDataManager->loadNextSample();
     
-    int slot = 0;
-    float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(slot);
-    float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(slot);
+    int terminalSequenceLength = dynamicLayers_.back()->getSequenceLength();
+    for (int t = 0; t < terminalSequenceLength; ++t) {
+        float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(t);
+        
+        dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, t);
+    }
     
-    _pInputLayer->updateBufferAt(inBuffer, slot);
-    dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, slot);
+    int inputSequenceLength = _pInputLayer->getSequenceLength();
+    for (int t = 0; t < inputSequenceLength; ++t) {
+        float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(t);
+        
+        _pInputLayer->updateBufferAt(inBuffer, t);
+    }
     
     computeForward([this, iterations]() {
         float* predictedData = static_cast<float*>(

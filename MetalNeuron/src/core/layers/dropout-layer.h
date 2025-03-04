@@ -48,6 +48,9 @@ public:
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;
     
+    int getSequenceLength() override { return sequenceLength_; };
+    void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; };
+    
     void debugLog() override {
 #ifdef DEBUG_DROPOUT_LAYER
         for (int t = 0; t < sequenceLength_; ++t) {
@@ -76,6 +79,7 @@ private:
     float rate_;
     int sequenceLength_;
     int featureDim_;
+    bool isTerminal_;
 
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
@@ -86,6 +90,6 @@ private:
     // New member for CPU-fed randomness
     MTL::Buffer* bufferRandomMask_;
     MTL::Device* _pDevice;
-    
+        
     void generateRandomMask();
 };

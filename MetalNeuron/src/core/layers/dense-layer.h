@@ -48,11 +48,15 @@ public:
     
     void debugLog() override;
     
+    int getSequenceLength() override { return sequenceLength_; };
+    
+    void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; };
     
 private:
     int inputDim_;
     int outputDim_;
     int sequenceLength_;
+    bool isTerminal_;
     
     ActivationFunction activation_;
     

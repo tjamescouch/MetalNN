@@ -16,6 +16,7 @@
 BatchNormalizationLayer::BatchNormalizationLayer(int featureDim, int _unused, float epsilon)
 : featureDim_(featureDim),
 sequenceLength_(1),
+isTerminal_(false),
 epsilon_(epsilon),
 bufferGamma_(nullptr),
 bufferBeta_(nullptr),

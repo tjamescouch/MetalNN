@@ -45,10 +45,12 @@ public:
     void onForwardComplete() override {};
     void onBackwardComplete(MTL::CommandQueue* _pCommandQueue) override {};
     
-    int getSequenceLength();
+    int getSequenceLength() override;
     
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;
+    
+    void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; };
     
     void debugLog() override {
 #ifdef DEBUG_INPUT_LAYER
@@ -65,6 +67,7 @@ public:
 private:
     int inputDim_;
     int sequenceLength_;
+    bool isTerminal_;
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
 };

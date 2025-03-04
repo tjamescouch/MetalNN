@@ -46,10 +46,16 @@ public:
     void loadParameters(std::istream& is) override;
 
     void debugLog() override {/*TODO*/}
+    
+    int getSequenceLength() override { return sequenceLength_; };
+    
+    void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; };
+    
 private:
     int featureDim_;
     int sequenceLength_;
     float epsilon_;
+    bool isTerminal_;
 
     // Parameter buffers
     MTL::Buffer* bufferGamma_; // Scale
