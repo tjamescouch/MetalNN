@@ -29,7 +29,7 @@ public:
 
     void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
     MTL::Buffer* getInputBufferAt(BufferType type, int timestep) override;
-    void connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
+    void connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
                                          MTL::Buffer* zeroBuffer, int timestep) override;
     
     int outputSize() const override { return featureDim_; }

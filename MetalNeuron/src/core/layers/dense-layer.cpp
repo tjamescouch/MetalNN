@@ -216,7 +216,7 @@ int DenseLayer::outputSize() const {
 }
 
 
-void DenseLayer::connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
+void DenseLayer::connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
                      previousLayer

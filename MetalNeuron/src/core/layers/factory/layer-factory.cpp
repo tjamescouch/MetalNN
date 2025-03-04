@@ -10,6 +10,7 @@
 #include "dropout-layer.h"
 #include "batch-normalization-layer.h"
 #include "rnn-layer.h"
+#include "map-reduce-layer.h"
 
 Layer* LayerFactory::createLayer(const LayerConfig& layerConfig,
                                  int input_dim,
@@ -42,6 +43,11 @@ Layer* LayerFactory::createLayer(const LayerConfig& layerConfig,
         int timeSteps = layerConfig.time_steps;
         layer = new RNNLayer(previousLayerOutputSize, outputSize, timeSteps, activation);
         previousLayerOutputSize = outputSize;
+    }
+    else if (layerConfig.type == "MapReduce") {
+        auto reductionType = layerConfig.params.at("reduction_type").get_value<std::string>();
+        layer = new MapReduceLayer(previousLayerOutputSize, parseReductionType(reductionType));
+        previousLayerOutputSize = 1;
     }
     else {
         throw std::invalid_argument("Unsupported layer type");

@@ -177,7 +177,7 @@ MTL::Buffer* BatchNormalizationLayer::getInputBufferAt(BufferType type, int time
     return nullptr;
 }
 
-void BatchNormalizationLayer::connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
+void BatchNormalizationLayer::connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
                                                   MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
                      previousLayer

@@ -10,16 +10,9 @@
 
 #include "layer.h"
 
-enum class ReductionType {
-    Sum,
-    Mean,
-    Max,
-    Min
-};
-
 class MapReduceLayer : public Layer {
 public:
-    MapReduceLayer(int inputSize, int sequenceLength, ReductionType reductionType);
+    MapReduceLayer(int inputSize, ReductionType reductionType);
     ~MapReduceLayer();
 
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
@@ -30,16 +23,46 @@ public:
 
     int getSequenceLength() override;
     
-    void connectInputBuffers(const Layer* previousLayer, const InputLayer* inputLayer, MTL::Buffer* zeroBuffer, int timestep) override;
+    void connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
+                                     MTL::Buffer* zeroBuffer, int timestep) override;
+    
+    void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;
+    void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) override;
+
+    int outputSize() const override;
+
+    void updateTargetBufferAt(const float* targetData, int timestep) override;
+
+    int getParameterCount() const override;
+    float getParameterAt(int index) const override;
+    void setParameterAt(int index, float value) override;
+    float getGradientAt(int index) const override;
+
+    void debugLog() override;
+
+    void onForwardComplete() override;
+    void onBackwardComplete(MTL::CommandQueue* queue) override;
+
+    void saveParameters(std::ostream& outStream) const override;
+    void loadParameters(std::istream& inStream) override;
+
+    void setIsTerminal(bool isTerminal) override;
 
 private:
     int output_dim_;
     int inputSize_;
     int sequenceLength_;
     ReductionType reductionType_;
+    bool isTerminal_;
     
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
+    
+    // Explicit mapping of BufferType to buffer arrays
+    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
+    std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
 };
 
 #endif

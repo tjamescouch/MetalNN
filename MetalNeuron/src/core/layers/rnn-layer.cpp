@@ -340,7 +340,7 @@ MTL::Buffer* RNNLayer::getInputBufferAt(BufferType type, int timestep) {
 }
 
 void RNNLayer::connectInputBuffers(Layer* prevLayer,
-                                   InputLayer* inputLayer,
+                                   Layer* inputLayer,
                                    MTL::Buffer* zeroBuffer,
                                    int timestep)
 {

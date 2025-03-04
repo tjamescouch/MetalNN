@@ -11,6 +11,7 @@
 #include <functional>
 #include "data-source.h"
 
+
 // Forward declarations for Metal types.
 namespace MTL {
 class Buffer;
@@ -19,7 +20,7 @@ class Library;
 class CommandBuffer;
 }
 
-class InputLayer;
+
 
 enum class ActivationFunction {
     Linear = 0,
@@ -36,6 +37,21 @@ inline ActivationFunction parseActivation(const std::string& activation) {
     if (activation == "sigmoid") return ActivationFunction::Sigmoid;
     if (activation == "softmax") return ActivationFunction::Softmax;
     throw std::invalid_argument("Unknown activation: " + activation);
+}
+
+enum class ReductionType {
+    Sum,
+    Mean,
+    Max,
+    Min,
+};
+
+inline ReductionType parseReductionType(const std::string& reductionType) {
+    if (reductionType == "sum") return ReductionType::Sum;
+    if (reductionType == "mean") return ReductionType::Mean;
+    if (reductionType == "max") return ReductionType::Max;
+    if (reductionType == "min") return ReductionType::Min;
+    throw std::invalid_argument("Unknown reduction type: " + reductionType);
 }
 
 enum class BufferType : unsigned int {
@@ -72,7 +88,7 @@ public:
     
     virtual int outputSize() const = 0;
     virtual void updateTargetBufferAt(const float* targetData, int timestep) = 0;
-    virtual void connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
+    virtual void connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) = 0;
     
     virtual int getParameterCount() const = 0;

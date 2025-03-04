@@ -30,7 +30,7 @@ public:
     int outputSize() const override;
     void updateTargetBufferAt(const float* targetData, int timestep) override;
     
-    void connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
+    void connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
                              MTL::Buffer* zeroBuffer, int timestep) override;
     
     

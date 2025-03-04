@@ -151,7 +151,7 @@ MTL::Buffer* DropoutLayer::getInputBufferAt(BufferType type, int timestep) {
     return inputBuffers_[type][timestep];
 }
 
-void DropoutLayer::connectInputBuffers(Layer* previousLayer, InputLayer* inputLayer,
+void DropoutLayer::connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
                      previousLayer
