@@ -12,9 +12,9 @@ AdamOptimizer::AdamOptimizer(float lr, float beta1, float beta2, float epsilon)
       learningRate_(lr), beta1_(beta1), beta2_(beta2), epsilon_(epsilon) {}
 
 void AdamOptimizer::buildBuffers(MTL::Device* device, size_t paramSize) {
-    bufferGradients_ = device->newBuffer(paramSize, MTL::ResourceStorageModeShared);
-    bufferM_ = device->newBuffer(paramSize, MTL::ResourceStorageModeShared);
-    bufferV_ = device->newBuffer(paramSize, MTL::ResourceStorageModeShared);
+    bufferGradients_ = device->newBuffer(paramSize, MTL::ResourceStorageModeManaged);
+    bufferM_ = device->newBuffer(paramSize, MTL::ResourceStorageModeManaged);
+    bufferV_ = device->newBuffer(paramSize, MTL::ResourceStorageModeManaged);
 
     memset(bufferGradients_->contents(), 0, paramSize);
     memset(bufferM_->contents(), 0, paramSize);

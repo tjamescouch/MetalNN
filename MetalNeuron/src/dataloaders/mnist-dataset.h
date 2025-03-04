@@ -22,7 +22,7 @@ public:
     int getDatasetSize() const override;
 
     // Existing specific methods
-    int numSamples() const;
+    int numSamples() const override;
     int inputDim() const override;
     int outputDim() const override;
 

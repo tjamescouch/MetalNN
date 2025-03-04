@@ -53,7 +53,7 @@ void RNNLayer::buildBuffers(MTL::Device* device) {
     const int numWeights = inputDim_ * hiddenDim_;
     const int weightBufferSize = numWeights * sizeof(float);
     
-    bufferWeightGradients_ = device->newBuffer(weightBufferSize, MTL::ResourceStorageModeShared);
+    bufferWeightGradients_ = device->newBuffer(weightBufferSize, MTL::ResourceStorageModeManaged);
     
     
     // Allocate weight buffer: W_xh (inputDim x hiddenDim)
@@ -236,7 +236,7 @@ void RNNLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buff
     inputBuffers_[type][timestep] = buffer;
 }
 
-MTL::Buffer* RNNLayer::getOutputBufferAt(BufferType type, int timestep) const {
+MTL::Buffer* RNNLayer::getOutputBufferAt(BufferType type, int timestep) {
     auto it = outputBuffers_.find(type);
     if (it != outputBuffers_.end()) {
         return it->second[timestep];
@@ -294,7 +294,7 @@ void RNNLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buf
     outputBuffers_[type][timestep] = buffer;
 }
 
-MTL::Buffer* RNNLayer::getInputBufferAt(BufferType type, int timestep) const {
+MTL::Buffer* RNNLayer::getInputBufferAt(BufferType type, int timestep) {
     auto it = inputBuffers_.find(type);
     if (it != inputBuffers_.end()) {
         return it->second[timestep];
@@ -302,8 +302,8 @@ MTL::Buffer* RNNLayer::getInputBufferAt(BufferType type, int timestep) const {
     return nullptr; // Explicitly handle missing cases appropriately.
 }
 
-void RNNLayer::connectInputBuffers(const Layer* prevLayer,
-                                   const InputLayer* inputLayer,
+void RNNLayer::connectInputBuffers(Layer* prevLayer,
+                                   InputLayer* inputLayer,
                                    MTL::Buffer* zeroBuffer,
                                    int timestep)
 {
