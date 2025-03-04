@@ -12,10 +12,11 @@
 #include "rnn-layer.h"
 
 Layer* LayerFactory::createLayer(const LayerConfig& layerConfig,
-                                 int& previousLayerOutputSize,
+                                 int input_dim,
                                  MTL::Device* device,
                                  MTL::Library* library) {
     Layer* layer = nullptr;
+    int previousLayerOutputSize = input_dim;
 
     if (layerConfig.type == "Dense") {
         int outputSize = layerConfig.params.at("output_size").get_value<int>();

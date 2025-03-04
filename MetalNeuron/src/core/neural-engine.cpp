@@ -98,18 +98,17 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
 }
 
 void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
-    int previousLayerOutputSize = input_dim;
-    int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
-    
     // Build each layer from config
     for (const auto& layerConfig : config.layers) {
         Layer* layer = LayerFactory::createLayer(layerConfig,
-                                                 previousLayerOutputSize,
+                                                 input_dim,
                                                  _pDevice,
                                                  _pComputeLibrary);
         dynamicLayers_.push_back(layer);
     }
     
+    int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
+
     // Build + update input layer
     _pInputLayer->buildBuffers(_pDevice);
     for (int t = 0; t < first_layer_time_steps; ++t) {
