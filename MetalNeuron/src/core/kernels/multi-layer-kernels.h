@@ -76,8 +76,6 @@ kernel void forward_dense_layer(
     // First compute the pre-activation sums.
     y[tid] = sum;
 
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
     // Handle softmax separately after all sums are computed.
     if (*activation == 4) {
         threadgroup_barrier(mem_flags::mem_threadgroup);

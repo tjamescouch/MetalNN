@@ -14,7 +14,7 @@
 #include "function-dataset.h"
 #include "math-lib.h"
 
-const char* defaultModelFilePath = "simple-dense-layer.yml";
+const char* defaultModelFilePath = "model-config.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {
