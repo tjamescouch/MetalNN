@@ -29,6 +29,15 @@ enum class ActivationFunction {
     Softmax
 };
 
+inline ActivationFunction parseActivation(const std::string& activation) {
+    if (activation == "linear") return ActivationFunction::Linear;
+    if (activation == "relu") return ActivationFunction::ReLU;
+    if (activation == "tanh") return ActivationFunction::Tanh;
+    if (activation == "sigmoid") return ActivationFunction::Sigmoid;
+    if (activation == "softmax") return ActivationFunction::Softmax;
+    throw std::invalid_argument("Unknown activation: " + activation);
+}
+
 enum class BufferType : unsigned int {
     Input = 0,
     HiddenState,

@@ -1,4 +1,4 @@
-name: "Improved OCR"
+name: "OCR"
 
 layers:
   - type: Dense
@@ -6,11 +6,27 @@ layers:
     output_size: 256
     activation: relu
 
+  - type: BatchNormalization
+    input_size: 256
+    output_size: 256
+
   - type: Dropout
     rate: 0.3
 
   - type: Dense
     input_size: 256
+    output_size: 128
+    activation: relu
+
+  - type: BatchNormalization
+    input_size: 128
+    output_size: 128
+
+  - type: Dropout
+    rate: 0.2
+
+  - type: Dense
+    input_size: 128
     output_size: 10
     activation: softmax
 
@@ -24,7 +40,7 @@ training:
       epsilon: 1e-8
 
   epochs: 10
-  batch_size: 1280  # Smaller batch size for more frequent updates
+  batch_size: 128  # Smaller batch size for more frequent updates
 
 dataset:
   type: "mnist"

@@ -2,6 +2,7 @@
 #define DENSE_LAYER_H
 
 #include "layer.h"
+#include "optimizer.h"
 #include "input-layer.h"
 #include "data-source.h"
 #include <Metal/Metal.hpp>

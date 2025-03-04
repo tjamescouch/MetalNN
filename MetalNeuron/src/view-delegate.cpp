@@ -14,7 +14,7 @@
 #include "function-dataset.h"
 #include "math-lib.h"
 
-const char* defaultModelFilePath = "simple-dense-layer.yml";
+const char* defaultModelFilePath = "ocr.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {
@@ -35,7 +35,7 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice)
             config.dataset.labels
         );
     } else if (config.dataset.type == "function") {
-        dataset = new FunctionDataset(mathlib::inputFunc, mathlib::targetFunc, 512, 512,512); //FIXME - hardcoded input dimensions
+        dataset = new FunctionDataset(mathlib::inputFunc, mathlib::targetFunc, 512, 512, 512); //FIXME - hardcoded input dimensions
     } else {
         throw std::runtime_error("Unsupported dataset type: " + config.dataset.type);
     }

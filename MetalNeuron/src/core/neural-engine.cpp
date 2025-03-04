@@ -8,6 +8,7 @@
 #include "mnist-dataset.h"
 #include "training-manager.h"
 #include "math-lib.h"
+#include "layer-factory.h"
 
 
 #ifdef DEBUG_GRADIENT_CHECKS
@@ -17,17 +18,6 @@
 
 const char* outputFileName = "multilayer_nn_training.m";
 int globalTimestep = 0;
-
-
-ActivationFunction parseActivation(const std::string& activation) {
-    if (activation == "linear") return ActivationFunction::Linear;
-    if (activation == "relu") return ActivationFunction::ReLU;
-    if (activation == "tanh") return ActivationFunction::Tanh;
-    if (activation == "sigmoid") return ActivationFunction::Sigmoid;
-    if (activation == "softmax") return ActivationFunction::Softmax;
-    throw std::invalid_argument("Unknown activation: " + activation);
-}
-
 
 
 NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config, DataManager* pDataManager)
@@ -113,39 +103,10 @@ void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
     
     // Build each layer from config
     for (const auto& layerConfig : config.layers) {
-        Layer* layer = nullptr;
-        if (layerConfig.type == "Dense") {
-            int outputSize = layerConfig.params.at("output_size").get_value<int>();
-            auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
-            ActivationFunction activation = parseActivation(activationStr);
-            layer = new DenseLayer(previousLayerOutputSize, outputSize, 1, activation);
-            previousLayerOutputSize = outputSize;
-        }
-        else if (layerConfig.type == "Dropout") {
-            float rate = layerConfig.params.at("rate").get_value<float>();
-            layer = new DropoutLayer(rate, previousLayerOutputSize, 1);
-        }
-        else if (layerConfig.type == "BatchNormalization") {
-            float epsilon = layerConfig.params.count("epsilon")
-            ? layerConfig.params.at("epsilon").get_value<float>()
-            : 0.001f;
-            layer = new BatchNormalizationLayer(previousLayerOutputSize, 1, epsilon);
-        }
-        else if (layerConfig.type == "RNN") {
-            auto time_steps = layerConfig.time_steps;
-            int outputSize = layerConfig.params.at("output_size").get_value<int>();
-            auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
-            ActivationFunction activation = parseActivation(activationStr);
-            layer = new RNNLayer(previousLayerOutputSize, outputSize, time_steps, activation);
-            previousLayerOutputSize = outputSize;
-        }
-        else {
-            throw std::invalid_argument("Unsupported layer type");
-        }
-        
-        // Build pipeline & buffers
-        layer->buildPipeline(_pDevice, _pComputeLibrary);
-        layer->buildBuffers(_pDevice);
+        Layer* layer = LayerFactory::createLayer(layerConfig,
+                                                 previousLayerOutputSize,
+                                                 _pDevice,
+                                                 _pComputeLibrary);
         dynamicLayers_.push_back(layer);
     }
     
