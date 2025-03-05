@@ -39,83 +39,100 @@ void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount,
     std::cout << "AVG OUTPUT ERROR (across sequence): " << avgOutputError << std::endl;
 }
 
-void Logger::logAnalytics(const float* output, int outputCount,
-                          const float* target, int targetCount) {
+void Logger::flushAnalytics() {
     if (isRegression_) {
-        return logRegressionData(output, outputCount, target, targetCount);
+        return flushRegressionAnalytics();
     }
     
-    return logClassificationData(output, outputCount, target, targetCount);
+    return flushClassificationAnalytics();
 }
 
-void Logger::logRegressionData(const float* output, int outputCount,
+void Logger::logAnalytics(const float* output, int outputCount,
                                const float* target, int targetCount) {
-    if (!logFileStream->is_open()) {
-        std::cerr << "Error opening log file: " << filename_ << std::endl;
-        return;
-    }
-    
-    *logFileStream << "clf; hold on;" << std::endl;
-    *logFileStream << "ylim([-1.2 1.2]);" << std::endl;
-    
-    // Generate x-axis explicitly for this timestep
-    *logFileStream << "x = 1:" << outputCount << ";" << std::endl;
-    
-    // Log the target and output arrays clearly
-    *logFileStream << "target = [ ";
-    for (int i = 0; i < targetCount; ++i) {
-        *logFileStream << target[i] << (i < targetCount - 1 ? ", " : "");
-    }
-    *logFileStream << " ];" << std::endl;
-    
-    *logFileStream << "output = [ ";
-    for (int i = 0; i < outputCount; ++i) {
-        *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "");
-    }
-    *logFileStream << " ];" << std::endl;
-    
-    // Plot using scatter plots explicitly
-    *logFileStream << "scatter(x, target, 'filled', 'b', 'DisplayName', 'Target');" << std::endl;
-    *logFileStream << "scatter(x, output, 'filled', 'r', 'DisplayName', 'Prediction');" << std::endl;
-    
-    *logFileStream << "legend('show');" << std::endl;
-    *logFileStream << "hold off; pause(0.01);" << std::endl;
+    batchOutputs_.emplace_back(output, output + outputCount);
+    batchTargets_.emplace_back(target, target + targetCount);
 }
 
-void Logger::logClassificationData(const float* output, int outputCount,
-                                   const float* target, int targetCount) {
+void Logger::flushRegressionAnalytics() {
     if (!logFileStream->is_open()) {
         std::cerr << "Error opening log file: " << filename_ << std::endl;
         return;
     }
 
-    // Clear figure and prepare plot
     *logFileStream << "clf; hold on;" << std::endl;
-    *logFileStream << "xlabel('Class (Digit)'); ylabel('Probability');" << std::endl;
-    *logFileStream << "ylim([0, 1]);" << std::endl;
-    
-    // X-axis: classes 0-9
-    *logFileStream << "x = 0:" << (outputCount - 1) << ";" << std::endl;
-    
-    // Target vector
-    *logFileStream << "target = [";
-    for (int i = 0; i < targetCount; ++i) {
-        *logFileStream << target[i] << (i < targetCount - 1 ? ", " : "") << std::endl;
+    *logFileStream << "ylim([-1 1]);" << std::endl;
+
+    for (size_t sampleIdx = 0; sampleIdx < batchOutputs_.size(); ++sampleIdx) {
+        const auto& output = batchOutputs_[sampleIdx];
+        const auto& target = batchTargets_[sampleIdx];
+        size_t outputCount = output.size();
+
+        *logFileStream << "x = 1:" << outputCount << ";" << std::endl;
+
+        // Log target array
+        *logFileStream << "target = [ ";
+        for (int i = 0; i < outputCount; ++i)
+            *logFileStream << target[i] << (i < outputCount - 1 ? ", " : "");
+        *logFileStream << " ];" << std::endl;
+
+        // Log output array
+        *logFileStream << "output = [ ";
+        for (int i = 0; i < outputCount; ++i)
+            *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "");
+        *logFileStream << " ];" << std::endl;
+
+        // Plot targets and predictions
+        *logFileStream << "scatter(x, target, 'filled', 'b', 'DisplayName', 'Target');" << std::endl;
+        *logFileStream << "scatter(x, output, 'filled', 'r', 'DisplayName', 'Prediction');" << std::endl;
+
+        *logFileStream << "legend('show');" << std::endl;
+        *logFileStream << "pause(0.01);" << std::endl;
+        *logFileStream << "clf; hold on;" << std::endl;
     }
-    *logFileStream << "];";
-    
-    // Predicted probabilities
-    *logFileStream << "output = [";
-    for (int i = 0; i < outputCount; ++i) {
-        *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "") << std::endl;
+
+    *logFileStream << "hold off;" << std::endl;
+}
+
+void Logger::flushClassificationAnalytics() {
+    if (!logFileStream->is_open()) {
+        std::cerr << "Error opening log file: " << filename_ << std::endl;
+        return;
     }
-    *logFileStream << "];";
-    
-    // Bar plot for clear visual comparison
-    *logFileStream << "bar(x - 0.15, target, 0.3, 'FaceColor', 'b', 'DisplayName', 'Target');" << std::endl;
-    *logFileStream << "bar(x + 0.15, output, 0.3, 'FaceColor', 'r', 'DisplayName', 'Prediction');" << std::endl;
-    *logFileStream << "legend('show');" << std::endl;
-    *logFileStream << "hold off; pause(0.05);" << std::endl;
+
+    for (size_t sampleIdx = 0; sampleIdx < batchOutputs_.size(); ++sampleIdx) {
+        const auto& output = batchOutputs_[sampleIdx];
+        const auto& target = batchTargets_[sampleIdx];
+        size_t outputCount = output.size();
+
+        *logFileStream << "clf; hold on;" << std::endl;
+        *logFileStream << "xlabel('Class (Digit)'); ylabel('Probability');" << std::endl;
+        *logFileStream << "ylim([0, 1]);" << std::endl;
+
+        *logFileStream << "x = 0:" << (outputCount - 1) << ";" << std::endl;
+
+        // Target vector
+        *logFileStream << "target = [";
+        for (int i = 0; i < outputCount; ++i) {
+            *logFileStream << target[i] << (i < outputCount - 1 ? ", " : "") << " ";
+        }
+        *logFileStream << "];" << std::endl;
+
+        // Predicted probabilities
+        *logFileStream << "output = [";
+        for (int i = 0; i < outputCount; ++i) {
+            *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "") << " ";
+        }
+        *logFileStream << "];" << std::endl;
+
+        // Plot as bar plots
+        *logFileStream << "bar(x - 0.15, target, 0.3, 'FaceColor', 'b', 'DisplayName', 'Target');" << std::endl;
+        *logFileStream << "bar(x + 0.15, output, 0.3, 'FaceColor', 'r', 'DisplayName', 'Prediction');" << std::endl;
+
+        *logFileStream << "legend('show');" << std::endl;
+        *logFileStream << "pause(0.05);" << std::endl;
+    }
+
+    *logFileStream << "hold off;" << std::endl;
 }
 
 void Logger::clear() {
@@ -152,4 +169,11 @@ float Logger::finalizeBatchLoss() {
     accumulatedLoss_ = 0.0f;
     logLoss(averageLoss); // Log average to your file or console.
     return averageLoss;
+}
+
+
+
+void Logger::clearBatchData() {
+    batchOutputs_.clear();
+    batchTargets_.clear();
 }

@@ -299,10 +299,14 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
     }
     
     computeForward(currentBatchSize, [=, this]() mutable {
-        float* predictedData = static_cast<float*>(
-                                                   dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
-                                                   );
+        float* predictedData = static_cast<float*>(dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents());
         float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
+        
+        _pLogger->logAnalytics(predictedData, output_dim, targetData, output_dim);
+
+        // When batch is complete, explicitly flush analytics:
+        _pLogger->flushAnalytics();
+        _pLogger->clearBatchData();
         
         float loss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim);
         _pLogger->accumulateLoss(loss);

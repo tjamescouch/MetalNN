@@ -16,12 +16,6 @@ public:
     void logAnalytics(const float* output, int outputCount,
                       const float* target, int targetCount);
     
-    void logRegressionData(const float* output, int outputCount,
-                           const float* target, int targetCount);
-    
-    void logClassificationData(const float* output, int outputCount,
-                               const float* target, int targetCount);
-    
     void logMSE(float* targetData, float* outputData, int dimension);
     void logCrossEntropyLoss(float* targetData, float* outputData, int dimension);
 
@@ -30,12 +24,26 @@ public:
     void accumulateLoss(float loss);
     float finalizeBatchLoss();
     
+    void addSample(const float* prediction, const float* target);
+
+    void flushAnalytics();
+    
+    void clearBatchData();
+    void flushBatchData();
+    
 private:
+    void flushRegressionAnalytics();
+    void flushClassificationAnalytics();
+    
     bool isRegression_ = true;
     float accumulatedLoss_ = 0.0f;
     int numSamples_ = 0;
     std::ofstream *logFileStream = nullptr;
     std::string filename_;
+    
+    std::vector<std::vector<float>> batchOutputs_;
+    std::vector<std::vector<float>> batchTargets_;
+    int outputDim_;
 };
 
 #endif // LOGGER_H
