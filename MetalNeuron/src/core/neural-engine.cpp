@@ -261,9 +261,9 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
 
 void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemaining, std::function<void()> onComplete) {
     
-    uint32_t samplesRemaining = mathlib::min<int>((int)ceil(batchesRemaining / batch_size), totalSamples);
+    uint32_t samplesRemaining = mathlib::min<int>((int)ceil(batchesRemaining * batch_size), totalSamples);
     uint32_t currentBatchSize = mathlib::min<int>(batch_size, samplesRemaining);
-    std::cout << "⚙️ Forward batches remaining "  << batchesRemaining << " - current batch size " << currentBatchSize << std::endl;
+    std::cout << "⚙️ Forward batches remaining "  << batchesRemaining << " - current batch size " << currentBatchSize << " total samples " << totalSamples << std::endl;
 
     
     auto samplesProcessed = totalSamples - samplesRemaining;
@@ -302,6 +302,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
         float* predictedData = static_cast<float*>(
                                                    dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
                                                    );
+        float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
         
         float loss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim);
         _pLogger->accumulateLoss(loss);
@@ -311,6 +312,8 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
         if (samplesProcessed * batch_size % 500 == 0 && samplesProcessed > 0) {
             _pLogger->finalizeBatchLoss();
         }
+        
+        _pLogger->logAnalytics(predictedData, _pDataManager->getCurrentDataset()->outputDim(), targetData, _pDataManager->getCurrentDataset()->outputDim());
         
         computeForwardBatches(totalSamples, batchesRemaining - 1, onComplete);
     });

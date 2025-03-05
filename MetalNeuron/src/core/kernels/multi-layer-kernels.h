@@ -146,6 +146,7 @@ kernel void learn_dense_layer(
     // Accumulate weight gradients for each input neuron
     for (uint i = 0; i < input_dim; i++) {
         float grad = sample_h[i] * delta;
+        grad = clamp(grad, -threshold, threshold);
 
         // Atomic add for concurrent accumulation across batches
         atomic_fetch_add_explicit((device atomic_float*)&W[i * output_dim + neuron_id], -learning_rate_w * grad * decay, memory_order_relaxed);
