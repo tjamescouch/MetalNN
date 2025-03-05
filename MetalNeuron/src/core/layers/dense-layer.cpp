@@ -216,7 +216,7 @@ int DenseLayer::outputSize() const {
 }
 
 
-void DenseLayer::connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
+void DenseLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
                      previousLayer
@@ -225,6 +225,13 @@ void DenseLayer::connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
                      );
 }
 
+void DenseLayer::connectBackwardConnections(Layer* prevLayer,
+                                   Layer* inputLayer,
+                                   MTL::Buffer* zeroBuffer,
+                                   int timestep)
+{
+    prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
+}
 
 int DenseLayer::getParameterCount() const {
     return inputDim_ * outputDim_ + outputDim_;  // weights + biases

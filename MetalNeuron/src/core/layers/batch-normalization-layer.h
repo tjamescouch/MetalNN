@@ -30,8 +30,10 @@ public:
     int outputSize() const override;
     void updateTargetBufferAt(const float* targetData, int timestep) override;
     
-    void connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
+    void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
                              MTL::Buffer* zeroBuffer, int timestep) override;
+    void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
+                                     MTL::Buffer* zeroBuffer, int timestep) override;
     
     
     int getParameterCount() const override;

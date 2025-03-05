@@ -66,7 +66,7 @@ int MapReduceLayer::getSequenceLength() {
 }
 
 
-void MapReduceLayer::connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
+void MapReduceLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
                                          MTL::Buffer* zeroBuffer, int timestep){
     if (previousLayer) {
         setInputBufferAt(BufferType::Input, timestep,
@@ -77,6 +77,14 @@ void MapReduceLayer::connectInputBuffers(Layer* previousLayer, Layer* inputLayer
     } else {
         setInputBufferAt(BufferType::Input, timestep, zeroBuffer);
     }
+}
+
+void MapReduceLayer::connectBackwardConnections(Layer* prevLayer,
+                                   Layer* inputLayer,
+                                   MTL::Buffer* zeroBuffer,
+                                   int timestep)
+{
+    prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
 }
 
 void MapReduceLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {

@@ -174,13 +174,18 @@ MTL::Buffer* BatchNormalizationLayer::getInputBufferAt(BufferType type, int time
     return nullptr;
 }
 
-void BatchNormalizationLayer::connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
+void BatchNormalizationLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
                                                   MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
                      previousLayer
                      ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
                      : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
                      );
+}
+
+void BatchNormalizationLayer::connectBackwardConnections(Layer* prevLayer, Layer* inputLayer,
+                                                  MTL::Buffer* zeroBuffer, int timestep) {
+    prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
 }
 
 int BatchNormalizationLayer::getParameterCount() const {

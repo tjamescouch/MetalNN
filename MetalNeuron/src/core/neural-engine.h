@@ -78,10 +78,8 @@ private:
     
     int batch_size;
     int epochs;
-    //FIXME get from model configuration:
-    int input_dim  = 512;
-    int hidden_dim = 512;
-    int output_dim = 512;
+    int input_dim;
+    int output_dim;
 };
 
 #endif // NEURAL_ENGINE_H

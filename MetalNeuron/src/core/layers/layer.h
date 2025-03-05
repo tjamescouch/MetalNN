@@ -90,7 +90,9 @@ public:
     
     virtual int outputSize() const = 0;
     virtual void updateTargetBufferAt(const float* targetData, int timestep) = 0;
-    virtual void connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
+    virtual void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
+                                     MTL::Buffer* zeroBuffer, int timestep) = 0;
+    virtual void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) = 0;
     
     virtual int getParameterCount() const = 0;

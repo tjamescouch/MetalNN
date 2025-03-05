@@ -339,7 +339,7 @@ MTL::Buffer* RNNLayer::getInputBufferAt(BufferType type, int timestep) {
     return inputBuffers_[type][timestep];
 }
 
-void RNNLayer::connectInputBuffers(Layer* prevLayer,
+void RNNLayer::connectForwardConnections(Layer* prevLayer,
                                    Layer* inputLayer,
                                    MTL::Buffer* zeroBuffer,
                                    int timestep)
@@ -362,6 +362,14 @@ void RNNLayer::connectInputBuffers(Layer* prevLayer,
                      ? zeroBuffer
                      : getOutputBufferAt(BufferType::Output, timestep - 1)
                      );
+}
+
+void RNNLayer::connectBackwardConnections(Layer* prevLayer,
+                                   Layer* _inputLayer,
+                                   MTL::Buffer* zeroBuffer,
+                                   int timestep)
+{
+    prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
 }
 
 

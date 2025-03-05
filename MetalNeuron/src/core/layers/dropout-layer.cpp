@@ -157,13 +157,21 @@ MTL::Buffer* DropoutLayer::getInputBufferAt(BufferType type, int timestep) {
     return inputBuffers_[type][timestep];
 }
 
-void DropoutLayer::connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
+void DropoutLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
                      previousLayer
                      ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
                      : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
                      );
+}
+
+void DropoutLayer::connectBackwardConnections(Layer* prevLayer,
+                                   Layer* inputLayer,
+                                   MTL::Buffer* zeroBuffer,
+                                   int timestep)
+{
+    prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
 }
 
 int DropoutLayer::getParameterCount() const {

@@ -25,7 +25,10 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config, Data
 areBuffersBuilt(false),
 currentlyComputing(false),
 _pDataManager(pDataManager),
-_pInputLayer(nullptr)
+_pInputLayer(nullptr),
+input_dim(0),
+output_dim(0),
+epochs(0)
 {
     batch_size = config.training.batch_size;
     epochs = config.training.epochs;
@@ -106,6 +109,7 @@ void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
                                                  _pComputeLibrary);
         dynamicLayers_.push_back(layer);
     }
+    dynamicLayers_.back()->setIsTerminal(true);
     
     int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
 
@@ -117,21 +121,15 @@ void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
     
     // Input wiring:
     for (size_t i = 0; i < dynamicLayers_.size(); ++i) {
-        Layer* prevLayer = (i == 0) ? nullptr : dynamicLayers_[i - 1];
-        
-        dynamicLayers_[i]->connectInputBuffers(prevLayer, _pInputLayer, zeroBuffer_, 0);
+        dynamicLayers_[i]->connectForwardConnections(i > 0 ? dynamicLayers_[i - 1] : nullptr, _pInputLayer, zeroBuffer_, 0);
     }
     
     // Backward error buffer connections
     for (size_t i = dynamicLayers_.size() - 1; i > 0; --i) {
-        dynamicLayers_[i - 1]->setInputBufferAt(
-                                                BufferType::InputErrors,
-                                                0,
-                                                dynamicLayers_[i]->getOutputBufferAt(BufferType::OutputErrors, 0)
-                                                );
+        dynamicLayers_[i]->connectBackwardConnections(dynamicLayers_[i - 1], _pInputLayer, zeroBuffer_, 0);
     }
     
-    dynamicLayers_.back()->setIsTerminal(true);
+
 }
 
 
@@ -161,8 +159,8 @@ void NeuralEngine::buildBuffers() {
     }
     
     if (!zeroBuffer_) {
-        zeroBuffer_ = _pDevice->newBuffer(hidden_dim * sizeof(float), MTL::ResourceStorageModeManaged);
-        std::memset(zeroBuffer_->contents(), 0, hidden_dim * sizeof(float));
+        zeroBuffer_ = _pDevice->newBuffer(input_dim * sizeof(float), MTL::ResourceStorageModeManaged);
+        std::memset(zeroBuffer_->contents(), 0, input_dim * sizeof(float));
     }
     
     areBuffersBuilt = true;

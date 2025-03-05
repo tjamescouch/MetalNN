@@ -23,7 +23,9 @@ public:
 
     int getSequenceLength() override;
     
-    void connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
+    void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
+                                     MTL::Buffer* zeroBuffer, int timestep) override;
+    void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) override;
     
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
