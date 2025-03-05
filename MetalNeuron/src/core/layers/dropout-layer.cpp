@@ -86,7 +86,7 @@ void DropoutLayer::buildBuffers(MTL::Device* device) {
 }
 
 
-void DropoutLayer::forward(MTL::CommandBuffer* cmdBuf) {
+void DropoutLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     bool isTraining = TrainingManager::instance().isTraining();
     
     for(int t = 0; t < sequenceLength_; ++t) {
@@ -108,7 +108,7 @@ void DropoutLayer::forward(MTL::CommandBuffer* cmdBuf) {
     }
 }
 
-void DropoutLayer::backward(MTL::CommandBuffer* cmdBuf) {
+void DropoutLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     for(int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(backwardPipelineState_);

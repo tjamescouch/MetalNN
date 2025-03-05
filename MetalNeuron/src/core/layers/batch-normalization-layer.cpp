@@ -92,7 +92,7 @@ void BatchNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* l
     backwardFunction->release();
 }
 
-void BatchNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf) {
+void BatchNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     bool isTraining = TrainingManager::instance().isTraining();
     
     for(int t = 0; t < sequenceLength_; ++t) {
@@ -116,7 +116,7 @@ void BatchNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf) {
     }
 }
 
-void BatchNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf) {
+void BatchNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     for(int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(backwardPipelineState_);

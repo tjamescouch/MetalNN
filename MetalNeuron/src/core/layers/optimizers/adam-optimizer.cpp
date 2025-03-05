@@ -5,17 +5,18 @@
 //  Created by James Couch on 2025-03-03.
 //
 #include "adam-optimizer.h"
+#include "math-lib.h"
 
 AdamOptimizer::AdamOptimizer(float lr, float beta1, float beta2, float epsilon)
-    : bufferGradients_(nullptr), bufferM_(nullptr), bufferV_(nullptr),
-      pipelineState_(nullptr), timestep_(0),
-      learningRate_(lr), beta1_(beta1), beta2_(beta2), epsilon_(epsilon) {}
+: bufferGradients_(nullptr), bufferM_(nullptr), bufferV_(nullptr),
+pipelineState_(nullptr), timestep_(0),
+learningRate_(lr), beta1_(beta1), beta2_(beta2), epsilon_(epsilon) {}
 
 void AdamOptimizer::buildBuffers(MTL::Device* device, size_t paramSize) {
     bufferGradients_ = device->newBuffer(paramSize, MTL::ResourceStorageModeManaged);
     bufferM_ = device->newBuffer(paramSize, MTL::ResourceStorageModeManaged);
     bufferV_ = device->newBuffer(paramSize, MTL::ResourceStorageModeManaged);
-
+    
     memset(bufferGradients_->contents(), 0, paramSize);
     memset(bufferM_->contents(), 0, paramSize);
     memset(bufferV_->contents(), 0, paramSize);
@@ -32,25 +33,32 @@ void AdamOptimizer::buildPipeline(MTL::Device* device, MTL::Library* library) {
 
 void AdamOptimizer::encode(MTL::ComputeCommandEncoder* encoder,
                            MTL::Buffer* params,
-                           uint32_t paramCount) {
+                           uint32_t paramCount,
+                           uint batchSize) {
+    if (paramCount == 0) return;
+    
     timestep_++;
+    
+    encoder->setComputePipelineState(pipelineState_); // <- Must happen first!
 
-    encoder->setComputePipelineState(pipelineState_);
+    // Set buffers and parameters
     encoder->setBuffer(params, 0, 0);
-    encoder->setBuffer(bufferGradients_, 0, 1); // use internal gradient buffer
+    encoder->setBuffer(bufferGradients_, 0, 1);
     encoder->setBuffer(bufferM_, 0, 2);
     encoder->setBuffer(bufferV_, 0, 3);
-    encoder->setBytes(&timestep_, sizeof(uint32_t), 4);
-    encoder->setBytes(&learningRate_, sizeof(float), 5);
-    encoder->setBytes(&beta1_, sizeof(float), 6);
-    encoder->setBytes(&beta2_, sizeof(float), 7);
-    encoder->setBytes(&epsilon_, sizeof(float), 8);
+    encoder->setBytes(&learningRate_, sizeof(float), 4);
+    encoder->setBytes(&beta1_, sizeof(float), 5);
+    encoder->setBytes(&beta2_, sizeof(float), 6);
+    encoder->setBytes(&epsilon_, sizeof(float), 7);
+    encoder->setBytes(&batchSize, sizeof(uint), 8);
+    encoder->setBytes(&timestep_, sizeof(uint), 9);
+    encoder->setBytes(&paramCount, sizeof(uint), 10);
 
-    MTL::Size gridSize = MTL::Size(paramCount, 1, 1);
-    NS::UInteger threadGroupSize = pipelineState_->maxTotalThreadsPerThreadgroup();
-    MTL::Size threadgroupSize = MTL::Size(threadGroupSize, 1, 1);
+    // Configure and dispatch threadgroups
+    MTL::Size threadgroupSize = MTL::Size(mathlib::min<uint>(paramCount, 1024u), 1, 1);
+    MTL::Size threadgroups = MTL::Size((paramCount + threadgroupSize.width - 1) / threadgroupSize.width, 1, 1);
 
-    encoder->dispatchThreads(gridSize, threadgroupSize);
+    encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
 }
 
 MTL::Buffer* AdamOptimizer::gradientBuffer() const {

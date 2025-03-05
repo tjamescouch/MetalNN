@@ -12,22 +12,23 @@
 class AdamOptimizer : public Optimizer {
 public:
     AdamOptimizer(float lr, float beta1, float beta2, float epsilon);
-
+    
     void buildBuffers(MTL::Device* device, size_t paramSize) override;
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
-
+    
     MTL::Buffer* gradientBuffer() const override;
-
+    
     void encode(MTL::ComputeCommandEncoder* encoder,
                 MTL::Buffer* params,
-                uint32_t paramCount) override;
-
+                uint32_t paramCount,
+                uint batchSize) override;
+    
 private:
     MTL::Buffer *bufferGradients_;
     MTL::Buffer *bufferM_, *bufferV_;
     MTL::ComputePipelineState* pipelineState_;
     uint32_t timestep_;
-
+    
     float learningRate_;
     float beta1_, beta2_, epsilon_;
 };

@@ -129,7 +129,7 @@ void RNNLayer::buildBuffers(MTL::Device* device) {
 
 }
 
-void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
+void RNNLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     uint activationRaw = static_cast<uint>(activation_);
     
     for (int t = 0; t < sequenceLength_; ++t) {
@@ -159,7 +159,7 @@ void RNNLayer::forward(MTL::CommandBuffer* cmdBuf) {
     }
 }
 
-void RNNLayer::backward(MTL::CommandBuffer* cmdBuf) {
+void RNNLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     uint activationRaw = static_cast<uint>(activation_);
     
     for (int t = sequenceLength_ - 1; t >= 0; --t) {
@@ -421,17 +421,17 @@ void RNNLayer::debugLog() {
 }
 
 
-void RNNLayer::onForwardComplete() {
+void RNNLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
     shiftHiddenStates();
 };
 
-void RNNLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue) {
+void RNNLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
     auto cmdBuf = _pCommandQueue->commandBuffer();
     auto encoder = cmdBuf->computeCommandEncoder();
 
-    optimizerInput_->encode(encoder, bufferW_xh_, inputDim_ * hiddenDim_);
-    optimizerHidden_->encode(encoder, bufferW_hh_, hiddenDim_ * hiddenDim_);
-    optimizerBias_->encode(encoder, bufferBias_, hiddenDim_);
+    optimizerInput_->encode(encoder, bufferW_xh_, inputDim_ * hiddenDim_, batchSize);
+    optimizerHidden_->encode(encoder, bufferW_hh_, hiddenDim_ * hiddenDim_, batchSize);
+    optimizerBias_->encode(encoder, bufferBias_, hiddenDim_, batchSize);
 
     encoder->endEncoding();
 

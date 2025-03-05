@@ -139,5 +139,17 @@ void Logger::clear() {
 }
 
 void Logger::logLoss(float loss) {
-    std::printf("Loss: %f\n", loss);
+    std::cout << "✨ Loss: " << loss << std::endl;
+}
+
+void Logger::accumulateLoss(float loss) {
+    accumulatedLoss_ += loss;
+    numSamples_++;
+}
+
+float Logger::finalizeBatchLoss() {
+    float averageLoss = accumulatedLoss_ / numSamples_;
+    accumulatedLoss_ = 0.0f;
+    logLoss(averageLoss); // Log average to your file or console.
+    return averageLoss;
 }

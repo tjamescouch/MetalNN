@@ -60,10 +60,6 @@ void ViewDelegate::drawInMTKView(MTK::View* pView)
 {
     pView->setDepthStencilPixelFormat(MTL::PixelFormatDepth32Float);
     pView->setClearDepth(1.0);
-
-    if (_pComputer) {
-        _pComputer->runInference(); // or your actual method call
-    }
 }
 
 void ViewDelegate::drawableSizeWillChange(MTK::View* pView, CGSize size)

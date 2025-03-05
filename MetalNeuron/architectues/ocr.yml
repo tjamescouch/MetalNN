@@ -1,8 +1,6 @@
 name: "OCR"
 
 layers:
-
-
   - type: Dense
     input_size: 784
     output_size: 10
@@ -18,7 +16,7 @@ training:
       epsilon: 1e-8
 
   epochs: 10
-  batch_size: 128  # Smaller batch size for more frequent updates
+  batch_size: 1280  # Smaller batch size for more frequent updates
 
 dataset:
   type: "mnist"
@@ -27,4 +25,4 @@ dataset:
 
 metadata:
   author: "James Couch"
-  description: "Improved OCR with BatchNorm and Dropout"
+  description: "Simple OCR"

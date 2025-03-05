@@ -24,13 +24,14 @@ class ComputeCommandEncoder;
 class Optimizer {
 public:
     virtual ~Optimizer() {}
-
+    
     virtual void buildBuffers(MTL::Device* device, size_t paramSize) = 0;
     virtual void buildPipeline(MTL::Device* device, MTL::Library* library) = 0;
     virtual MTL::Buffer* gradientBuffer() const = 0;
     virtual void encode(MTL::ComputeCommandEncoder* encoder,
                         MTL::Buffer* params,
-                        uint32_t paramCount) = 0;
+                        uint32_t paramCount,
+                        uint batchSize) = 0;
 };
 
 #endif

@@ -100,7 +100,7 @@ void MapReduceLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     backwardFunction->release();
 }
 
-void MapReduceLayer::forward(MTL::CommandBuffer* cmdBuf) {
+void MapReduceLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     auto encoder = cmdBuf->computeCommandEncoder();
     encoder->setComputePipelineState(forwardPipelineState_);
     
@@ -116,7 +116,7 @@ void MapReduceLayer::forward(MTL::CommandBuffer* cmdBuf) {
     encoder->endEncoding();
 }
 
-void MapReduceLayer::backward(MTL::CommandBuffer* cmdBuf) {
+void MapReduceLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     auto encoder = cmdBuf->computeCommandEncoder();
     encoder->setComputePipelineState(backwardPipelineState_);
     
@@ -178,11 +178,11 @@ void MapReduceLayer::debugLog() {
     std::cout << "[MapReduceLayer] debugLog called." << std::endl;
 }
 
-void MapReduceLayer::onForwardComplete() {
+void MapReduceLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
     // Implement if necessary
 }
 
-void MapReduceLayer::onBackwardComplete(MTL::CommandQueue* queue) {
+void MapReduceLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
     // Implement if necessary
 }
 

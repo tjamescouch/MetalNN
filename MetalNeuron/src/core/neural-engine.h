@@ -29,18 +29,14 @@ public:
     NeuralEngine(MTL::Device* pDevice, const ModelConfig& config, DataManager* pDataManager);
     ~NeuralEngine();
     
-    void runInference();
+    void computeForward(int batchSize, std::function<void()> onComplete);
+    void computeBackward(int batchSize, std::function<void()> onComplete);
     
-    void computeForward(std::function<void()> onComplete);
-    void computeBackward(std::function<void()> onComplete);
+    void computeForwardBatches(uint32_t totalSamples, int iterationsRemaining, std::function<void()> onComplete);
+    void computeBackwardBatches(uint32_t totalSamples, int iterationsRemaining, std::function<void()> onComplete);
     
-    void computeBackwardIterations(uint32_t iterations);
-    void computeForwardIterations(uint32_t iterations);
     void connectDynamicLayers(const ModelConfig& config);
     void createDynamicLayers(const ModelConfig& config);
-
-    void computeForwardSync();
-    void computeBackwardSync();
     
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();

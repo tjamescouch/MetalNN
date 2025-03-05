@@ -21,8 +21,8 @@ public:
     void buildBuffers(MTL::Device* device) override;
     void updateBufferAt(const float*, int timestep);
     void buildPipeline(MTL::Device* device, MTL::Library* library) override {};
-    void forward(MTL::CommandBuffer* cmdBuf) override {};
-    void backward(MTL::CommandBuffer* cmdBuf) override {};
+    void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
+    void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
 
     int outputSize() const override { return inputDim_; }
     void updateTargetBufferAt(const float* targetData, int timestep) override {};
@@ -44,8 +44,8 @@ public:
     void setParameterAt(int index, float value) override;
     float getGradientAt(int index) const override;
     
-    void onForwardComplete() override {};
-    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue) override {};
+    void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
+    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
     
     int getSequenceLength() override;
     
