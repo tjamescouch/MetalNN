@@ -1,24 +1,22 @@
-name: "OCR"
+name: "Simplest MNIST OCR"
 
 layers:
-
-
   - type: Dense
-    input_size: 784
-    output_size: 10
-    activation: softmax
+    input_size: 784      # 28x28 pixels flattened
+    output_size: 10      # 10 digits (0–9)
+    activation: softmax  # Probabilistic output
 
 training:
   optimizer:
     type: adam
-    learning_rate: 0.0005  # Reduced to stabilize early training
+    learning_rate: 0.001
     parameters:
       beta1: 0.9
       beta2: 0.999
       epsilon: 1e-8
 
   epochs: 10
-  batch_size: 128  # Smaller batch size for more frequent updates
+  batch_size: 128
 
 dataset:
   type: "mnist"
@@ -27,4 +25,4 @@ dataset:
 
 metadata:
   author: "James Couch"
-  description: "Improved OCR with BatchNorm and Dropout"
+  description: "Minimal OCR model for MNIST"
