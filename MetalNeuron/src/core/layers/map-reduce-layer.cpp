@@ -11,35 +11,53 @@
 
 MapReduceLayer::MapReduceLayer(int inputSize, ReductionType reductionType)
 : inputSize_(inputSize), output_dim_(1),
-  sequenceLength_(1),
-  reductionType_(reductionType),
-  forwardPipelineState_(nullptr),
-  backwardPipelineState_(nullptr),
-  isTerminal_(false) {
+sequenceLength_(1),
+reductionType_(reductionType),
+forwardPipelineState_(nullptr),
+backwardPipelineState_(nullptr),
+isTerminal_(false) {
+    inputBuffers_[BufferType::InputErrors].resize(sequenceLength_, nullptr);
+    inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
+    outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
+    outputBuffers_[BufferType::Delta].resize(sequenceLength_, nullptr);
+    outputBuffers_[BufferType::OutputErrors].resize(sequenceLength_, nullptr);
 }
 
 
 MapReduceLayer::~MapReduceLayer() {
+    for (int t = 0; t < sequenceLength_; ++t) {
+        for (auto ob : outputBuffers_) {
+            ob.second[t]->release();
+        }
+    }
+    
     if (forwardPipelineState_) forwardPipelineState_->release();
     if (backwardPipelineState_) backwardPipelineState_->release();
 }
 
 void MapReduceLayer::buildBuffers(MTL::Device* device) {
+    inputBuffers_[BufferType::InputErrors].clear();
+    inputBuffers_[BufferType::Input].clear();
+    outputBuffers_[BufferType::Output].clear();
+    outputBuffers_[BufferType::Delta].clear();
+    outputBuffers_[BufferType::OutputErrors].clear();
+    
     for (int t = 0; t < sequenceLength_; ++t) {
+        inputBuffers_[BufferType::Input].push_back(
+                                                   device->newBuffer(inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged)
+                                                     );
+        inputBuffers_[BufferType::InputErrors].push_back(
+                                                   device->newBuffer(inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged)
+                                                     );
         outputBuffers_[BufferType::Output].push_back(
-            device->newBuffer(inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged)
-        );
+                                                     device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged)
+                                                     );
         outputBuffers_[BufferType::Delta].push_back(
-            device->newBuffer(inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged)
-        );
-    }
-
-    // Input error buffer, for propagating errors back to previous layer
-    inputBuffers_[BufferType::InputErrors].resize(sequenceLength_);
-    for (int t = 0; t < sequenceLength_; ++t) {
-        inputBuffers_[BufferType::InputErrors][t] = device->newBuffer(
-            inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged
-        );
+                                                    device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged)
+                                                    );
+        outputBuffers_[BufferType::OutputErrors].push_back(
+                                                           device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged)
+                                                    );
     }
 }
 
@@ -49,7 +67,7 @@ int MapReduceLayer::getSequenceLength() {
 
 
 void MapReduceLayer::connectInputBuffers(Layer* previousLayer, Layer* inputLayer,
-                                 MTL::Buffer* zeroBuffer, int timestep){
+                                         MTL::Buffer* zeroBuffer, int timestep){
     if (previousLayer) {
         setInputBufferAt(BufferType::Input, timestep,
                          previousLayer->getOutputBufferAt(BufferType::Output, timestep));
@@ -62,15 +80,59 @@ void MapReduceLayer::connectInputBuffers(Layer* previousLayer, Layer* inputLayer
 }
 
 void MapReduceLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
-    // Intentionally left empty for MapReduceLayer.
+    auto kernelNameForward = NS::String::string("forward_map_reduce", NS::UTF8StringEncoding);
+    auto kernelNameBackward = NS::String::string("backward_map_reduce", NS::UTF8StringEncoding);
+    
+    MTL::Function* forwardFunction = library->newFunction(kernelNameForward);
+    MTL::Function* backwardFunction = library->newFunction(kernelNameBackward);
+    
+    NS::Error* error = nullptr;
+    
+    forwardPipelineState_ = device->newComputePipelineState(forwardFunction, &error);
+    if (!forwardPipelineState_) {
+        throw std::runtime_error("Error creating forward pipeline state");
+    }
+    
+    backwardPipelineState_ = device->newComputePipelineState(backwardFunction, &error);
+    if (!backwardPipelineState_) {
+        throw std::runtime_error("Error creating backward pipeline state");
+    }
+    
+    forwardFunction->release();
+    backwardFunction->release();
 }
 
 void MapReduceLayer::forward(MTL::CommandBuffer* cmdBuf) {
-    // Intentionally left empty for MapReduceLayer.
+    auto encoder = cmdBuf->computeCommandEncoder();
+    encoder->setComputePipelineState(forwardPipelineState_);
+    
+    encoder->setBuffer(inputBuffers_[BufferType::Input][0], 0, 0);
+    encoder->setBuffer(outputBuffers_[BufferType::Output][0], 0, 1);
+    encoder->setBytes(&inputSize_, sizeof(int), 2);
+    encoder->setBytes(&reductionType_, sizeof(int), 3);
+    
+    MTL::Size gridSize = MTL::Size(inputSize_, 1, 1);
+    MTL::Size threadgroupSize = MTL::Size(std::min(inputSize_, 1024), 1, 1);
+    encoder->dispatchThreads(gridSize, threadgroupSize);
+    
+    encoder->endEncoding();
 }
 
 void MapReduceLayer::backward(MTL::CommandBuffer* cmdBuf) {
-    // Intentionally left empty for MapReduceLayer.
+    auto encoder = cmdBuf->computeCommandEncoder();
+    encoder->setComputePipelineState(backwardPipelineState_);
+    
+    encoder->setBuffer(outputBuffers_[BufferType::Delta][0], 0, 0);
+    encoder->setBuffer(outputBuffers_[BufferType::Output][0], 0, 1); // forwardOutput buffer
+    encoder->setBuffer(inputBuffers_[BufferType::InputErrors][0], 0, 2);
+    encoder->setBytes(&inputSize_, sizeof(uint), 3);
+    encoder->setBytes(&reductionType_, sizeof(uint), 4);
+    
+    MTL::Size gridSize = MTL::Size(inputSize_, 1, 1);
+    MTL::Size threadgroupSize = MTL::Size(fmin(inputSize_, 1024u), 1, 1);
+    encoder->dispatchThreads(gridSize, threadgroupSize);
+    
+    encoder->endEncoding();
 }
 
 

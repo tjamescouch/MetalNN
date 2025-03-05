@@ -14,7 +14,7 @@
 #include "function-dataset.h"
 #include "math-lib.h"
 
-const char* defaultModelFilePath = "simple-dense-layer.yml";
+const char* defaultModelFilePath = "map-reduce.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {
@@ -86,7 +86,7 @@ std::string ViewDelegate::getDefaultModelFilePath() {
     fs::path resourcePath = executablePath.parent_path().parent_path() / "Resources" / defaultModelFilePath;
 
     if (!fs::exists(resourcePath)) {
-        throw std::runtime_error("❌ Could not find confiuration yml at " + resourcePath.string());
+        throw std::runtime_error("❌ Could not find configuration yml at " + resourcePath.string());
     }
     std::cout << "📂 Loaded file " << defaultModelFilePath << std::endl;
 

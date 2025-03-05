@@ -35,9 +35,6 @@ BatchNormalizationLayer::~BatchNormalizationLayer() {
     if (bufferRunningVariance_) bufferRunningVariance_->release();
     
     for (int t = 0; t < sequenceLength_; ++t) {
-        for (auto ib : inputBuffers_) {
-            ib.second[t]->release();
-        }
         for (auto ob : outputBuffers_) {
             ob.second[t]->release();
         }

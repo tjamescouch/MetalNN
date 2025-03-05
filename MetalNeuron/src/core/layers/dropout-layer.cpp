@@ -56,6 +56,12 @@ void DropoutLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
 
 void DropoutLayer::buildBuffers(MTL::Device* device) {
     assert(device && "Device is null!");
+    
+
+    inputBuffers_[BufferType::Input].clear();
+    outputBuffers_[BufferType::Output].clear();
+    inputBuffers_[BufferType::InputErrors].clear();
+    outputBuffers_[BufferType::OutputErrors].clear();
 
     for(int t = 0; t < sequenceLength_; ++t) {
         auto inputBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);

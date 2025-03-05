@@ -40,10 +40,11 @@ inline ActivationFunction parseActivation(const std::string& activation) {
 }
 
 enum class ReductionType {
-    Sum,
+    Sum = 0,
     Mean,
     Max,
     Min,
+    Softmax,
 };
 
 inline ReductionType parseReductionType(const std::string& reductionType) {
@@ -51,6 +52,7 @@ inline ReductionType parseReductionType(const std::string& reductionType) {
     if (reductionType == "mean") return ReductionType::Mean;
     if (reductionType == "max") return ReductionType::Max;
     if (reductionType == "min") return ReductionType::Min;
+    if (reductionType == "softmax") return ReductionType::Softmax;
     throw std::invalid_argument("Unknown reduction type: " + reductionType);
 }
 
