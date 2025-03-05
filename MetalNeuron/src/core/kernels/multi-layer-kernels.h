@@ -99,43 +99,64 @@ kernel void forward_dense_layer(
 
 
 kernel void learn_dense_layer(
-    device const float* h              [[buffer(0)]],
-    device float* W                    [[buffer(1)]],
-    device float* b                    [[buffer(2)]],
-    device const float* y_hat          [[buffer(3)]],
-    device const float* y              [[buffer(4)]],
-    device float* error                [[buffer(5)]],
-    device const uint* pH              [[buffer(6)]],
-    device const uint* pN              [[buffer(7)]],
-    device float* pDecay               [[buffer(8)]],
-    device const uint* activation      [[buffer(9)]],
-    device float* debug                [[buffer(10)]],
-    device float* prevLayerErrors      [[buffer(11)]], // explicitly propagate errors backward
-    uint tid                           [[thread_position_in_grid]]
+    device const float* h                [[buffer(0)]],  // input activations
+    device float* W                      [[buffer(1)]],  // weights
+    device float* b                      [[buffer(2)]],  // biases
+    device const float* y_hat            [[buffer(3)]],  // predicted outputs
+    device const float* y                [[buffer(4)]],  // targets
+    device float* error                  [[buffer(5)]],  // output error (delta)
+    constant uint& input_dim             [[buffer(6)]],  // input dimension
+    constant uint& output_dim            [[buffer(7)]],  // output dimension
+    device float* pDecay                 [[buffer(8)]],  // decay factor
+    constant uint& activation            [[buffer(9)]],  // activation type
+    device float* debug                  [[buffer(10)]], // debug buffer
+    device float* prevLayerErrors        [[buffer(11)]], // errors to prev layer
+    constant uint& batch_size            [[buffer(12)]], // batch size
+    uint tid                             [[thread_position_in_grid]]
 ) {
-    uint hidden_dim = *pH;
-    uint output_dim = *pN;
+    uint sample_id = tid / output_dim;
+    uint neuron_id = tid % output_dim;
 
-    if (tid >= output_dim) return;
+    if (sample_id >= batch_size || neuron_id >= output_dim) return;
 
-    if (tid == 0) {
-        *pDecay *= decay_factor;
-    }
     float decay = *pDecay;
 
-    float raw_error = y_hat[tid] - y[tid];
+    // Compute index offsets based on batch sample
+    const device float* sample_h = h + (sample_id * input_dim);
+    const device float* sample_y_hat = y_hat + (sample_id * output_dim);
+    const device float* sample_y = y + (sample_id * output_dim);
+    device float* sample_error = error + (sample_id * output_dim);
+    device float* sample_prevLayerErrors = prevLayerErrors + (sample_id * input_dim);
+
+    float raw_error = sample_y_hat[neuron_id] - sample_y[neuron_id];
     debug[tid] = raw_error;
 
-    float delta = raw_error * activate_derivative(y_hat[tid], *activation);
-    delta = clamp(delta, -threshold, threshold);
-    error[tid] = delta;
-
-    for (uint i = 0; i < hidden_dim; i++) {
-        prevLayerErrors[i] += W[i * output_dim + tid] * delta;
-        W[i * output_dim + tid] -= learning_rate_w * delta * h[i] * decay;
+    float delta;
+    if (activation == 4) { // softmax
+        delta = raw_error;
+    } else {
+        delta = raw_error * activate_derivative(sample_y_hat[neuron_id], activation);
     }
 
-    b[tid] -= learning_rate_b * delta * decay;
+    delta = clamp(delta, -threshold, threshold);
+    sample_error[neuron_id] = delta;
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    // Accumulate weight gradients for each input neuron
+    for (uint i = 0; i < input_dim; i++) {
+        float grad = sample_h[i] * delta;
+        grad = clamp(grad, -threshold, threshold);
+
+        // Atomic add for concurrent accumulation across batches
+        atomic_fetch_add_explicit((device atomic_float*)&W[i * output_dim + neuron_id], -learning_rate_w * grad * decay, memory_order_relaxed);
+
+        // Accumulate error signals for previous layer (for backprop)
+        atomic_fetch_add_explicit((device atomic_float*)&sample_prevLayerErrors[i], W[i * output_dim + neuron_id] * delta, memory_order_relaxed);
+    }
+
+    // Update biases atomically
+    atomic_fetch_add_explicit((device atomic_float*)&b[neuron_id], -learning_rate_b * delta * decay, memory_order_relaxed);
 }
 
 //-------------------------------------------------------------------
@@ -305,34 +326,38 @@ kernel void backward_batch_norm(
     beta[tid] -= 0.001f * outputError[tid];
 }
 
-// The Adam optimizer kernel
-kernel void adam_kernel(device float* params          [[buffer(0)]],
-                        device const float* grads     [[buffer(1)]],
-                        device float* m               [[buffer(2)]],
-                        device float* v               [[buffer(3)]],
-                        constant uint& timestep       [[buffer(4)]],
-                        constant float& learning_rate [[buffer(5)]],
-                        constant float& beta1         [[buffer(6)]],
-                        constant float& beta2         [[buffer(7)]],
-                        constant float& epsilon       [[buffer(8)]],
-                        uint index                    [[thread_position_in_grid]])
-{
-    float grad = grads[index];
+kernel void adam_kernel(
+    device float* parameters            [[buffer(0)]],
+    device float* gradients             [[buffer(1)]],
+    device float* m                     [[buffer(2)]],
+    device float* v                     [[buffer(3)]],
+    constant float& learning_rate       [[buffer(4)]],
+    constant float& beta1               [[buffer(5)]],
+    constant float& beta2               [[buffer(6)]],
+    constant float& epsilon             [[buffer(7)]],
+    constant uint& batch_size           [[buffer(8)]],
+    constant uint& timestep             [[buffer(9)]],
+    constant uint& param_count          [[buffer(10)]],
+    uint tid                            [[thread_position_in_grid]]
+) {
+    if (tid >= param_count) return;
 
-    // Update first moment estimate
-    m[index] = beta1 * m[index] + (1.0 - beta1) * grad;
+    // Average gradient across the batch
+    float grad_avg = gradients[tid] / float(batch_size);
 
-    // Update second moment estimate
-    v[index] = beta2 * v[index] + (1.0 - beta2) * grad * grad;
+    // Adam moment calculations
+    m[tid] = beta1 * m[tid] + (1.0f - beta1) * grad_avg;
+    v[tid] = beta2 * v[tid] + (1.0f - beta2) * grad_avg * grad_avg;
 
-    // Compute bias-corrected estimates
-    float m_hat = m[index] / (1.0 - pow(beta1, timestep));
-    float v_hat = v[index] / (1.0 - pow(beta2, timestep));
+    float m_hat = m[tid] / (1.0f - pow(beta1, timestep));
+    float v_hat = v[tid] / (1.0f - pow(beta2, timestep));
 
-    // Update parameter
-    params[index] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
+    // Update parameters
+    parameters[tid] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
+
+    // Reset gradient accumulator for next batch
+    gradients[tid] = 0.0f;
 }
-
 
 // Constants defining reduction types for clarity
 kernel void forward_map_reduce(
@@ -345,7 +370,7 @@ kernel void forward_map_reduce(
     threadgroup float sharedData[1024];
 
     // Load data into threadgroup memory
-    sharedData[tid] = (tid < input_size) ? input[tid] : 0.0f;
+    sharedData[tid] = ((int)tid < input_size) ? input[tid] : 0.0f;
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 

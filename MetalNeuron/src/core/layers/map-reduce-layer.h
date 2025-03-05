@@ -18,8 +18,8 @@ public:
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
     void buildBuffers(MTL::Device* device) override;
     
-    void forward(MTL::CommandBuffer* cmdBuf) override;
-    void backward(MTL::CommandBuffer* cmdBuf) override;
+    void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
+    void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
 
     int getSequenceLength() override;
     
@@ -44,8 +44,8 @@ public:
 
     void debugLog() override;
 
-    void onForwardComplete() override;
-    void onBackwardComplete(MTL::CommandQueue* queue) override;
+    void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
+    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
 
     void saveParameters(std::ostream& outStream) const override;
     void loadParameters(std::istream& inStream) override;

@@ -20,8 +20,6 @@ class Library;
 class CommandBuffer;
 }
 
-
-
 enum class ActivationFunction {
     Linear = 0,
     ReLU,
@@ -79,9 +77,9 @@ public:
     // Called to allocate any buffers needed for the layer.
     virtual void buildBuffers(MTL::Device* device) = 0;
     // Record commands for the forward pass.
-    virtual void forward(MTL::CommandBuffer* cmdBuf) = 0;
+    virtual void forward(MTL::CommandBuffer* cmdBuf, int batchSize) = 0;
     // Record commands for the backward pass.
-    virtual void backward(MTL::CommandBuffer* cmdBuf) = 0;
+    virtual void backward(MTL::CommandBuffer* cmdBuf, int batchSize) = 0;
     
     virtual void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) = 0;
     virtual MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) = 0;
@@ -101,8 +99,8 @@ public:
     virtual float getGradientAt(int index) const = 0;
     
     virtual void debugLog() = 0;
-    virtual void onForwardComplete() = 0;
-    virtual void onBackwardComplete(MTL::CommandQueue* _pCommandQueue) = 0;
+    virtual void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) = 0;
+    virtual void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSizee) = 0;
     
     virtual void saveParameters(std::ostream& os) const = 0;
     virtual void loadParameters(std::istream& is) = 0;

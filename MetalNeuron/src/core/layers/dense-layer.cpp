@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
+#include "math-lib.h"
 #include "adam-optimizer.h"
 #include "dense-layer.h"
 #include "common.h"
@@ -130,7 +131,7 @@ void DenseLayer::updateTargetBufferAt(const float* targetData, int timestep) {
     inputBuffers_[BufferType::Targets][timestep]->didModifyRange(NS::Range(0, outputDim_ * sizeof(float)));
 }
 
-void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
+void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     uint activationRaw = static_cast<uint>(activation_);
     
     for (int t = 0; t < sequenceLength_; ++t) {
@@ -144,49 +145,59 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf) {
         encoder->setBytes(&outputDim_, sizeof(int), 5);
         encoder->setBytes(&activationRaw, sizeof(uint), 6);
         
-        MTL::Size threadsPerThreadgroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
-        MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
-        encoder->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+        // Define threadgroup size respecting the maximum (1024)
+        const uint maxThreadsPerGroup = 1024;
+        MTL::Size threadgroupSize = MTL::Size(mathlib::min<int>(inputDim_, maxThreadsPerGroup), 1, 1);
+
+        // Compute the required number of threadgroups
+        MTL::Size gridSize = MTL::Size(inputDim_, 1, 1);
+        MTL::Size threadgroups = MTL::Size((inputDim_ + threadgroupSize.width - 1) / threadgroupSize.width, 1, 1);
+
+        // Dispatch threads correctly
+        encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
         encoder->endEncoding();
     }
 }
 
-void DenseLayer::backward(MTL::CommandBuffer* cmdBuf) {
-    int t = 0;
-    memset(outputBuffers_[BufferType::Delta][t]->contents(), 0, outputBuffers_[BufferType::Delta][t]->length());
-    outputBuffers_[BufferType::Delta][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Delta][t]->length()));
-    
+void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     uint activationRaw = static_cast<uint>(activation_);
-    
+
     auto encoder = cmdBuf->computeCommandEncoder();
     encoder->setComputePipelineState(backwardPipelineState_);
-    
-    encoder->setBuffer(inputBuffers_[BufferType::Input][t], 0, 0);         // Input activations (h)
-    encoder->setBuffer(bufferWeights_, 0, 1);           // Weights (W)
-    encoder->setBuffer(bufferBias_, 0, 2);              // Biases (b)
-    encoder->setBuffer(outputBuffers_[BufferType::Output][t], 0, 3);        // Target (y)
-    encoder->setBuffer(inputBuffers_[BufferType::Targets][t], 0, 4);        // Predicted output (y_hat)
-    encoder->setBuffer(outputBuffers_[BufferType::Delta][t], 0, 5);         // Error (delta) ??
-    encoder->setBytes(&inputDim_, sizeof(uint), 6);     // Input dimension (pH)
-    encoder->setBytes(&outputDim_, sizeof(uint), 7);    // Output dimension (pN)
-    encoder->setBuffer(bufferDecay_, 0, 8);             // Decay factor (pDecay)
-    encoder->setBytes(&activationRaw, sizeof(uint), 9); // Activation function type
-    encoder->setBuffer(outputBuffers_[BufferType::Debug][t], 0, 10);  // debug signal
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][t], 0, 11);
-    
-    MTL::Size threadsPerThreadgroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
-    MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
-    encoder->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
-    
+
+    // Binding buffers
+    encoder->setBuffer(inputBuffers_[BufferType::Input][0], 0, 0);
+    encoder->setBuffer(bufferWeights_, 0, 1);
+    encoder->setBuffer(bufferBias_, 0, 2);
+    encoder->setBuffer(outputBuffers_[BufferType::Output][0], 0, 3);
+    encoder->setBuffer(inputBuffers_[BufferType::Targets][0], 0, 4);
+    encoder->setBuffer(outputBuffers_[BufferType::Delta][0], 0, 5);
+    encoder->setBytes(&inputDim_, sizeof(uint), 6);
+    encoder->setBytes(&outputDim_, sizeof(uint), 7);
+    encoder->setBuffer(bufferDecay_, 0, 8);
+    encoder->setBytes(&activationRaw, sizeof(uint), 9);
+    encoder->setBuffer(outputBuffers_[BufferType::Debug][0], 0, 10);
+    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 11);
+    encoder->setBytes(&batchSize, sizeof(uint), 12);
+
+    // Corrected Dispatch Logic
+    const uint gridSize = outputDim_ * batchSize;
+    const uint maxThreadsPerGroup = 1024;
+    const uint threadsPerThreadgroup = std::min(gridSize, maxThreadsPerGroup);
+
+    MTL::Size threadgroupSize = MTL::Size(threadsPerThreadgroup, 1, 1);
+    MTL::Size threadgroups = MTL::Size((gridSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
+
+    encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
     encoder->endEncoding();
-    
-    // Sync buffer contents back to CPU (existing logic preserved)
+
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
-    
+
     for (int t = 0; t < sequenceLength_; ++t) {
-        inputBuffers_[BufferType::InputErrors][t]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::InputErrors][t]->length()));
+        inputBuffers_[BufferType::InputErrors][t]->didModifyRange(
+            NS::Range(0, inputBuffers_[BufferType::InputErrors][t]->length()));
     }
 }
 
@@ -312,12 +323,12 @@ void DenseLayer::debugLog() {
 #endif
 }
 
-void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue) {
+void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
     auto cmdBuf = _pCommandQueue->commandBuffer();
     auto encoder = cmdBuf->computeCommandEncoder();
 
-    optimizerWeights_->encode(encoder, bufferWeights_, inputDim_ * outputDim_);
-    optimizerBiases_->encode(encoder, bufferBias_, outputDim_);
+    optimizerWeights_->encode(encoder, bufferWeights_, inputDim_ * outputDim_, batchSize);
+    optimizerBiases_->encode(encoder, bufferBias_, outputDim_, batchSize);
 
     encoder->endEncoding();
 }

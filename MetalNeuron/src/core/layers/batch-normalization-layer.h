@@ -18,8 +18,8 @@ public:
     void buildBuffers(MTL::Device* device) override;
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
 
-    void forward(MTL::CommandBuffer* cmdBuf) override;
-    void backward(MTL::CommandBuffer* cmdBuf) override;
+    void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
+    void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
     
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
     MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;
@@ -41,8 +41,8 @@ public:
     void setParameterAt(int index, float value) override;
     float getGradientAt(int index) const override;
     
-    void onForwardComplete() override {};
-    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue) override {};
+    void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
+    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
     
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;
