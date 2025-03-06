@@ -10,7 +10,7 @@
 #pragma region Declarations {
 
 #include "common.h"
-#include "model/model-config.h"
+#include "model-config.h"
 #include "neural-engine.h"
 #include "data-manager.h"
 

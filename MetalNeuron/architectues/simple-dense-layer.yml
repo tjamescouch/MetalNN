@@ -4,6 +4,11 @@ layers:
   - type: Dense
     input_size: 512
     output_size: 512
+    activation: relu
+    
+  - type: Dense
+    input_size: 512
+    output_size: 512
     activation: tanh
 
 training:
@@ -14,7 +19,7 @@ training:
       beta1: 0.9
       beta2: 0.999
 
-  epochs: 5
+  epochs: 1
   batch_size: 1
 
 dataset:

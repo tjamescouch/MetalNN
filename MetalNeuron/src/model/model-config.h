@@ -49,6 +49,7 @@ public:
     TrainingConfig training;
     std::map<std::string, fkyaml::node> metadata;
     ModelDataSet dataset;
+    std::string filename;
     
     static ModelConfig loadFromFile(const std::string& filePath);
 };

@@ -16,6 +16,13 @@ using namespace metal;
 #define REDUCTION_SOFTMAX 4
 
 
+#define ACTIVATION_LINEAR  0
+#define ACTIVATION_RELU    1
+#define ACTIVATION_TANH    2
+#define ACTIVATION_SIGMOID 3
+#define ACTIVATION_SOFTMAX 4
+
+
 inline void softmax(const device float* input, device float* output, uint outputDim) {
     float maxVal = input[0];
     for (uint i = 1; i < outputDim; ++i) {
@@ -33,18 +40,18 @@ inline void softmax(const device float* input, device float* output, uint output
 }
 
 // Global constants
-constant float learning_rate_w = 0.001f;
-constant float learning_rate_b = 0.001f;
-constant float decay_factor = 0.99999f;
-constant float threshold = 0.1f;
+constant float learning_rate_w = 0.0001f;
+constant float learning_rate_b = 0.0001f;
+constant float decay_factor = 0.9999999f;
+constant float threshold = 0.01f;
 
 // Activation functions
 inline float activate(const float x, const uint activation) {
     switch (activation) {
-        case 0: return x;                      // Linear
-        case 1: return max(0.0f, x);           // ReLU
-        case 2: return tanh(x);                // Tanh
-        case 3: return 1.0f / (1.0f + exp(-x)); // Sigmoid
+        case ACTIVATION_LINEAR: return x;                      // Linear
+        case ACTIVATION_RELU: return max(0.0f, x);           // ReLU
+        case ACTIVATION_TANH: return tanh(x);                // Tanh
+        case ACTIVATION_SIGMOID: return 1.0f / (1.0f + exp(-x)); // Sigmoid
         default: return 0.0f;                   // Error return 0
     }
 }
@@ -52,10 +59,10 @@ inline float activate(const float x, const uint activation) {
 // Activation derivatives
 inline float activate_derivative(const float y, const uint activation) {
     switch (activation) {
-        case 0: return 1.0f;                   // Linear
-        case 1: return y > 0.0f ? 1.0f : 0.0f; // ReLU
-        case 2: return 1.0f - y * y;           // Tanh
-        case 3: return y * (1.0f - y);         // Sigmoid
+        case ACTIVATION_LINEAR: return 1.0f;                   // Linear
+        case ACTIVATION_RELU: return y > 0.0f ? 1.0f : 0.0f; // ReLU
+        case ACTIVATION_TANH: return 1.0f - y * y;           // Tanh
+        case ACTIVATION_SIGMOID: return y * (1.0f - y);         // Sigmoid
         default: return 0.0f;                  // Error return 0
     }
 }
@@ -132,7 +139,7 @@ kernel void learn_dense_layer(
     debug[tid] = raw_error;
 
     float delta;
-    if (activation == 4) { // softmax
+    if (activation == ACTIVATION_SOFTMAX) { // softmax
         delta = raw_error;
     } else {
         delta = raw_error * activate_derivative(sample_y_hat[neuron_id], activation);

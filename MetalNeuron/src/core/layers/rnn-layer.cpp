@@ -7,6 +7,7 @@
 #include "common.h"
 #include "weight-initializer.h"
 #include "adam-optimizer.h"
+#include "configuration-manager.h"
 
 RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation)
 : inputDim_(inputDim),
@@ -247,9 +248,17 @@ void RNNLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     }
     backwardFunction->release();
     
-    optimizerInput_ = std::make_unique<AdamOptimizer>(0.001f, 0.9f, 0.999f, 1e-8f);
-    optimizerHidden_ = std::make_unique<AdamOptimizer>(0.001f, 0.9f, 0.999f, 1e-8f);
-    optimizerBias_ = std::make_unique<AdamOptimizer>(0.001f, 0.9f, 0.999f, 1e-8f);
+    ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
+    auto parameters = pConfig->training.optimizer.parameters;
+    
+    float lr      = pConfig->training.optimizer.learning_rate;
+    float beta1   = parameters["beta1"].get_value_or<float>(0.9f);
+    float beta2   = parameters["beta2"].get_value_or<float>(0.999f);
+    float epsilon = parameters["epsilon"].get_value_or<float>(1e-8);
+    
+    optimizerInput_  = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+    optimizerHidden_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+    optimizerBias_   = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
 
     optimizerInput_->buildPipeline(device, library);
     optimizerHidden_->buildPipeline(device, library);
@@ -436,4 +445,8 @@ void RNNLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSi
     encoder->endEncoding();
 
     shiftHiddenStates();
+    
+     for (int t = 0; t < sequenceLength_; t++)
+        memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, outputBuffers_[BufferType::OutputErrors][t]->length());
 }
+

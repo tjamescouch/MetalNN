@@ -1,22 +1,42 @@
-name: "OCR"
+name: "Improved OCR"
 
 layers:
+  - type: BatchNormalization
+    input_size: 784
+    output_size: 784
+
   - type: Dense
     input_size: 784
+    output_size: 256
+    activation: relu
+
+  - type: Dropout
+    rate: 0.2
+
+  - type: Dense
+    input_size: 256
+    output_size: 128
+    activation: relu
+
+  - type: Dropout
+    rate: 0.2
+
+  - type: Dense
+    input_size: 128
     output_size: 10
     activation: softmax
 
 training:
   optimizer:
     type: adam
-    learning_rate: 0.0005  # Reduced to stabilize early training
+    learning_rate: 0.0005
     parameters:
       beta1: 0.9
       beta2: 0.999
       epsilon: 1e-8
 
-  epochs: 10
-  batch_size: 1280  # Smaller batch size for more frequent updates
+  epochs: 15
+  batch_size: 64
 
 dataset:
   type: "mnist"
@@ -25,4 +45,4 @@ dataset:
 
 metadata:
   author: "James Couch"
-  description: "Simple OCR"
+  description: "Enhanced OCR model with BatchNormalization and Dropout"

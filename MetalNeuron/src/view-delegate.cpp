@@ -13,8 +13,9 @@
 #include "mnist-dataset.h"
 #include "function-dataset.h"
 #include "math-lib.h"
+#include "configuration-manager.h"
 
-const char* defaultModelFilePath = "simple-dense-layer.yml";
+const char* modelFilename = "rnn.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {
@@ -26,6 +27,9 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice)
 , _pDataManager(nullptr)
 {
     ModelConfig config = ModelConfig::loadFromFile(getDefaultModelFilePath());
+    config.filename = modelFilename;
+    
+    ConfigurationManager::instance().setConfig(&config);
 
     // Instantiate DataManager first with dataset from config
     Dataset* dataset = nullptr;
@@ -82,12 +86,12 @@ std::string ViewDelegate::getDefaultModelFilePath() {
     }
 
     fs::path executablePath = fs::canonical(path);
-    fs::path resourcePath = executablePath.parent_path().parent_path() / "Resources" / defaultModelFilePath;
+    fs::path resourcePath = executablePath.parent_path().parent_path() / "Resources" / modelFilename;
 
     if (!fs::exists(resourcePath)) {
         throw std::runtime_error("❌ Could not find configuration yml at " + resourcePath.string());
     }
-    std::cout << "📂 Loaded file " << defaultModelFilePath << std::endl;
+    std::cout << "📂 Loaded file " << modelFilename << std::endl;
 
     return resourcePath.string();
 }

@@ -29,7 +29,8 @@ _pDataManager(pDataManager),
 _pInputLayer(nullptr),
 input_dim(0),
 output_dim(0),
-epochs(0)
+epochs(0),
+filename(config.filename)
 {
     batch_size = config.training.batch_size;
     epochs = config.training.epochs;
@@ -83,11 +84,11 @@ epochs(0)
     });
     
     _pKeyboardController->setSaveCallback([this]() {
-        saveModel("./model.bin");
+        saveModel(filename + ".bin");
     });
     
     _pKeyboardController->setLoadCallback([this]() {
-        loadModel("./model.bin");
+        loadModel(filename + ".bin");
     });
     
     _semaphore = dispatch_semaphore_create(kMaxFramesInFlight);
@@ -240,17 +241,17 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
         
-        _pInputLayer->onBackwardComplete(_pCommandQueue, batchSize);
-        for (auto& layer : dynamicLayers_) {
-            layer->onBackwardComplete(_pCommandQueue, batchSize);
-        }
-        
 #ifdef DEBUG_NETWORK
         _pInputLayer->debugLog();
         for (auto& layer : dynamicLayers_) {
             layer->debugLog();
         }
 #endif
+        
+        _pInputLayer->onBackwardComplete(_pCommandQueue, batchSize);
+        for (auto& layer : dynamicLayers_) {
+            layer->onBackwardComplete(_pCommandQueue, batchSize);
+        }
         
         onComplete();
     });
