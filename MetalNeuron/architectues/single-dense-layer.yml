@@ -1,12 +1,10 @@
-name: "RNN"
+name: "Single Dense Layer"
 
 layers:
-
-  - type: RNN
+  - type: Dense
     input_size: 512
     output_size: 512
-    activation: tanh
-    time_steps: 5
+    activation: linear
 
 training:
   optimizer:
@@ -16,12 +14,12 @@ training:
       beta1: 0.9
       beta2: 0.999
 
-  epochs: 10
-  batch_size: 10
+  epochs: 1
+  batch_size: 1
 
 dataset:
   type: "function"
 
 metadata:
   author: "James Couch"
-  description: "RNN"
+  description: "Single Dense Layer"

@@ -15,7 +15,7 @@
 #include "math-lib.h"
 #include "configuration-manager.h"
 
-const char* modelFilename = "rnn.yml";
+const char* modelFilename = "single-dense-layer.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {

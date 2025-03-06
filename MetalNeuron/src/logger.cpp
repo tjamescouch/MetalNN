@@ -163,11 +163,13 @@ void Logger::logLoss(float loss) {
 void Logger::accumulateLoss(float loss) {
     accumulatedLoss_ += loss;
     numSamples_++;
+    logLoss(accumulatedLoss_ / numSamples_);
 }
 
 float Logger::finalizeBatchLoss() {
     float averageLoss = accumulatedLoss_ / numSamples_;
     accumulatedLoss_ = 0.0f;
+    numSamples_ = 0;
     logLoss(averageLoss); // Log average to your file or console.
     return averageLoss;
 }

@@ -40,10 +40,10 @@ inline void softmax(const device float* input, device float* output, uint output
 }
 
 // Global constants
-constant float learning_rate_w = 0.0001f;
-constant float learning_rate_b = 0.0001f;
+constant float learning_rate_w = 0.001f;
+constant float learning_rate_b = 0.001f;
 constant float decay_factor = 0.9999999f;
-constant float threshold = 0.01f;
+constant float threshold = 1.f;
 
 // Activation functions
 inline float activate(const float x, const uint activation) {
@@ -211,7 +211,7 @@ kernel void learn_rnn(
     device       float* W_hh         [[buffer(3)]],
     device       float* b            [[buffer(4)]],
     device const float* h            [[buffer(5)]],
-    device const float* output_error [[buffer(6)]],
+    device       float* output_error [[buffer(6)]],
     device const float* next_hidden_error [[buffer(7)]], 
     device       float* hidden_error [[buffer(8)]],
     device const uint* pX            [[buffer(9)]],
@@ -241,6 +241,7 @@ kernel void learn_rnn(
     float delta = accumulated_err * activate_derivative(h[tid], *activation);
     delta = clamp(delta, -threshold, threshold);
     hidden_error[tid] = delta;
+    output_error[tid] = delta;
 
     // Update input-to-hidden weights
     for (uint i = 0; i < input_dim; i++) {

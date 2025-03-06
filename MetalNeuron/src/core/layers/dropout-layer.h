@@ -44,6 +44,9 @@ public:
     
     void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
     void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {
+        for (int t = 0; t < sequenceLength_; ++t)
+            memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, outputBuffers_[BufferType::OutputErrors][t]->length());
+        
         generateRandomMask();
     };
     

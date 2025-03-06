@@ -107,8 +107,6 @@ void RNNLayer::buildBuffers(MTL::Device* device) {
                                                                         MTL::ResourceStorageModeManaged);
         outputBuffers_[BufferType::HiddenErrors][t] = device->newBuffer(hiddenDim_ * sizeof(float),
                                                                         MTL::ResourceStorageModeManaged);
-        std::cout << "t=" << t << " outputBuffers_[BufferType::OutputErrors] set to " << outputBuffers_[BufferType::OutputErrors][t] << std::endl;
-        assert(outputBuffers_[BufferType::OutputErrors][t] && "Error buffer is null");
         
         memset(outputBuffers_[BufferType::Output][t]->contents(), 0, hiddenDim_ * sizeof(float));
         memset(inputBuffers_[BufferType::PrevHiddenState][t]->contents(), 0, hiddenDim_ * sizeof(float));
@@ -197,21 +195,8 @@ void RNNLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
         encoder->setBytes(&hiddenDim_, sizeof(int), 10);
         encoder->setBuffer(bufferDecay_, 0, 11);
         encoder->setBytes(&activationRaw, sizeof(uint),       12);
+        encoder->setBytes(&batchSize, sizeof(uint),       13);
         
-        
-        std::cout << "Target buffer samples (CPU): ";
-        float* targetBuffer = (float*)inputBuffers_[BufferType::Targets][0]->contents();
-        for (int i = 0; i < 10; ++i) {
-            std::cout << targetBuffer[i] << " ";
-        }
-        std::cout << std::endl;
-
-        std::cout << "Output buffer samples (CPU): ";
-        float* outputBuffer = (float*)outputBuffers_[BufferType::Output][0]->contents();
-        for (int i = 0; i < 10; ++i) {
-            std::cout << outputBuffer[i] << " ";
-        }
-        std::cout << std::endl;
         
         encoder->dispatchThreads(MTL::Size(hiddenDim_, 1, 1),
                                  MTL::Size(std::min(hiddenDim_, 1024), 1, 1));
@@ -320,13 +305,6 @@ void RNNLayer::updateTargetBufferAt(const float* targetData, int timestep) {
     float* targetBuffer = static_cast<float*>(inputBuffers_[BufferType::Targets][timestep]->contents());
     memcpy(targetBuffer, targetData, hiddenDim_ * sizeof(float));
     inputBuffers_[BufferType::Targets][timestep]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
-    
-    std::cout << "Target buffer after setting (CPU): ";
-    float* targetBufferz = (float*)inputBuffers_[BufferType::Targets][0]->contents();
-    for (int i = 0; i < 10; ++i) {
-        std::cout << targetBufferz[i] << " ";
-    }
-    std::cout << std::endl;
 
     /*
     float* targetBuffer = static_cast<float*>(inputBuffers_[BufferType::Targets][timestep]->contents());
@@ -418,14 +396,16 @@ void RNNLayer::loadParameters(std::istream& is) {
 
 void RNNLayer::debugLog() {
 #ifdef DEBUG_RNN_LAYER
-    for (int t = 0; t < sequenceLength_; t++) {
-        float* outputData = (float*)outputBuffers_[BufferType::Output][t]->contents();
-        std::cout << "RNN Forward pass output samples for timestep=" << t << " =>\n";
-        for (int i = 0; i < outputSize(); ++i) {
-            std::cout << outputData[i] << " ";
-        }
-        std::cout << std::endl;
-    }
+    float* outputErrors = static_cast<float*>(outputBuffers_[BufferType::OutputErrors][0]->contents());
+    size_t outputErrorCount = outputBuffers_[BufferType::OutputErrors][0]->length() / sizeof(float);
+    
+    float outputErrorNorm = 0.0f;
+    for (size_t i = 0; i < outputErrorCount; ++i)
+        outputErrorNorm += outputErrors[i] * outputErrors[i];
+    
+    outputErrorNorm = sqrtf(outputErrorNorm);
+    const std::string s = std::string("[") + (isTerminal_ ? "Terminal " : "") +  "RNN Layer DebugLog] Output Error Gradient L2 Norm: %.10e\n";
+    printf(s.c_str(), outputErrorNorm);
 #endif
 }
 
@@ -444,9 +424,12 @@ void RNNLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSi
 
     encoder->endEncoding();
 
-    shiftHiddenStates();
+    //for (int t = 0; t < sequenceLength_; t++) {
+    //memset(outputBuffers_[BufferType::OutputErrors][sequenceLength_ - 1]->contents(), 0, outputBuffers_[BufferType::OutputErrors][sequenceLength_ - 1]->length());
+    //}
+    memset(outputBuffers_[BufferType::OutputErrors][sequenceLength_ - 1]->contents(), 0, outputBuffers_[BufferType::OutputErrors][sequenceLength_ - 1]->length());
+    outputBuffers_[BufferType::OutputErrors][sequenceLength_ - 1]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
     
-     for (int t = 0; t < sequenceLength_; t++)
-        memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, outputBuffers_[BufferType::OutputErrors][t]->length());
+    shiftHiddenStates();
 }
 
