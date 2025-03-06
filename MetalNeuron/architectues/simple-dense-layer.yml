@@ -4,7 +4,7 @@ layers:
   - type: Dense
     input_size: 512
     output_size: 512
-    activation: tanh
+    activation: linear
 
 training:
   optimizer:

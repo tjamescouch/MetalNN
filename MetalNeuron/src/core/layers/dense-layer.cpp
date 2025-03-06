@@ -313,15 +313,32 @@ void DenseLayer::debugLog() {
     float* weights = static_cast<float*>(bufferWeights_->contents());
     printf("[DenseLayer DebugLog] Weights sample: %f, %f, %f\n", weights[0], weights[1], weights[2]);
     
-    // Optionally log biases or other important states:
     float* biases = static_cast<float*>(bufferBias_->contents());
     printf("[DenseLayer DebugLog] Biases sample: %f, %f, %f\n", biases[0], biases[1], biases[2]);
     
     float* decay = static_cast<float*>(bufferDecay_->contents());
     printf("[DenseLayer DebugLog] Decay factor: %f\n", *decay);
+#endif
+#ifdef DEBUG_L2_NORMS
+    float* outputErrors = static_cast<float*>(outputBuffers_[BufferType::OutputErrors][0]->contents());
+    size_t outputErrorCount = outputBuffers_[BufferType::OutputErrors][0]->length() / sizeof(float);
+    
+    for (int i = 0; i < outputErrorCount; ++i) {
+        float grad_value = ((float*)outputBuffers_[BufferType::OutputErrors][0]->contents())[i];
+        printf("outputBuffers_[BufferType::OutputErrors][0]->contents())[%d]: %f\n", i, grad_value);
+    }
+
+    float outputErrorNorm = 0.0f;
+    for (size_t i = 0; i < outputErrorCount; ++i)
+        outputErrorNorm += outputErrors[i] * outputErrors[i];
+
+    outputErrorNorm = sqrtf(outputErrorNorm);
+    printf("[DenseLayer DebugLog] Output Error Gradient L2 Norm: %f\n", outputErrorNorm);
     
 #endif
+    memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
 }
+
 
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
     auto cmdBuf = _pCommandQueue->commandBuffer();

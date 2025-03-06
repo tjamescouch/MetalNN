@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <cmath>
+#include "math-lib.h"
 
 Logger::Logger(const std::string& filename, bool isRegression)
 : filename_(filename), logFileStream(nullptr), isRegression_(isRegression) {
@@ -72,13 +73,13 @@ void Logger::flushRegressionAnalytics() {
         // Log target array
         *logFileStream << "target = [ ";
         for (int i = 0; i < outputCount; ++i)
-            *logFileStream << target[i] << (i < outputCount - 1 ? ", " : "");
+            *logFileStream << mathlib::clamp<float>(target[i], -1, 1) << (i < outputCount - 1 ? ", " : "");
         *logFileStream << " ];" << std::endl;
 
         // Log output array
         *logFileStream << "output = [ ";
         for (int i = 0; i < outputCount; ++i)
-            *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "");
+            *logFileStream << mathlib::clamp<float>(output[i], -1, 1) << (i < outputCount - 1 ? ", " : "");
         *logFileStream << " ];" << std::endl;
 
         // Plot targets and predictions

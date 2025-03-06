@@ -18,17 +18,6 @@ inline float radians(float degrees) {
     return degrees * (kPi / 180.0);
 }
 
-template<typename T> T clamp(T val, T min, T max) {
-    if (val < min) {
-        return min;
-    }
-    if (val > max) {
-        return max;
-    }
-    
-    return val;
-}
-
 inline simd::float4x4 makeProjectionMatrix(float fov, float aspect, float near, float far) {
     float yScale = 1.0 / tan(fov * 0.5);
     float xScale = yScale / aspect;
@@ -135,6 +124,12 @@ template <typename T> inline T min(T a, T b) {
 
 template <typename T> inline T max(T a, T b) {
     return a > b ? a : b;
+}
+
+template <typename T> inline T clamp(T value, T min, T max) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
 }
 
 }
