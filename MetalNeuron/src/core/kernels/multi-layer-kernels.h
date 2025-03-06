@@ -119,6 +119,7 @@ kernel void learn_dense_layer(
     device float* debug                  [[buffer(10)]], // debug buffer
     device float* prevLayerErrors        [[buffer(11)]], // errors to prev layer
     constant uint& batch_size            [[buffer(12)]], // batch size
+    constant float& learning_rate        [[buffer(13)]], // learning rate
     uint tid                             [[thread_position_in_grid]]
 ) {
     uint sample_id = tid / output_dim;
@@ -156,14 +157,14 @@ kernel void learn_dense_layer(
         grad = clamp(grad, -threshold, threshold);
 
         // Atomic add for concurrent accumulation across batches
-        atomic_fetch_add_explicit((device atomic_float*)&W[i * output_dim + neuron_id], -learning_rate_w * grad * decay, memory_order_relaxed);
+        atomic_fetch_add_explicit((device atomic_float*)&W[i * output_dim + neuron_id], -learning_rate * grad * decay, memory_order_relaxed);
 
         // Accumulate error signals for previous layer (for backprop)
         atomic_fetch_add_explicit((device atomic_float*)&sample_prevLayerErrors[i], W[i * output_dim + neuron_id] * delta, memory_order_relaxed);
     }
 
     // Update biases atomically
-    atomic_fetch_add_explicit((device atomic_float*)&b[neuron_id], -learning_rate_b * delta * decay, memory_order_relaxed);
+    atomic_fetch_add_explicit((device atomic_float*)&b[neuron_id], -learning_rate * delta * decay, memory_order_relaxed);
 }
 
 //-------------------------------------------------------------------

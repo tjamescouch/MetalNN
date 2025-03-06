@@ -12,7 +12,7 @@
 DenseLayer::DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activation)
 : inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(1), activation_(activation),
 bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr),isTerminal_(false),
-forwardPipelineState_(nullptr), backwardPipelineState_(nullptr)
+forwardPipelineState_(nullptr), backwardPipelineState_(nullptr), learningRate_(0.001)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
@@ -187,6 +187,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     encoder->setBuffer(outputBuffers_[BufferType::Debug][0], 0, 10);
     encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 11);
     encoder->setBytes(&batchSize, sizeof(uint), 12);
+    encoder->setBytes(&learningRate_, sizeof(float), 13);
 
     // Corrected Dispatch Logic
     const uint gridSize = outputDim_ * batchSize;
@@ -364,4 +365,5 @@ void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batch
     encoder->endEncoding();
     
     memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
+    outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
 }
