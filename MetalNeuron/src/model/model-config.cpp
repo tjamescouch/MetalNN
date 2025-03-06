@@ -61,7 +61,7 @@ ModelConfig ModelConfig::loadFromFile(const std::string& filePath) {
     const auto optimizerNode = config["training"]["optimizer"];
     OptimizerConfig optimizerConfig;
     optimizerConfig.type = optimizerNode["type"].get_value<std::string>();
-    optimizerConfig.learning_rate = optimizerNode["learning_rate"].get_value<float>();
+    optimizerConfig.learning_rate = optimizerNode["learning_rate"].get_value_or<float>(1e-8);
 
     if (optimizerNode.contains("parameters")) {
         for (const auto& param : optimizerNode["parameters"].as_map()) {

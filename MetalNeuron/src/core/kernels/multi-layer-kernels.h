@@ -40,10 +40,10 @@ inline void softmax(const device float* input, device float* output, uint output
 }
 
 // Global constants
-constant float learning_rate_w = 0.001f;
-constant float learning_rate_b = 0.001f;
+constant float learning_rate_w = 0.0001f;
+constant float learning_rate_b = 0.0001f;
 constant float decay_factor = 0.9999999f;
-constant float threshold = 1.0f;
+constant float threshold = 0.01f;
 
 // Activation functions
 inline float activate(const float x, const uint activation) {

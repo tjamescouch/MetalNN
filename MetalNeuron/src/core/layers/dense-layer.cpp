@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
+#include "configuration-manager.h"
 #include "math-lib.h"
 #include "adam-optimizer.h"
 #include "dense-layer.h"
@@ -53,9 +54,16 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     forwardFunc->release();
     backwardFunc->release();
     
+    ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
+    auto parameters = pConfig->training.optimizer.parameters;
+
+    float lr      = pConfig->training.optimizer.learning_rate;
+    float beta1   = parameters["beta1"].get_value_or<float>(0.9f);
+    float beta2   = parameters["beta2"].get_value_or<float>(0.999f);
+    float epsilon = parameters["epsilon"].get_value_or<float>(1e-8);
     
-    optimizerWeights_ = std::make_unique<AdamOptimizer>(0.001f, 0.9f, 0.999f, 1e-8f);
-    optimizerBiases_ = std::make_unique<AdamOptimizer>(0.001f, 0.9f, 0.999f, 1e-8f);
+    optimizerWeights_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+    optimizerBiases_  = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
     
     optimizerWeights_->buildPipeline(device, library);
     optimizerBiases_->buildPipeline(device, library);
@@ -340,7 +348,7 @@ void DenseLayer::debugLog() {
             outputErrorNorm += outputErrors[i] * outputErrors[i];
         
         outputErrorNorm = sqrtf(outputErrorNorm);
-        printf("[DenseLayer DebugLog] Output Error Gradient L2 Norm: %f\n", outputErrorNorm);
+        this->isTerminal_ ? printf("[Terminal DenseLayer DebugLog] Output Error Gradient L2 Norm: %f\n", outputErrorNorm) : printf("[DenseLayer DebugLog] Output Error Gradient L2 Norm: %f\n", outputErrorNorm);
     }
 #endif
 }

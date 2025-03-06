@@ -49,8 +49,8 @@
 			buildPhase = DFE032AC2D72E9A000B1B6ED /* CopyFiles */;
 			membershipExceptions = (
 				"architectues/map-reduce.yml",
-				"architectues/model-config.yml",
 				architectues/ocr.yml,
+				architectues/rnn.yml,
 				"architectues/simple-dense-layer.yml",
 				"architectues/simple-ocr.yml",
 				datasets/mnist/LICENSE.txt,

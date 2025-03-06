@@ -13,8 +13,9 @@
 #include "mnist-dataset.h"
 #include "function-dataset.h"
 #include "math-lib.h"
+#include "configuration-manager.h"
 
-const char* modelFilename = "simple-dense-layer.yml";
+const char* modelFilename = "rnn.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {
@@ -27,6 +28,8 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice)
 {
     ModelConfig config = ModelConfig::loadFromFile(getDefaultModelFilePath());
     config.filename = modelFilename;
+    
+    ConfigurationManager::instance().setConfig(&config);
 
     // Instantiate DataManager first with dataset from config
     Dataset* dataset = nullptr;
