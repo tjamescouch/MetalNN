@@ -76,6 +76,7 @@ private:
     int epochs;
     int input_dim;
     int output_dim;
+    std::string filename;
 };
 
 #endif // NEURAL_ENGINE_H

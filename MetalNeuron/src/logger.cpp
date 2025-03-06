@@ -61,7 +61,7 @@ void Logger::flushRegressionAnalytics() {
     }
 
     *logFileStream << "clf; hold on;" << std::endl;
-    *logFileStream << "ylim([-1 1]);" << std::endl;
+    //*logFileStream << "ylim([-2 2]);" << std::endl;
 
     for (size_t sampleIdx = 0; sampleIdx < batchOutputs_.size(); ++sampleIdx) {
         const auto& output = batchOutputs_[sampleIdx];
@@ -73,13 +73,13 @@ void Logger::flushRegressionAnalytics() {
         // Log target array
         *logFileStream << "target = [ ";
         for (int i = 0; i < outputCount; ++i)
-            *logFileStream << mathlib::clamp<float>(target[i], -1, 1) << (i < outputCount - 1 ? ", " : "");
+            *logFileStream << target[i] << (i < outputCount - 1 ? ", " : "");
         *logFileStream << " ];" << std::endl;
 
         // Log output array
         *logFileStream << "output = [ ";
         for (int i = 0; i < outputCount; ++i)
-            *logFileStream << mathlib::clamp<float>(output[i], -1, 1) << (i < outputCount - 1 ? ", " : "");
+            *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "");
         *logFileStream << " ];" << std::endl;
 
         // Plot targets and predictions
