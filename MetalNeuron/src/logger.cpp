@@ -61,13 +61,14 @@ void Logger::flushRegressionAnalytics() {
     }
 
     *logFileStream << "clf; hold on;" << std::endl;
-    //*logFileStream << "ylim([-2 2]);" << std::endl;
+    
 
     for (size_t sampleIdx = 0; sampleIdx < batchOutputs_.size(); ++sampleIdx) {
         const auto& output = batchOutputs_[sampleIdx];
         const auto& target = batchTargets_[sampleIdx];
         size_t outputCount = output.size();
-
+        
+        *logFileStream << "ylim([-1 1], \"Manual\");" << std::endl;
         *logFileStream << "x = 1:" << outputCount << ";" << std::endl;
 
         // Log target array
