@@ -21,7 +21,7 @@ const char* outputFileName = "multilayer_nn_training.m";
 int globalTimestep = 0;
 
 
-NeuralEngine::NeuralEngine(MTL::Device* pDevice, const ModelConfig& config, DataManager* pDataManager)
+NeuralEngine::NeuralEngine(MTL::Device* pDevice, ModelConfig& config, DataManager* pDataManager)
 : _pDevice(pDevice->retain()),
 areBuffersBuilt(false),
 currentlyComputing(false),
@@ -110,7 +110,7 @@ NeuralEngine::~NeuralEngine() {
 }
 
 
-void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
+void NeuralEngine::createDynamicLayers(ModelConfig& config) {
     // Clear existing layers
     for (auto layer : dynamicLayers_) {
         delete layer;
@@ -124,16 +124,16 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
     
     _pInputLayer = new InputLayer(input_dim, first_layer_time_steps);
     
-    _pDataManager->initialize([this, config]() {
+    _pDataManager->initialize([this, &config]() {
         _pLogger->clear();
         buildBuffers();
         connectDynamicLayers(config);
     });
 }
 
-void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
+void NeuralEngine::connectDynamicLayers(ModelConfig& config) {
     // Build each layer from config
-    for (const auto& layerConfig : config.layers) {
+    for (auto& layerConfig : config.layers) {
         Layer* layer = LayerFactory::createLayer(layerConfig,
                                                  input_dim,
                                                  _pDevice,

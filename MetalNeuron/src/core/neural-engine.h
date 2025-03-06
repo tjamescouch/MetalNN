@@ -26,7 +26,7 @@ class Buffer;
 
 class NeuralEngine {
 public:
-    NeuralEngine(MTL::Device* pDevice, const ModelConfig& config, DataManager* pDataManager);
+    NeuralEngine(MTL::Device* pDevice, ModelConfig& config, DataManager* pDataManager);
     ~NeuralEngine();
     
     void computeForward(int batchSize, std::function<void()> onComplete);
@@ -35,8 +35,8 @@ public:
     void computeForwardBatches(uint32_t totalSamples, int iterationsRemaining, std::function<void()> onComplete);
     void computeBackwardBatches(uint32_t totalSamples, int iterationsRemaining, std::function<void()> onComplete);
     
-    void connectDynamicLayers(const ModelConfig& config);
-    void createDynamicLayers(const ModelConfig& config);
+    void connectDynamicLayers(ModelConfig& config);
+    void createDynamicLayers(ModelConfig& config);
     
     void keyPress(KeyPress* kp);
     void handleKeyStateChange();

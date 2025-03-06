@@ -11,19 +11,25 @@
 #include "batch-normalization-layer.h"
 #include "rnn-layer.h"
 #include "map-reduce-layer.h"
+#include "configuration-manager.h"
 
-Layer* LayerFactory::createLayer(const LayerConfig& layerConfig,
+Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
                                  int input_dim,
                                  MTL::Device* device,
                                  MTL::Library* library) {
+    auto config = ConfigurationManager::instance().getConfig();
+    auto globaLearningRate = config->training.optimizer.learning_rate;
+    
     Layer* layer = nullptr;
     int previousLayerOutputSize = input_dim;
 
     if (layerConfig.type == "Dense") {
         int outputSize = layerConfig.params.at("output_size").get_value<int>();
         auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
+        auto learningRate = layerConfig.params["learning_rate"].get_value_or<float>(globaLearningRate);
+        
         ActivationFunction activation = parseActivation(activationStr);
-        layer = new DenseLayer(previousLayerOutputSize, outputSize, 1, activation);
+        layer = (new DenseLayer(previousLayerOutputSize, outputSize, 1, activation))->setLearningRate(learningRate);
         previousLayerOutputSize = outputSize;
     }
     else if (layerConfig.type == "Dropout") {
@@ -31,9 +37,7 @@ Layer* LayerFactory::createLayer(const LayerConfig& layerConfig,
         layer = new DropoutLayer(rate, previousLayerOutputSize, 1);
     }
     else if (layerConfig.type == "BatchNormalization") {
-        float epsilon = layerConfig.params.count("epsilon")
-                        ? layerConfig.params.at("epsilon").get_value<float>()
-                        : 0.001f;
+        float epsilon = layerConfig.params.at("epsilon").get_value_or<float>(0.001f);
         layer = new BatchNormalizationLayer(previousLayerOutputSize, 1, epsilon);
     }
     else if (layerConfig.type == "RNN") {
