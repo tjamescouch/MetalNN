@@ -1,14 +1,6 @@
-name: "RNN"
+name: "Single Dense Layer"
 
 layers:
-
-  - type: RNN
-    input_size: 512
-    output_size: 512
-    activation: tanh
-    time_steps: 5
-
-
   - type: Dense
     input_size: 512
     output_size: 512
@@ -30,4 +22,4 @@ dataset:
 
 metadata:
   author: "James Couch"
-  description: "RNN"
+  description: "Single Dense Layer"
