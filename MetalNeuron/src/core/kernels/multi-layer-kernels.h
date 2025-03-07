@@ -40,7 +40,6 @@ inline void softmax(const device float* input, device float* output, uint output
 }
 
 // Global constants
-constant float learning_rate = 0.001f;
 constant float learning_rate_w = 0.001f;
 constant float learning_rate_b = 0.001f;
 constant float decay_factor = 0.9999999f;
@@ -119,6 +118,7 @@ kernel void learn_non_terminal_dense_layer(
     device float* debug                  [[buffer(10)]], // debug buffer
     device float* prevLayerErrors        [[buffer(11)]], // errors to prev layer
     constant uint& batch_size            [[buffer(12)]], // batch size
+    device const float* pLearningRate    [[buffer(13)]], // learning rate
     uint tid                             [[thread_position_in_grid]]
 ) {
     uint sample_id = tid / output_dim;
@@ -127,6 +127,7 @@ kernel void learn_non_terminal_dense_layer(
     if (sample_id >= batch_size || neuron_id >= output_dim) return;
 
     float decay = *pDecay;
+    float learning_rate = *pLearningRate;
 
     // Compute index offsets based on batch sample
     const device float* sample_h = h + (sample_id * input_dim);
@@ -176,7 +177,7 @@ kernel void learn_terminal_dense_layer(
     device float* debug                  [[buffer(10)]], // debug buffer
     device float* prevLayerErrors        [[buffer(11)]], // errors to prev layer
     constant uint& batch_size            [[buffer(12)]], // batch size
-    //constant float& learning_rate        [[buffer(13)]], // learning rate
+    device const float* pLearningRate    [[buffer(13)]], // learning rate
     uint tid                             [[thread_position_in_grid]]
 ) {
     uint sample_id = tid / output_dim;
@@ -185,6 +186,7 @@ kernel void learn_terminal_dense_layer(
     if (sample_id >= batch_size || neuron_id >= output_dim) return;
 
     float decay = *pDecay;
+    float learning_rate = *pLearningRate;
 
     // Compute index offsets based on batch sample
     const device float* sample_h = h + (sample_id * input_dim);

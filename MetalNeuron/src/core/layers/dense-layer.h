@@ -67,6 +67,7 @@ private:
     MTL::Buffer* bufferWeights_;
     MTL::Buffer* bufferBias_;
     MTL::Buffer* bufferDecay_;
+    MTL::Buffer* bufferLearningRate_;
     
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
