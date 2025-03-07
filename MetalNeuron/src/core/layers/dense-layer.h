@@ -52,13 +52,15 @@ public:
     
     int getSequenceLength() override { return sequenceLength_; };
     
-    void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; };
+    void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; }
+    DenseLayer* setLearningRate(float learningRate) { learningRate_ = learningRate; return this; }
     
 private:
     int inputDim_;
     int outputDim_;
     int sequenceLength_;
     bool isTerminal_;
+    float learningRate_;
     
     ActivationFunction activation_;
     
