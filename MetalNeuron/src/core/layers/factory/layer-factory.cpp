@@ -27,6 +27,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         int outputSize = layerConfig.params.at("output_size").get_value<int>();
         auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
         auto learningRate = layerConfig.params["learning_rate"].get_value_or<float>(globaLearningRate);
+        learningRate = learningRate > 0 ? learningRate : globaLearningRate;
         
         ActivationFunction activation = parseActivation(activationStr);
         layer = (new DenseLayer(previousLayerOutputSize, outputSize, 1, activation))->setLearningRate(learningRate);

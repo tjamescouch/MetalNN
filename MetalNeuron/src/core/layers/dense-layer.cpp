@@ -11,7 +11,7 @@
 
 DenseLayer::DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activation)
 : inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(1), activation_(activation),
-bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr),isTerminal_(false),
+bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr), bufferLearningRate_(nullptr), isTerminal_(false),
 forwardPipelineState_(nullptr), backwardPipelineState_(nullptr), learningRate_(0.001)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
@@ -33,6 +33,7 @@ DenseLayer::~DenseLayer() {
     if (bufferWeights_) bufferWeights_->release();
     if (bufferBias_) bufferBias_->release();
     if (bufferDecay_) bufferDecay_->release();
+    if (bufferLearningRate_) bufferLearningRate_->release();
     if (forwardPipelineState_) forwardPipelineState_->release();
     if (backwardPipelineState_) backwardPipelineState_->release();
 }
@@ -92,6 +93,10 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     bufferDecay_ = device->newBuffer(sizeof(float), MTL::ResourceStorageModeManaged);
     memcpy(bufferDecay_->contents(), &decay, sizeof(float));
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
+    
+    bufferLearningRate_ = device->newBuffer(sizeof(float), MTL::ResourceStorageModeManaged);
+    memcpy(bufferLearningRate_->contents(), &learningRate_, sizeof(float));
+    bufferLearningRate_->didModifyRange(NS::Range(0, bufferLearningRate_->length()));
     
     outputBuffers_[BufferType::Output].resize(sequenceLength_);
     inputBuffers_[BufferType::InputErrors].resize(sequenceLength_);
@@ -187,7 +192,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     encoder->setBuffer(outputBuffers_[BufferType::Debug][0], 0, 10);
     encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 11);
     encoder->setBytes(&batchSize, sizeof(uint), 12);
-    //encoder->setBytes(&learningRate_, sizeof(float), 13);
+    encoder->setBuffer(bufferLearningRate_, 0, 13);
 
     // Corrected Dispatch Logic
     const uint gridSize = outputDim_ * batchSize;
