@@ -40,6 +40,7 @@ public:
     
     int outputSize() const override;
     void updateTargetBufferAt(const float* targetData, int timestep) override;
+    void updateTargetBufferAt(const float* targetData, int timestep, int batchSize) override;
     
     void shiftHiddenStates();
     

@@ -4,7 +4,6 @@
 #include "layer.h"
 #include "optimizer.h"
 #include "input-layer.h"
-#include "data-source.h"
 #include <Metal/Metal.hpp>
 #include <vector>
 
@@ -12,13 +11,14 @@
 
 class DenseLayer : public Layer {
 public:
-    DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activationFunction);
+    DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activationFunction, int batchSize);
     ~DenseLayer();
     
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
     void buildBuffers(MTL::Device* device) override;
     
     void updateTargetBufferAt(const float* targetData, int timestep) override;
+    void updateTargetBufferAt(const float* targetData, int timestep, int batchSize) override;
     
     void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
@@ -42,7 +42,7 @@ public:
     void setParameterAt(int index, float value) override;
     float getGradientAt(int index) const override;
     
-    void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
+    void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
     void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
     
     void saveParameters(std::ostream& os) const override;
@@ -54,6 +54,7 @@ public:
     
     void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; }
     DenseLayer* setLearningRate(float learningRate) { learningRate_ = learningRate; return this; }
+    DenseLayer* setInitializer(std::string initializer) { initializer_ = initializer; return this; }
     
 private:
     int inputDim_;
@@ -61,6 +62,9 @@ private:
     int sequenceLength_;
     bool isTerminal_;
     float learningRate_;
+    int batchSize_;
+    
+    std::string initializer_;
     
     ActivationFunction activation_;
     

@@ -13,16 +13,20 @@ public:
 
     virtual float* getInputDataAt(int timestep) = 0;
     virtual float* getTargetDataAt(int timestep) = 0;
+    
+    virtual float* getInputDataAt(int timestep, int batchIndex) = 0;
+    virtual float* getTargetDataAt(int timestep, int batchIndex) = 0;
+    
     virtual int numSamples() const = 0;
 
     virtual int getDatasetSize() const = 0;
-    virtual float calculateLoss(const float* predictedData, int outputDim) = 0;
+    virtual float calculateLoss(const float* predictedData, int outputDim, const float* targetData) = 0;
 
 
     virtual int inputDim() const = 0;
     virtual int outputDim() const = 0;
     
-    virtual void loadSample(int sampleIndex) = 0;
+    virtual void loadNextSample() = 0;
 };
 
 #endif

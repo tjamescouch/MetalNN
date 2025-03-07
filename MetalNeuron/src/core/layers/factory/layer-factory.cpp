@@ -20,17 +20,24 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
                                  bool isTerminal) {
     auto config = ConfigurationManager::instance().getConfig();
     auto globaLearningRate = config->training.optimizer.learning_rate;
+    auto batchSize = config->training.batch_size;
+    
     Layer* layer = nullptr;
     int previousLayerOutputSize = input_dim;
 
     if (layerConfig.type == "Dense") {
         int outputSize = layerConfig.params.at("output_size").get_value<int>();
         auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
+        auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
+        
         auto learningRate = layerConfig.params["learning_rate"].get_value_or<float>(globaLearningRate);
         learningRate = learningRate > 0 ? learningRate : globaLearningRate;
         
         ActivationFunction activation = parseActivation(activationStr);
-        layer = (new DenseLayer(previousLayerOutputSize, outputSize, 1, activation))->setLearningRate(learningRate);
+        layer = (new DenseLayer(previousLayerOutputSize, outputSize, 1, activation, batchSize))
+                    ->setLearningRate(learningRate)
+                    ->setInitializer(initializer);
+        
         previousLayerOutputSize = outputSize;
     }
     else if (layerConfig.type == "Dropout") {
@@ -38,7 +45,8 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         layer = new DropoutLayer(rate, previousLayerOutputSize, 1);
     }
     else if (layerConfig.type == "BatchNormalization") {
-        float epsilon = layerConfig.params.at("epsilon").get_value_or<float>(0.001f);
+        float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
+        epsilon = epsilon > 0 ? epsilon : 1e-5f;
         layer = new BatchNormalizationLayer(previousLayerOutputSize, 1, epsilon);
     }
     else if (layerConfig.type == "RNN") {

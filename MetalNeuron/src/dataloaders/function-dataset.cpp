@@ -44,8 +44,7 @@ int FunctionDataset::getDatasetSize() const {
     return datasetSize_;
 }
 
-float FunctionDataset::calculateLoss(const float* predictedData, int outputDim) {
-    const float* targetData = getTargetDataAt(0);  // Assuming current timestep
+float FunctionDataset::calculateLoss(const float* predictedData, int outputDim, const float* targetData) {
     float mse = 0.0f;
 
     for (int i = 0; i < outputDim; ++i) {
@@ -83,12 +82,12 @@ void FunctionDataset::generateDataset(double offset) {
     }
 }
 
-void FunctionDataset::loadSample(int _) {
+void FunctionDataset::loadNextSample() {
     loadData();
 }
 
 void FunctionDataset::shuffleIndices() {
-    offset_ = distribution(generator);
+    offset_ = (int)round(distribution(generator));
 }
 
 int FunctionDataset::numSamples() const {
@@ -102,4 +101,15 @@ float* FunctionDataset::getInputDataBuffer() {
 
 float* FunctionDataset::getTargetDataBuffer() {
     return targets_[0].data();
+}
+
+
+float* FunctionDataset::getInputDataAt(int timestep, int batchIndex) {
+    int index = (offset_ + batchIndex) % inputs_.size();
+    return inputs_[index].data();
+}
+
+float* FunctionDataset::getTargetDataAt(int timestep, int batchIndex) {
+    int index = (offset_ + batchIndex) % targets_.size();
+    return targets_[index].data();
 }

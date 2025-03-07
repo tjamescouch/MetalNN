@@ -25,6 +25,7 @@ using namespace metal;
 
 inline void softmax(const device float* input, device float* output, uint outputDim) {
     float maxVal = input[0];
+    //float maxVal = -INFINITY;
     for (uint i = 1; i < outputDim; ++i) {
         maxVal = max(maxVal, input[i]);
     }
@@ -91,7 +92,7 @@ kernel void forward_dense_layer(
     y[tid] = sum;
 
     // Handle softmax separately after all sums are computed.
-    if (*activation == 4) {
+    if (*activation == ACTIVATION_SOFTMAX) {
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
         if (tid == 0) { // Single thread computes softmax for stability

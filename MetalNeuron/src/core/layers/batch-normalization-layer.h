@@ -29,6 +29,7 @@ public:
     
     int outputSize() const override;
     void updateTargetBufferAt(const float* targetData, int timestep) override;
+    void updateTargetBufferAt(const float* targetData, int timestep, int batchSize) override;
     
     void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
                              MTL::Buffer* zeroBuffer, int timestep) override;

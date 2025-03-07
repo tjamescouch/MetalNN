@@ -3,7 +3,6 @@
 #define INPUT_LAYER_H
 
 #include "layer.h"
-#include "data-source.h"
 #include <vector>
 
 // Forward declarations for Metal classes.
@@ -20,12 +19,14 @@ public:
     
     void buildBuffers(MTL::Device* device) override;
     void updateBufferAt(const float*, int timestep);
+    void updateBufferAt(const float*, int timestep, int batchSize);
     void buildPipeline(MTL::Device* device, MTL::Library* library) override {};
     void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
 
     int outputSize() const override { return inputDim_; }
     void updateTargetBufferAt(const float* targetData, int timestep) override {};
+    void updateTargetBufferAt(const float* targetData, int timestep, int batchSize) override {};
 
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
     MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;

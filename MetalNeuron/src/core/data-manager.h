@@ -17,6 +17,7 @@ public:
     int inputDim() const;
     int outputDim() const;
     void loadNextSample();
+    void loadNextBatch(int batchSize);
 
 private:
     Dataset* current_dataset_;

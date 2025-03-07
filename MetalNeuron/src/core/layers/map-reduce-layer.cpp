@@ -158,6 +158,10 @@ void MapReduceLayer::updateTargetBufferAt(const float* targetData, int timestep)
     // Typically a MapReduceLayer might ignore this or handle it differently
 }
 
+void MapReduceLayer::updateTargetBufferAt(const float* targetData, int timestep, int batchSize) {
+    // Typically a MapReduceLayer might ignore this or handle it differently
+}
+
 int MapReduceLayer::getParameterCount() const {
     return 0; // Adjust as needed
 }

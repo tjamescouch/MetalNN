@@ -11,5 +11,6 @@
 class WeightInitializer {
 public:
     static void initializeXavier(float* buffer, int inputDim, int outputDim);
+    static void initializeHe(float* buffer, int inputDim, int outputDim);
     static void initializeBias(float* buffer, int dim, float scale = 0.01f);
 };

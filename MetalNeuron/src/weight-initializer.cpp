@@ -15,6 +15,16 @@ void WeightInitializer::initializeXavier(float* buffer, int inputDim, int output
         buffer[i] = dist(rng);
 }
 
+void WeightInitializer::initializeHe(float* buffer, int inputDim, int outputDim) {
+    float he_scale = sqrtf(2.0f / inputDim);
+    std::random_device rd;
+    std::mt19937 rng(rd());
+    std::normal_distribution<float> dist(0.0f, he_scale);
+
+    for (int i = 0; i < inputDim * outputDim; ++i)
+        buffer[i] = dist(rng);
+}
+
 void WeightInitializer::initializeBias(float* buffer, int dim, float scale) {
     std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<float> dist(-scale, scale);

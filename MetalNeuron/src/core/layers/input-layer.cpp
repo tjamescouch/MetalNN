@@ -46,6 +46,15 @@ void InputLayer::updateBufferAt(const float* data, int timestep) {
     outputBuffers_[BufferType::Output][timestep]->didModifyRange(NS::Range::Make(0, outputBuffers_[BufferType::Output][timestep]->length()));
 }
 
+void InputLayer::updateBufferAt(const float* data, int timestep, int batchSize) {
+    assert(timestep >= 0  && timestep < sequenceLength_);
+    
+    memcpy(outputBuffers_[BufferType::Output][timestep]->contents(),
+           data,
+           inputDim_ * batchSize * sizeof(float));
+    outputBuffers_[BufferType::Output][timestep]->didModifyRange(NS::Range::Make(0, outputBuffers_[BufferType::Output][timestep]->length()));
+}
+
 void InputLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
     assert(buffer && "Setting input buffer to NULL");
     inputBuffers_[type][timestep] = buffer;

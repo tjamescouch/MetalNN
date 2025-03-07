@@ -8,7 +8,6 @@
 #pragma once
 
 #include "layer.h"
-#import "data-source.h"
 #include <Metal/Metal.hpp>
 
 class DropoutLayer : public Layer {
@@ -22,6 +21,7 @@ public:
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
 
     void updateTargetBufferAt(const float*, int) override {}
+    void updateTargetBufferAt(const float*, int, int) override {}
     
     
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;

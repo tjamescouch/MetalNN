@@ -23,14 +23,19 @@ public:
 
     float* getInputDataAt(int timestep) override;
     float* getTargetDataAt(int timestep) override;
-    float calculateLoss(const float* predictedData, int outputDim) override;
+    
+    float* getInputDataAt(int timestep, int batchIndex) override;
+    float* getTargetDataAt(int timestep, int batchIndex) override;
+    
+    float calculateLoss(const float* predictedData, int outputDim, const float* targetData) override;
+
 
     int getDatasetSize() const override;
     
     int inputDim() const override { return inputDim_; };
     int outputDim() const override { return outputDim_; };
     
-    void loadSample(int sampleIndex) override;
+    void loadNextSample() override;
     
 
     int numSamples() const override;
@@ -42,7 +47,7 @@ private:
     int inputDim_;
     int outputDim_;
     int datasetSize_;
-    double offset_ = 0;
+    int offset_ = 0;
 
     std::vector<int> shuffledIndices_;
     std::vector<std::vector<float>> inputs_;

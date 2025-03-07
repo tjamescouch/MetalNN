@@ -144,6 +144,10 @@ void BatchNormalizationLayer::updateTargetBufferAt(const float* targetData, int 
     assert(timestep==0 && "Timesteps not supported for this layer");
 }
 
+void BatchNormalizationLayer::updateTargetBufferAt(const float* targetData, int timestep, int batchSize) {
+    assert(timestep==0 && "Timesteps not supported for this layer");
+}
+
 
 void BatchNormalizationLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
     assert(timestep==0 && "Timesteps not supported for this layer");

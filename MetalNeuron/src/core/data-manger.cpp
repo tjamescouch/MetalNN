@@ -7,6 +7,7 @@
 #include <stdexcept>
 
 #include "data-manager.h"
+#include <cassert>
 
 
 DataManager::DataManager(Dataset* dataset)
@@ -47,6 +48,11 @@ int DataManager::outputDim() const {
 }
 
 void DataManager::loadNextSample() {
-    current_dataset_->loadSample(sampleIndex_);
-    sampleIndex_ = (sampleIndex_ + 1) % current_dataset_->getDatasetSize();
+    current_dataset_->loadNextSample();  // Delegate responsibility directly to the dataset
+}
+
+void DataManager::loadNextBatch(int batchSize) {
+    for (int i = 0; i < batchSize; ++i) {
+        current_dataset_->loadNextSample();  // Repeatedly load samples via the dataset's own indexing mechanism
+    }
 }

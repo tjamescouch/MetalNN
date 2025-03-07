@@ -3,16 +3,17 @@
 #include <algorithm>
 #include <iostream>
 
+#include "weight-initializer.h"
 #include "configuration-manager.h"
 #include "math-lib.h"
 #include "adam-optimizer.h"
 #include "dense-layer.h"
 #include "common.h"
 
-DenseLayer::DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activation)
+DenseLayer::DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activation, int batchSize)
 : inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(1), activation_(activation),
 bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr), bufferLearningRate_(nullptr), isTerminal_(false),
-forwardPipelineState_(nullptr), backwardPipelineState_(nullptr), learningRate_(0.001)
+forwardPipelineState_(nullptr), backwardPipelineState_(nullptr), learningRate_(0.001), batchSize_(batchSize)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
@@ -22,9 +23,6 @@ forwardPipelineState_(nullptr), backwardPipelineState_(nullptr), learningRate_(0
 
 DenseLayer::~DenseLayer() {
     for (int t = 0; t < sequenceLength_; ++t) {
-        for (auto ib : inputBuffers_) {
-            ib.second[t]->release();
-        }
         for (auto ob : outputBuffers_) {
             ob.second[t]->release();
         }
@@ -70,7 +68,6 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     optimizerBiases_->buildPipeline(device, library);
 }
 
-#include "weight-initializer.h"
 
 void DenseLayer::buildBuffers(MTL::Device* device) {
     const float decay = 1.0f;
@@ -80,15 +77,17 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     
     bufferWeights_ = device->newBuffer(weightSize, MTL::ResourceStorageModeManaged);
     float* w = static_cast<float*>(bufferWeights_->contents());
-    WeightInitializer::initializeXavier(w, inputDim_, outputDim_);
+    if (initializer_ == "he") {
+        WeightInitializer::initializeHe(w, inputDim_, outputDim_);
+    } else {
+        WeightInitializer::initializeXavier(w, inputDim_, outputDim_);
+    }
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
     
     bufferBias_ = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     float* b = static_cast<float*>(bufferBias_->contents());
     WeightInitializer::initializeBias(b, outputDim_);
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
-    
-    
     
     bufferDecay_ = device->newBuffer(sizeof(float), MTL::ResourceStorageModeManaged);
     memcpy(bufferDecay_->contents(), &decay, sizeof(float));
@@ -105,29 +104,28 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::OutputErrors].resize(sequenceLength_);
     outputBuffers_[BufferType::Debug].resize(sequenceLength_);
     
-    
     int t = 0;
-    
-    outputBuffers_[BufferType::Delta][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+
+    // 🔥 Batch-aware buffers 🔥
+    outputBuffers_[BufferType::Delta][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::Delta][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Delta][t]->length()));
+
+    outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    outputBuffers_[BufferType::Output][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
+
+    outputBuffers_[BufferType::Debug][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    inputBuffers_[BufferType::Targets][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
     
-    
-    outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-    outputBuffers_[BufferType::Output][t] = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-    
-    outputBuffers_[BufferType::Debug][t]   = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-    inputBuffers_[BufferType::Targets][t]  = device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-    
-    memset(outputBuffers_[BufferType::Output][t]->contents(), 0, outputDim_ * sizeof(float));
-    memset(inputBuffers_[BufferType::Targets][t]->contents(), 0, outputDim_ * sizeof(float));
-    memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, outputDim_ * sizeof(float));
-    memset(outputBuffers_[BufferType::Debug][t]->contents(), 0, outputDim_ * sizeof(float));
+    memset(outputBuffers_[BufferType::Output][t]->contents(), 0, outputDim_ * batchSize_ * sizeof(float));
+    memset(inputBuffers_[BufferType::Targets][t]->contents(), 0, outputDim_ * batchSize_ * sizeof(float));
+    memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, outputDim_ * batchSize_ * sizeof(float));
+    memset(outputBuffers_[BufferType::Debug][t]->contents(), 0, outputDim_ * batchSize_ * sizeof(float));
     
     inputBuffers_[BufferType::Targets][t]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][t]->length()));
     outputBuffers_[BufferType::Output][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Output][t]->length()));
     outputBuffers_[BufferType::OutputErrors][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][t]->length()));
     outputBuffers_[BufferType::Debug][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Debug][t]->length()));
-    
+
     optimizerWeights_->buildBuffers(device, weightSize);
     optimizerBiases_->buildBuffers(device, biasSize);
 }
@@ -140,8 +138,14 @@ void DenseLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* bu
 
 void DenseLayer::updateTargetBufferAt(const float* targetData, int timestep) {
     assert(timestep == 0);
-    memcpy(inputBuffers_[BufferType::Targets][timestep]->contents(), targetData, outputDim_ * sizeof(float));
-    inputBuffers_[BufferType::Targets][timestep]->didModifyRange(NS::Range(0, outputDim_ * sizeof(float)));
+    memcpy(inputBuffers_[BufferType::Targets][timestep]->contents(), targetData, inputBuffers_[BufferType::Targets][timestep]->length());
+    inputBuffers_[BufferType::Targets][timestep]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][timestep]->length()));
+}
+
+void DenseLayer::updateTargetBufferAt(const float* targetData, int timestep, int batchSize) {
+    assert(timestep == 0);
+    memcpy(inputBuffers_[BufferType::Targets][timestep]->contents(), targetData, inputBuffers_[BufferType::Targets][timestep]->length());
+    inputBuffers_[BufferType::Targets][timestep]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][timestep]->length()));
 }
 
 void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize) {
@@ -310,53 +314,39 @@ void DenseLayer::loadParameters(std::istream& is) {
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
 }
 
-void DenseLayer::debugLog() {
-#ifdef DEBUG_DENSE_LAYER
-    float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][0]->contents());
-    printf("[DenseLayer Input Debug] timestep %d: ", 0);
-    for(int i = 0; i < inputBuffers_[BufferType::Input][0]->length()/sizeof(float); ++i)
-        printf(" %f, ", inputs[i]);
-    printf("\n");
+void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    // Quick sanity check:
     
-    float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][0]->contents());
-    printf("[DenseLayer Output Debug] timestep %d: ", 0);
-    for(int i = 0; i < outputBuffers_[BufferType::Output][0]->length()/sizeof(float); ++i)
-        printf(" %f, ", outputs[i]);
-    printf("\n");
-    
-    float* weights = static_cast<float*>(bufferWeights_->contents());
-    printf("[DenseLayer DebugLog] Weights sample: %f, %f, %f\n", weights[0], weights[1], weights[2]);
-    
-    float* biases = static_cast<float*>(bufferBias_->contents());
-    printf("[DenseLayer DebugLog] Biases sample: %f, %f, %f\n", biases[0], biases[1], biases[2]);
-    
-    float* decay = static_cast<float*>(bufferDecay_->contents());
-    printf("[DenseLayer DebugLog] Decay factor: %f\n", *decay);
-#endif
-#ifdef DEBUG_OUTPUT_ERRORS
-    {
-        float* outputErrors = static_cast<float*>(outputBuffers_[BufferType::OutputErrors][0]->contents());
-        size_t outputErrorCount = outputBuffers_[BufferType::OutputErrors][0]->length() / sizeof(float);
-        
-        for (int i = 0; i < outputErrorCount; ++i) {
-            float grad_value = ((float*)outputBuffers_[BufferType::OutputErrors][0]->contents())[i];
-            printf("outputBuffers_[BufferType::OutputErrors][0]->contents())[%d]: %f\n", i, grad_value);
+    if (isTerminal_) {
+        float* predictedOutput = (float*)outputBuffers_[BufferType::Output][0]->contents();
+        std::cout << "[Terminal DenseLayer] predictions = [";
+        for (int i = 0; i < 9; ++i) {
+            std::cout << predictedOutput[i] << ", ";
         }
-    }
-#endif
-#ifdef DEBUG_L2_NORMS
-    {
-        float* outputErrors = static_cast<float*>(outputBuffers_[BufferType::OutputErrors][0]->contents());
-        size_t outputErrorCount = outputBuffers_[BufferType::OutputErrors][0]->length() / sizeof(float);
+        std::cout << predictedOutput[9] << std::endl;
         
-        float outputErrorNorm = 0.0f;
-        for (size_t i = 0; i < outputErrorCount; ++i)
-            outputErrorNorm += outputErrors[i] * outputErrors[i];
+        float* targets = static_cast<float*>(inputBuffers_[BufferType::Targets][0]->contents());
+        std::cout << "[Terminal DenseLayer] targets = [";
+        for (int i = 0; i < 9; ++i) {
+            std::cout << targets[i] << ", ";
+        }
+        std::cout << targets[9] << std::endl;
+    } else {
+        float* predictedOutput = (float*)outputBuffers_[BufferType::Output][0]->contents();
+        std::cout << "[NonTerminal DenseLayer] predictions = [";
+        for (int i = 0; i < 9; ++i) {
+            std::cout << predictedOutput[i] << ", ";
+        }
+        std::cout << predictedOutput[9] << std::endl;
         
-        outputErrorNorm = sqrtf(outputErrorNorm);
-        this->isTerminal_ ? printf("[Terminal DenseLayer DebugLog] Output Error Gradient L2 Norm: %f\n", outputErrorNorm) : printf("[DenseLayer DebugLog] Output Error Gradient L2 Norm: %f\n", outputErrorNorm);
+        float* targets = static_cast<float*>(inputBuffers_[BufferType::InputErrors][0]->contents());
+        std::cout << "[NonTerminal DenseLayer] input_errors = [";
+        for (int i = 0; i < 9; ++i) {
+            std::cout << targets[i] << ", ";
+        }
+        std::cout << targets[9] << std::endl;
     }
-#endif
+
 }
 
 
@@ -371,4 +361,28 @@ void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batch
     
     memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
     outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
+}
+
+void DenseLayer::debugLog() {
+
+#ifdef DEBUG_L2_NORMS
+    float* outputErrors = static_cast<float*>(outputBuffers_[BufferType::OutputErrors][0]->contents());
+    std::cout << "Terminal Layer Output Errors (first 10 values): ";
+    for (int i = 0; i < outputBuffers_[BufferType::OutputErrors][0]->length() / sizeof(float); ++i) {
+        std::cout << outputErrors[i] << " ";
+    }
+    std::cout << std::endl;
+    
+    {
+        float* outputErrors = static_cast<float*>(outputBuffers_[BufferType::OutputErrors][0]->contents());
+        size_t outputErrorCount = outputBuffers_[BufferType::OutputErrors][0]->length() / sizeof(float);
+        
+        float outputErrorNorm = 0.0f;
+        for (size_t i = 0; i < outputErrorCount; ++i)
+            outputErrorNorm += outputErrors[i] * outputErrors[i];
+        
+        outputErrorNorm = sqrtf(outputErrorNorm);
+        this->isTerminal_ ? printf("[Terminal DenseLayer DebugLog] Output Error Gradient L2 Norm: %f\n", outputErrorNorm) : printf("[DenseLayer DebugLog] Output Error Gradient L2 Norm: %f\n", outputErrorNorm);
+    }
+#endif
 }

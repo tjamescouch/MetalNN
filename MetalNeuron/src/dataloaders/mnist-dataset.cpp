@@ -11,7 +11,7 @@
 #include <filesystem>
 #include <mach-o/dyld.h>
 
-MNISTDataset::MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename) {
+MNISTDataset::MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename): currentSampleIndex_(0) {
     namespace fs = std::filesystem;
 
     char path[PATH_MAX];
@@ -59,14 +59,6 @@ const std::vector<float>& MNISTDataset::inputAt(int index) {
 
 const std::vector<float>& MNISTDataset::targetAt(int index) {
     return targets_[index];
-}
-
-float* MNISTDataset::getInputDataAt(int timestep) {
-    return inputs_[timestep].data();
-}
-
-float* MNISTDataset::getTargetDataAt(int timestep) {
-    return targets_[timestep].data();
 }
 
 int MNISTDataset::getDatasetSize() const {
@@ -127,9 +119,8 @@ void MNISTDataset::loadLabels(const std::string& labelsPath) {
     }
 }
 
-float MNISTDataset::calculateLoss(const float* predictedData, int outputDim) {
+float MNISTDataset::calculateLoss(const float* predictedData, int outputDim, const float* targetData) {
     const float epsilon = 1e-10f;
-    const float* targetData = getTargetDataAt(0);  // Assuming current timestep
     float loss = 0.0f;
 
     for (int i = 0; i < outputDim; ++i) {
@@ -141,24 +132,15 @@ float MNISTDataset::calculateLoss(const float* predictedData, int outputDim) {
 
     return loss;
 }
-/*
-void MNISTDataset::loadSample(int sampleIndex) {
-    float* inputBuffer = getInputDataBuffer();
-    float* targetBuffer = getTargetDataBuffer();
 
-    const std::vector<float>& image = images_[sampleIndex];
-    const std::vector<float>& target = targets_[sampleIndex];
-
-    std::copy(image.begin(), image.end(), inputBuffer);
-    std::copy(target.begin(), target.end(), targetBuffer);
-}
-*/
-void MNISTDataset::loadSample(int sampleIndex) {
-    float* inputBuffer = inputs_[sampleIndex].data();
-    float* targetBuffer = targets_[sampleIndex].data();
+void MNISTDataset::loadNextSample() {
+    float* inputBuffer = inputs_[currentSampleIndex_].data();
+    float* targetBuffer = targets_[currentSampleIndex_].data();
 
     std::memcpy(getInputDataBuffer(), inputBuffer, sizeof(float) * inputDim());
     std::memcpy(getTargetDataBuffer(), targetBuffer, sizeof(float) * outputDim());
+    
+    currentSampleIndex_ = (currentSampleIndex_ + 1)  % inputs_.size();
 }
 
 // Returns pointer to the buffer for current input data
@@ -171,4 +153,21 @@ float* MNISTDataset::getTargetDataBuffer() {
     return targets_[0].data();
 }
 
+float* MNISTDataset::getInputDataAt(int timestep) {
+    return inputs_[timestep].data();
+}
 
+float* MNISTDataset::getTargetDataAt(int timestep) {
+    return targets_[timestep].data();
+}
+
+
+float* MNISTDataset::getInputDataAt(int timestep, int batchIndex) {
+    int index = (currentSampleIndex_ + batchIndex) % inputs_.size();
+    return inputs_[index].data();
+}
+
+float* MNISTDataset::getTargetDataAt(int timestep, int batchIndex) {
+    int index = (currentSampleIndex_ + batchIndex) % targets_.size();
+    return targets_[index].data();
+}
