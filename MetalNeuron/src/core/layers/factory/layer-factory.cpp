@@ -15,7 +15,8 @@
 Layer* LayerFactory::createLayer(const LayerConfig& layerConfig,
                                  int input_dim,
                                  MTL::Device* device,
-                                 MTL::Library* library) {
+                                 MTL::Library* library,
+                                 bool isTerminal) {
     Layer* layer = nullptr;
     int previousLayerOutputSize = input_dim;
 
@@ -52,7 +53,7 @@ Layer* LayerFactory::createLayer(const LayerConfig& layerConfig,
     else {
         throw std::invalid_argument("Unsupported layer type");
     }
-
+    layer->setIsTerminal(isTerminal);
     layer->buildPipeline(device, library);
     layer->buildBuffers(device);
     

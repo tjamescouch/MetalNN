@@ -133,11 +133,14 @@ void NeuralEngine::createDynamicLayers(const ModelConfig& config) {
 
 void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
     // Build each layer from config
-    for (const auto& layerConfig : config.layers) {
+    size_t numLayers = config.layers.size();
+    for (int i = 0; i < numLayers; i++) {
+        auto layerConfig = config.layers[i];
         Layer* layer = LayerFactory::createLayer(layerConfig,
                                                  input_dim,
                                                  _pDevice,
-                                                 _pComputeLibrary);
+                                                 _pComputeLibrary,
+                                                 i == config.layers.size() - 1);
         dynamicLayers_.push_back(layer);
     }
     dynamicLayers_.back()->setIsTerminal(true);
@@ -159,8 +162,6 @@ void NeuralEngine::connectDynamicLayers(const ModelConfig& config) {
     for (size_t i = dynamicLayers_.size() - 1; i > 0; --i) {
         dynamicLayers_[i]->connectBackwardConnections(dynamicLayers_[i - 1], _pInputLayer, zeroBuffer_, 0);
     }
-    
-    
 }
 
 void NeuralEngine::buildComputePipeline() {
@@ -248,10 +249,10 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
         }
 #endif
         
-        _pInputLayer->onBackwardComplete(_pCommandQueue, batchSize);
-        for (auto& layer : dynamicLayers_) {
-            layer->onBackwardComplete(_pCommandQueue, batchSize);
+        for (auto it = dynamicLayers_.rbegin(); it != dynamicLayers_.rend(); ++it) {
+            (*it)->onBackwardComplete(_pCommandQueue, batchSize);
         }
+        _pInputLayer->onBackwardComplete(_pCommandQueue, batchSize);
         
         onComplete();
     });

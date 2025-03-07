@@ -17,7 +17,8 @@ public:
     static Layer* createLayer(const LayerConfig& layerConfig,
                               int input_dim,
                               MTL::Device* device,
-                              MTL::Library* library);
+                              MTL::Library* library,
+                              bool isTerminal);
 };
 
 #endif // LAYER_FACTORY_H

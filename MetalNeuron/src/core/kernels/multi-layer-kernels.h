@@ -40,6 +40,7 @@ inline void softmax(const device float* input, device float* output, uint output
 }
 
 // Global constants
+constant float learning_rate = 0.001f;
 constant float learning_rate_w = 0.001f;
 constant float learning_rate_b = 0.001f;
 constant float decay_factor = 0.9999999f;
@@ -104,8 +105,64 @@ kernel void forward_dense_layer(
     }
 }
 
+kernel void learn_non_terminal_dense_layer(
+    device const float* h                [[buffer(0)]],  // input activations
+    device float* W                      [[buffer(1)]],  // weights
+    device float* b                      [[buffer(2)]],  // biases
+    device const float* y_hat            [[buffer(3)]],  // predicted outputs
+    device const float* inputErrors      [[buffer(4)]],  // errors from next layer
+    device float* error                  [[buffer(5)]],  // output error (delta)
+    constant uint& input_dim             [[buffer(6)]],  // input dimension
+    constant uint& output_dim            [[buffer(7)]],  // output dimension
+    device float* pDecay                 [[buffer(8)]],  // decay factor
+    constant uint& activation            [[buffer(9)]],  // activation type
+    device float* debug                  [[buffer(10)]], // debug buffer
+    device float* prevLayerErrors        [[buffer(11)]], // errors to prev layer
+    constant uint& batch_size            [[buffer(12)]], // batch size
+    uint tid                             [[thread_position_in_grid]]
+) {
+    uint sample_id = tid / output_dim;
+    uint neuron_id = tid % output_dim;
 
-kernel void learn_dense_layer(
+    if (sample_id >= batch_size || neuron_id >= output_dim) return;
+
+    float decay = *pDecay;
+
+    // Compute index offsets based on batch sample
+    const device float* sample_h = h + (sample_id * input_dim);
+    const device float* sample_y_hat = y_hat + (sample_id * output_dim);
+    const device float* sample_outputErrors = inputErrors + (sample_id * output_dim);
+    device float* sample_error = error + (sample_id * output_dim);
+    device float* sample_prevLayerErrors = prevLayerErrors + (sample_id * input_dim);
+
+    float raw_error = sample_outputErrors[neuron_id];
+    debug[tid] = raw_error;
+
+    float delta = raw_error * activate_derivative(sample_y_hat[neuron_id], activation);
+
+    delta = clamp(delta, -threshold, threshold);
+    sample_error[neuron_id] = delta;
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    // Accumulate weight gradients for each input neuron
+    for (uint i = 0; i < input_dim; i++) {
+        float grad = sample_h[i] * delta;
+        grad = clamp(grad, -threshold, threshold);
+
+        // Atomic add for concurrent accumulation across batches
+        atomic_fetch_add_explicit((device atomic_float*)&W[i * output_dim + neuron_id], -learning_rate * grad * decay, memory_order_relaxed);
+
+        // Accumulate error signals for previous layer (for backprop)
+        atomic_fetch_add_explicit((device atomic_float*)&sample_prevLayerErrors[i], W[i * output_dim + neuron_id] * delta, memory_order_relaxed);
+    }
+
+    // Update biases atomically
+    atomic_fetch_add_explicit((device atomic_float*)&b[neuron_id], -learning_rate * delta * decay, memory_order_relaxed);
+}
+
+
+kernel void learn_terminal_dense_layer(
     device const float* h                [[buffer(0)]],  // input activations
     device float* W                      [[buffer(1)]],  // weights
     device float* b                      [[buffer(2)]],  // biases
