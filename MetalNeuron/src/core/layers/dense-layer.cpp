@@ -41,7 +41,7 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     auto forwardFunc = library->newFunction(NS::String::string("forward_dense_layer", NS::UTF8StringEncoding));
     assert(forwardFunc && "Forward function not found.");
     
-    auto backwardFunc = library->newFunction(NS::String::string("learn_dense_layer", NS::UTF8StringEncoding));
+    auto backwardFunc = library->newFunction(NS::String::string(isTerminal_ ? "learn_terminal_dense_layer" : "learn_non_terminal_dense_layer", NS::UTF8StringEncoding));
     assert(backwardFunc && "Backward function not found.");
     
     NS::Error* error = nullptr;
@@ -178,7 +178,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     encoder->setBuffer(bufferWeights_, 0, 1);
     encoder->setBuffer(bufferBias_, 0, 2);
     encoder->setBuffer(outputBuffers_[BufferType::Output][0], 0, 3);
-    encoder->setBuffer(inputBuffers_[BufferType::Targets][0], 0, 4);
+    encoder->setBuffer(isTerminal_ ? inputBuffers_[BufferType::Targets][0] : inputBuffers_[BufferType::InputErrors][0], 0, 4);
     encoder->setBuffer(outputBuffers_[BufferType::Delta][0], 0, 5);
     encoder->setBytes(&inputDim_, sizeof(uint), 6);
     encoder->setBytes(&outputDim_, sizeof(uint), 7);
@@ -187,7 +187,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     encoder->setBuffer(outputBuffers_[BufferType::Debug][0], 0, 10);
     encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 11);
     encoder->setBytes(&batchSize, sizeof(uint), 12);
-    encoder->setBytes(&learningRate_, sizeof(float), 13);
+    //encoder->setBytes(&learningRate_, sizeof(float), 13);
 
     // Corrected Dispatch Logic
     const uint gridSize = outputDim_ * batchSize;
@@ -205,8 +205,8 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
 
     for (int t = 0; t < sequenceLength_; ++t) {
-        inputBuffers_[BufferType::InputErrors][t]->didModifyRange(
-            NS::Range(0, inputBuffers_[BufferType::InputErrors][t]->length()));
+        inputBuffers_[BufferType::InputErrors][t]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::InputErrors][t]->length()));
+        outputBuffers_[BufferType::OutputErrors][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][t]->length()));
     }
 }
 
