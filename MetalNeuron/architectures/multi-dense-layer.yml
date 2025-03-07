@@ -5,7 +5,7 @@ layers:
     learning_rate: 0.001
     input_size: 512
     output_size: 512
-    activation: relu
+    activation: tanh
     
   - type: Dense
     learning_rate: 0.01

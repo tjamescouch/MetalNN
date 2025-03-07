@@ -16,7 +16,7 @@ training:
       epsilon: 1e-8
 
   epochs: 1
-  batch_size: 1
+  batch_size: 10
 
 dataset:
   type: "function"
