@@ -9,13 +9,14 @@
 #include <iostream>
 
 
-MapReduceLayer::MapReduceLayer(int inputSize, ReductionType reductionType)
-: inputSize_(inputSize), output_dim_(1),
+MapReduceLayer::MapReduceLayer(int inputSize, int outputSize, ReductionType reductionType)
+: inputSize_(inputSize), output_dim_(outputSize),
 sequenceLength_(1),
 reductionType_(reductionType),
 forwardPipelineState_(nullptr),
 backwardPipelineState_(nullptr),
 isTerminal_(false) {
+    assert(outputSize == 1);
     inputBuffers_[BufferType::InputErrors].resize(sequenceLength_, nullptr);
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
@@ -148,6 +149,10 @@ void MapReduceLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffe
 
 MTL::Buffer* MapReduceLayer::getInputBufferAt(BufferType type, int timestep) {
     return inputBuffers_[type][timestep];
+}
+
+int MapReduceLayer::inputSize() const {
+    return inputSize_;
 }
 
 int MapReduceLayer::outputSize() const {

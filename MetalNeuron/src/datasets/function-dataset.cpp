@@ -24,6 +24,9 @@ FunctionDataset::FunctionDataset(InputFunction inputFunc, TargetFunction targetF
   targets_(datasetSize, std::vector<float>(outputDim)) {
 }
 
+FunctionDataset::~FunctionDataset() {
+    
+}
 
 int FunctionDataset::getDatasetSize() const {
     return datasetSize_;

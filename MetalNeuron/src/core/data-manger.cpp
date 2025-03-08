@@ -15,7 +15,10 @@ DataManager::DataManager(Dataset* dataset)
 }
 
 DataManager::~DataManager() {
-    //FIXME if (current_dataset_) delete current_dataset_;
+    if (current_dataset_) {
+        delete current_dataset_;
+        current_dataset_ = nullptr;
+    }
 }
 
 void DataManager::setDataset(Dataset* dataset) {
@@ -47,6 +50,6 @@ int DataManager::outputDim() const {
     return current_dataset_->outputDim();
 }
 
-void DataManager::loadNextBatch(int batchSize) {
-    current_dataset_->loadNextBatch(batchSize);
+void DataManager::loadNextBatch(int currentBatchSize) {
+    current_dataset_->loadNextBatch(currentBatchSize);
 }

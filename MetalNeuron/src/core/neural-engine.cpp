@@ -138,7 +138,6 @@ void NeuralEngine::connectDynamicLayers(ModelConfig& config) {
     for (int i = 0; i < numLayers; i++) {
         auto layerConfig = config.layers[i];
         Layer* layer = LayerFactory::createLayer(layerConfig,
-                                                 input_dim,
                                                  _pDevice,
                                                  _pComputeLibrary,
                                                  i == config.layers.size() - 1);
@@ -303,8 +302,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
                 _pLogger->logAnalytics(predictedData, output_dim, targetData, output_dim);
             }
         }
-        batchLoss /= currentBatchSize;
-        _pLogger->accumulateLoss(batchLoss);
+        _pLogger->accumulateLoss(batchLoss / currentBatchSize, 1);
         assert(!isnan(batchLoss));
 
         if (((totalSamples - currentBatchSize) % 500) == 0) {
@@ -323,11 +321,6 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
     uint32_t samplesRemaining = mathlib::min<int>((int)ceil(batchesRemaining * batch_size), totalSamples);
     uint32_t currentBatchSize = mathlib::min<int>(batch_size, samplesRemaining);
     uint32_t samplesProcessed = totalSamples - samplesRemaining;
-    
-    int numBatches = totalSamples / batch_size;
-    
-    int batchIndex = batchesRemaining % numBatches;
-
 
     std::cout << "⚙️ Backward batches remaining " << batchesRemaining
               << " - current batch size " << currentBatchSize << std::endl;
@@ -340,47 +333,48 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
 
     _pDataManager->loadNextBatch(currentBatchSize);
 
-    int terminalSeqLen = dynamicLayers_.back()->getSequenceLength();
-    for (int t = 0; t < terminalSeqLen; ++t) {
-        float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(t, batchIndex);
-        float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(t, batchIndex);
+    for (int i = 0; i < currentBatchSize; i++) {
+        int terminalSeqLen = dynamicLayers_.back()->getSequenceLength();
+        for (int t = 0; t < terminalSeqLen; ++t) {
+            float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(t, i);
+            float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(t, i);
 
-        _pInputLayer->updateBufferAt(inBuffer, t, currentBatchSize);
-        dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, t, currentBatchSize);
+            _pInputLayer->updateBufferAt(inBuffer, t, i);
+            dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, t, i);
+        }
     }
+
 
     computeForward(currentBatchSize, [=, this]() mutable {
 #ifdef F
-        float* debugBuffer = static_cast<float*>(
-            dynamicLayers_.back()->getInputBufferAt(BufferType::Input, 0)->contents()
-        );
-
-        std::cout << "Input: ";
-        for (int sampleIdx = 0; sampleIdx < dynamicLayers_.back()->getInputBufferAt(BufferType::Input, 0)->length() / sizeof(float); ++sampleIdx) {
-                std::cout << debugBuffer[sampleIdx] << " ";
+        for (int i = 0; i < currentBatchSize; i++) {
+            float* inputData = static_cast<float*>(
+                                                   dynamicLayers_[2]->getOutputBufferAt(BufferType::Output, 0)->contents()
+                                                   ) + (i * dynamicLayers_[2]->outputSize());
+            std::cout << "inputData for batch " << i << " : ";
+            for (int i = 0; i < 10; i++)
+                std::cout << inputData[i] << " ";
+            std::cout << std::endl;
         }
-        std::cout << std::endl;
-
 #endif
         
         computeBackward(currentBatchSize, [=, this]() mutable {
             float batchLoss = 0.0f;
 
-
+            for (int i = 0; i < currentBatchSize; i++) {
                 assert(dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->length() >= batch_size * output_dim * sizeof(float));
                 float* predictedData = static_cast<float*>(
                     dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
-                                                           ) + (batchIndex * output_dim);
+                                                           ) + (i * output_dim);
                 
-                float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0, batchIndex);
+                float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0, i);
 
                 batchLoss += _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim, targetData);
                 //assert(!isnan(batchLoss));
 
                 _pLogger->logAnalytics(predictedData, output_dim, targetData, output_dim);
-
-
-            _pLogger->accumulateLoss(batchLoss / currentBatchSize);
+            }
+            _pLogger->accumulateLoss(batchLoss / currentBatchSize, 1);
             assert(currentBatchSize > 0);
             //assert(!isnan(batchLoss));
 

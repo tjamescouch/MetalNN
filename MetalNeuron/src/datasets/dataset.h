@@ -5,6 +5,7 @@ class Dataset {
 public:
     // Required methods:
     virtual void loadData(int batchSize) = 0;
+    virtual ~Dataset() {}
 
     virtual float* getInputDataAt(int timestep, int batchIndex) = 0;
     virtual float* getTargetDataAt(int timestep, int batchIndex) = 0;

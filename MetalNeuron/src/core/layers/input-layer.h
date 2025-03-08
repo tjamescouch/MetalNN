@@ -24,6 +24,7 @@ public:
     void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
 
+    int inputSize() const override { return inputDim_; }
     int outputSize() const override { return inputDim_; }
     void updateTargetBufferAt(const float* targetData, int timestep) override {};
     void updateTargetBufferAt(const float* targetData, int timestep, int batchSize) override {};

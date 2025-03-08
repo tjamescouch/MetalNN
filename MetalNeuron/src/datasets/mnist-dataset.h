@@ -7,7 +7,7 @@
 class MNISTDataset : public Dataset {
 public:
     MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename);
-    ~MNISTDataset();
+    ~MNISTDataset() override;
 
     // Overrides from Dataset interface
     void loadData(int batchSize) override;
@@ -37,6 +37,7 @@ private:
     std::vector<std::vector<float>> targets_;
     
     int batchSize_ = 1;
+    int pageOffset_ = 0;
     
     float* batchedInputData_;
     float* batchedTargetData_;

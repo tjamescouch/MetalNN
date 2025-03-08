@@ -142,35 +142,39 @@ float MNISTDataset::calculateLoss(const float* predictedData, int outputDim, con
     const float epsilon = 1e-10f;
     float loss = 0.0f;
     
-    std::cout << "outputDim = " << outputDim << std::endl;
     std::cout << "targetData[i] ";
     for (int i = 0; i < outputDim; ++i) {
         std::cout << targetData[i] << " ";
     }
+    std::cout << std::endl;
+    
+    std::cout << "predictedData[i] ";
+    for (int i = 0; i < outputDim; ++i) {
+        std::cout << predictedData[i] << " ";
+    }
+    std::cout << std::endl;
     
     
     for (int i = 0; i < outputDim; ++i) {
         if (targetData[i] > 0.5f) { // one-hot target
-            float prediction = mathlib::max<float>(predictedData[i], epsilon);
+            float prediction = predictedData[i];//mathlib::max<float>(predictedData[i], epsilon);
             assert(!isnan(prediction));
-            //assert(prediction >= 0);
+            assert(prediction >= 0);
             loss = -logf(prediction + epsilon);
             break;
         }
         
     }
-    std::cout << std::endl;
+
     
-    //assert(!isnan(loss));
+    assert(!isnan(loss));
 
     return loss;
 }
 
-void MNISTDataset::loadNextBatch(int batchSize) {
-    assert(batchSize > 0 && "Batch size must be positive");
-    assert(inputs_.size() == targets_.size());
-
-    currentSampleIndex_ = (currentSampleIndex_ + 1) % inputs_.size();
+void MNISTDataset::loadNextBatch(int currentBatchSize) {
+    assert(currentBatchSize > 0 && currentBatchSize <= batchSize_);
+    pageOffset_++;
 }
 
 float* MNISTDataset::getInputDataAt(int timestep, int batchIndex) {
@@ -178,7 +182,7 @@ float* MNISTDataset::getInputDataAt(int timestep, int batchIndex) {
     assert(batchedInputData_);
     
     size_t numImages = inputs_.size();
-    int ib0 = (currentSampleIndex_ + batchIndex * batchSize_) % inputs_.size();
+    int ib0 = batchIndex + pageOffset_ * batchSize_;
     const int imageSize = inputDim(); // The number of floats per image
     
     for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {
@@ -193,7 +197,7 @@ float* MNISTDataset::getTargetDataAt(int timestep, int batchIndex) {
     assert(batchedTargetData_);
     
     size_t numTargets = targets_.size();
-    int ib0 = (currentSampleIndex_ + batchIndex * batchSize_) % targets_.size();
+    int ib0 =  batchIndex + pageOffset_ * batchSize_;
     const int targetSize = outputDim(); // The number of floats per image
     
     for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {

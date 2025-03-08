@@ -15,7 +15,6 @@
 class LayerFactory {
 public:
     static Layer* createLayer(LayerConfig& layerConfig,
-                              int input_dim,
                               MTL::Device* device,
                               MTL::Library* library,
                               bool isTerminal);

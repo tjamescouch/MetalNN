@@ -87,6 +87,7 @@ public:
     virtual void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) = 0;
     virtual MTL::Buffer* getInputBufferAt(BufferType type, int timestep) = 0;
     
+    virtual int inputSize() const = 0;
     virtual int outputSize() const = 0;
     
     virtual void updateTargetBufferAt(const float* targetData, int timestep) = 0;

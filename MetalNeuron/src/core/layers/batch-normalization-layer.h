@@ -12,7 +12,7 @@
 
 class BatchNormalizationLayer : public Layer {
 public:
-    BatchNormalizationLayer(int featureDim, int sequenceLength, float epsilon = 1e-5f);
+    BatchNormalizationLayer(int inputDim, int outputDim, int sequenceLength, float epsilon = 1e-5f);
     ~BatchNormalizationLayer() override;
 
     void buildBuffers(MTL::Device* device) override;
@@ -27,6 +27,7 @@ public:
     void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
     MTL::Buffer* getInputBufferAt(BufferType type, int timestep) override;
     
+    int inputSize() const override { return inputDim_; }
     int outputSize() const override;
     void updateTargetBufferAt(const float* targetData, int timestep) override;
     void updateTargetBufferAt(const float* targetData, int timestep, int batchSize) override;
@@ -49,7 +50,8 @@ public:
     void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; };
     
 private:
-    int featureDim_;
+    int inputDim_;
+    int outputDim_;
     int sequenceLength_;
     float epsilon_;
     bool isTerminal_;

@@ -14,7 +14,7 @@ class FunctionDataset : public Dataset {
 public:
     FunctionDataset(InputFunction inputFunc, TargetFunction targetFunc,
                                      int inputDim, int outputDim, int datasetSize);
-    ~FunctionDataset();
+    ~FunctionDataset() override;
 
     void loadData(int batchSize) override;
     

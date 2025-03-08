@@ -161,9 +161,9 @@ void Logger::logLoss(float loss) {
     std::cout << "✨ Loss: " << loss << std::endl;
 }
 
-void Logger::accumulateLoss(float loss) {
+void Logger::accumulateLoss(float loss, int batchSize) {
     accumulatedLoss_ += loss;
-    numSamples_++;
+    numSamples_+= batchSize;
     logLoss(accumulatedLoss_ / numSamples_);
 }
 

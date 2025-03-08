@@ -24,7 +24,9 @@ public:
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
     
 
+    int inputSize() const override;
     int outputSize() const override;
+    
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
     MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;
 

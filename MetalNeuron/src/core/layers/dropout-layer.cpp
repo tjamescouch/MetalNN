@@ -11,8 +11,10 @@
 #include "dropout-layer.h"
 #include "training-manager.h"
 
-DropoutLayer::DropoutLayer(float rate, int featureDim, int sequenceLength)
-: rate_(rate), featureDim_(featureDim), sequenceLength_(sequenceLength), bufferRandomMask_(nullptr),forwardPipelineState_(nullptr),
+DropoutLayer::DropoutLayer(float rate, int inputDim, int featureDim, int sequenceLength)
+: rate_(rate), featureDim_(featureDim),
+inputDim_(inputDim), sequenceLength_(sequenceLength),
+bufferRandomMask_(nullptr),forwardPipelineState_(nullptr),
 backwardPipelineState_(nullptr), isTerminal_(false) {
     inputBuffers_[BufferType::Input].resize(0, nullptr);
     outputBuffers_[BufferType::Output].resize(0, nullptr);

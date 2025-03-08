@@ -12,7 +12,7 @@
 
 class MapReduceLayer : public Layer {
 public:
-    MapReduceLayer(int inputSize, ReductionType reductionType);
+    MapReduceLayer(int inputSize, int outputSize, ReductionType reductionType);
     ~MapReduceLayer();
 
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
@@ -33,6 +33,7 @@ public:
     void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
     MTL::Buffer* getInputBufferAt(BufferType type, int timestep) override;
 
+    int inputSize() const override;
     int outputSize() const override;
 
     void updateTargetBufferAt(const float* targetData, int timestep) override;

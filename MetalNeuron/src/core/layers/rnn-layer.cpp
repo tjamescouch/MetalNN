@@ -293,6 +293,10 @@ void RNNLayer::shiftHiddenStates() {
     }
 }
 
+int RNNLayer::inputSize() const {
+    return inputDim_;
+}
+
 int RNNLayer::outputSize() const {
     return hiddenDim_;
 }
