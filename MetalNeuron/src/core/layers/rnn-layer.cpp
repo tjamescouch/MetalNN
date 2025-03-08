@@ -9,7 +9,7 @@
 #include "adam-optimizer.h"
 #include "configuration-manager.h"
 
-RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation)
+RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation, float learningRate)
 : inputDim_(inputDim),
 hiddenDim_(hiddenDim),
 sequenceLength_(sequenceLength),
@@ -22,7 +22,8 @@ forwardPipelineState_(nullptr),
 backwardPipelineState_(nullptr),
 zeroBuffer_(nullptr),
 isTerminal_(false),
-activation_(activation)
+activation_(activation),
+learningRate_(learningRate)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
     inputBuffers_[BufferType::PrevHiddenState].resize(sequenceLength_, nullptr);
@@ -292,31 +293,30 @@ void RNNLayer::shiftHiddenStates() {
     }
 }
 
+int RNNLayer::inputSize() const {
+    return inputDim_;
+}
+
 int RNNLayer::outputSize() const {
     return hiddenDim_;
 }
 
 void RNNLayer::updateTargetBufferAt(const float* targetData, int timestep) {
     assert(timestep >= 0 && timestep < sequenceLength_);
-    if (!inputBuffers_[BufferType::Targets][timestep]) {
-        throw new std::exception();
-    }
-    
+
     float* targetBuffer = static_cast<float*>(inputBuffers_[BufferType::Targets][timestep]->contents());
     memcpy(targetBuffer, targetData, hiddenDim_ * sizeof(float));
     inputBuffers_[BufferType::Targets][timestep]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
-
-    /*
-    float* targetBuffer = static_cast<float*>(inputBuffers_[BufferType::Targets][timestep]->contents());
-    const float* outputData = static_cast<float*>(outputBuffers_[BufferType::Output][timestep]->contents());
-    
-    for (int i = 0; i < hiddenDim_; ++i) {
-        targetBuffer[i] = outputData[i] - targetData[i];
-    }
-    
-    inputBuffers_[BufferType::Targets][timestep]->didModifyRange(NS::Range(0, hiddenDim_ * sizeof(float)));
-     */
 }
+
+void RNNLayer::updateTargetBufferAt(const float* targetData, int timestep, int batchSize) {
+    assert(timestep >= 0 && timestep < sequenceLength_);
+
+    float* targetBuffer = static_cast<float*>(inputBuffers_[BufferType::Targets][timestep]->contents());
+    memcpy(targetBuffer, targetData, hiddenDim_ * batchSize * sizeof(float));
+    inputBuffers_[BufferType::Targets][timestep]->didModifyRange(NS::Range(0, hiddenDim_ * batchSize * sizeof(float)));
+}
+
 
 void RNNLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
     outputBuffers_[type][timestep] = buffer;
@@ -357,20 +357,6 @@ void RNNLayer::connectBackwardConnections(Layer* prevLayer,
                                    int timestep)
 {
     prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
-}
-
-
-int RNNLayer::getParameterCount() const {
-    return 1;
-}
-float RNNLayer::getParameterAt(int index) const {
-    return 0.0f;
-}
-void RNNLayer::setParameterAt(int index, float value) {
-    return;
-}
-float RNNLayer::getGradientAt(int index) const {
-    return 0.0f;
 }
 
 void RNNLayer::saveParameters(std::ostream& os) const {

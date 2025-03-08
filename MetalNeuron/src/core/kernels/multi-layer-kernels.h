@@ -25,6 +25,7 @@ using namespace metal;
 
 inline void softmax(const device float* input, device float* output, uint outputDim) {
     float maxVal = input[0];
+    //float maxVal = -INFINITY;
     for (uint i = 1; i < outputDim; ++i) {
         maxVal = max(maxVal, input[i]);
     }
@@ -40,10 +41,9 @@ inline void softmax(const device float* input, device float* output, uint output
 }
 
 // Global constants
-constant float learning_rate_w = 0.001f;
-constant float learning_rate_b = 0.001f;
-constant float decay_factor = 0.9999999f;
-constant float threshold = 1.f;
+constant float decay_factor = 1.0f;//0.9999999f;
+constant float threshold = 0.1f;
+constant float max_abs_sum = 1000.0f;
 
 // Activation functions
 inline float activate(const float x, const uint activation) {
@@ -68,40 +68,66 @@ inline float activate_derivative(const float y, const uint activation) {
 }
 
 kernel void forward_dense_layer(
-    device const float* h            [[buffer(0)]],
-    device       float* y            [[buffer(1)]],
-    device const float* W            [[buffer(2)]],
-    device const float* b            [[buffer(3)]],
-    device const uint* pH            [[buffer(4)]],
-    device const uint* pN            [[buffer(5)]],
-    device const uint* activation    [[buffer(6)]],
-    uint tid                         [[thread_position_in_grid]]
+    device const float* h         [[buffer(0)]],
+    device       float* y         [[buffer(1)]],
+    device const float* W         [[buffer(2)]],
+    device const float* b         [[buffer(3)]],
+    device const uint* pH         [[buffer(4)]],
+    device const uint* pN         [[buffer(5)]],
+    device const uint* activation [[buffer(6)]],
+    constant uint& batchSize      [[buffer(7)]],
+    uint tid                      [[thread_position_in_threadgroup]],
+    uint gid                      [[thread_position_in_grid]]
 ) {
     uint hidden_dim = *pH;
     uint output_dim = *pN;
 
-    if (tid >= output_dim) return;
+    uint sample_id = gid / output_dim;
+    uint neuron_id = gid % output_dim;
+    if (sample_id >= batchSize || neuron_id >= output_dim) return;
 
-    float sum = b[tid];
-    for (uint i = 0; i < hidden_dim; i++) {
-        sum += h[i] * W[i * output_dim + tid];
+    threadgroup float shared_y[1024]; 
+
+    float sum = b[neuron_id];
+    for (uint i = 0; i < hidden_dim; ++i) {
+        sum += h[sample_id * hidden_dim + i] * W[i * output_dim + neuron_id];
     }
 
-    // First compute the pre-activation sums.
-    y[tid] = sum;
+    shared_y[tid] = clamp(sum, -max_abs_sum, max_abs_sum);
 
-    // Handle softmax separately after all sums are computed.
-    if (*activation == 4) {
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (*activation == ACTIVATION_SOFTMAX) {
+        uint sample_offset = sample_id * output_dim;
+
+        // Numerically stable softmax per sample
+        float maxVal = shared_y[sample_offset];
+        for (uint i = 1; i < output_dim; ++i)
+            maxVal = max(maxVal, shared_y[sample_offset + i]);
+
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
-        if (tid == 0) { // Single thread computes softmax for stability
-            softmax(y, y, output_dim);
+        shared_y[tid] = exp(shared_y[tid] - maxVal);
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        if (neuron_id == 0) {
+            float sumExp = 0.0f;
+            for (uint i = 0; i < output_dim; ++i)
+                sumExp += shared_y[sample_offset + i];
+
+            for (uint i = 0; i < output_dim; ++i)
+                shared_y[sample_offset + i] /= sumExp;
         }
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
     } else {
-        y[tid] = activate(sum, *activation);  // Use existing activate for other activations
+        shared_y[tid] = activate(shared_y[tid], *activation);
     }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    y[gid] = shared_y[tid];
 }
 
 kernel void learn_non_terminal_dense_layer(
@@ -278,6 +304,8 @@ kernel void learn_rnn(
     device const uint* pH            [[buffer(10)]],
     device       float* pDecay       [[buffer(11)]],
     device const uint* activation    [[buffer(12)]],
+    constant     uint& batch_size    [[buffer(13)]],
+    constant     float& learning_rate [[buffer(14)]],
     uint tid                         [[thread_position_in_grid]]
 ) {
     uint input_dim = *pX;
@@ -305,16 +333,16 @@ kernel void learn_rnn(
 
     // Update input-to-hidden weights
     for (uint i = 0; i < input_dim; i++) {
-        W_xh[i * hidden_dim + tid] -= learning_rate_w * delta * x[i] * decay;
+        W_xh[i * hidden_dim + tid] -= learning_rate * delta * x[i] * decay;
     }
 
     // Update recurrent weights
     for (uint j = 0; j < hidden_dim; j++) {
-        W_hh[j * hidden_dim + tid] -= learning_rate_w * delta * h_prev[j] * decay;
+        W_hh[j * hidden_dim + tid] -= learning_rate * delta * h_prev[j] * decay;
     }
 
     // Update bias
-    b[tid] -= learning_rate_b * delta * decay;
+    b[tid] -= learning_rate * delta * decay;
 }
 
 //-------------------------------------------------------------------
@@ -395,33 +423,37 @@ kernel void backward_batch_norm(
 }
 
 kernel void adam_kernel(
-    device float* parameters            [[buffer(0)]],
-    device float* gradients             [[buffer(1)]],
-    device float* m                     [[buffer(2)]],
-    device float* v                     [[buffer(3)]],
-    constant float& learning_rate       [[buffer(4)]],
-    constant float& beta1               [[buffer(5)]],
-    constant float& beta2               [[buffer(6)]],
-    constant float& epsilon             [[buffer(7)]],
-    constant uint& batch_size           [[buffer(8)]],
-    constant uint& timestep             [[buffer(9)]],
-    constant uint& param_count          [[buffer(10)]],
-    uint tid                            [[thread_position_in_grid]]
+    device float* parameters        [[buffer(0)]],   // Parameters (weights or biases)
+    device float* gradients          [[buffer(1)]],  // Gradients accumulated
+    device float* m                  [[buffer(2)]],  // First moment vector
+    device float* v                  [[buffer(3)]],  // Second moment vector
+    constant float& learning_rate    [[buffer(4)]],  // Learning rate
+    constant float& beta1            [[buffer(5)]],  // Exponential decay rate for first moment estimates
+    constant float& beta2            [[buffer(6)]],  // Second moment vector exponential decay rate
+    constant float& epsilon          [[buffer(7)]],  // Stability factor to prevent division by zero
+    constant uint& batch_size        [[buffer(8)]],  // Current batch size
+    constant uint& timestep          [[buffer(9)]],  // Timestep for bias correction
+    constant uint& param_count       [[buffer(10)]], // Total number of parameters
+    uint tid                         [[thread_position_in_grid]]
 ) {
     if (tid >= param_count) return;
 
-    // Average gradient across the batch
+    // Compute average gradient across batch
     float grad_avg = gradients[tid] / float(batch_size);
 
-    // Adam moment calculations
+    // Adam moment estimates
     m[tid] = beta1 * m[tid] + (1.0f - beta1) * grad_avg;
     v[tid] = beta2 * v[tid] + (1.0f - beta2) * grad_avg * grad_avg;
 
+    // Bias-corrected first and second moment estimates
     float m_hat = m[tid] / (1.0f - pow(beta1, timestep));
     float v_hat = v[tid] / (1.0f - pow(beta2, timestep));
 
-    // Update parameters
-    parameters[tid] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
+    // Parameter update with stability clamp
+    float update = learning_rate * m_hat / (sqrt(v_hat) + epsilon);
+    update = clamp(update, -1e3f, 1e3f); // Aggressive clamp to prevent explosions
+
+    parameters[tid] -= update;
 
     // Reset gradient accumulator for next batch
     gradients[tid] = 0.0f;

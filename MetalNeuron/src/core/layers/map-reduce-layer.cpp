@@ -9,13 +9,14 @@
 #include <iostream>
 
 
-MapReduceLayer::MapReduceLayer(int inputSize, ReductionType reductionType)
-: inputSize_(inputSize), output_dim_(1),
+MapReduceLayer::MapReduceLayer(int inputSize, int outputSize, ReductionType reductionType)
+: inputSize_(inputSize), output_dim_(outputSize),
 sequenceLength_(1),
 reductionType_(reductionType),
 forwardPipelineState_(nullptr),
 backwardPipelineState_(nullptr),
 isTerminal_(false) {
+    assert(outputSize == 1);
     inputBuffers_[BufferType::InputErrors].resize(sequenceLength_, nullptr);
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
@@ -150,6 +151,10 @@ MTL::Buffer* MapReduceLayer::getInputBufferAt(BufferType type, int timestep) {
     return inputBuffers_[type][timestep];
 }
 
+int MapReduceLayer::inputSize() const {
+    return inputSize_;
+}
+
 int MapReduceLayer::outputSize() const {
     return output_dim_;
 }
@@ -158,20 +163,8 @@ void MapReduceLayer::updateTargetBufferAt(const float* targetData, int timestep)
     // Typically a MapReduceLayer might ignore this or handle it differently
 }
 
-int MapReduceLayer::getParameterCount() const {
-    return 0; // Adjust as needed
-}
-
-float MapReduceLayer::getParameterAt(int index) const {
-    return 0; // Adjust as needed
-}
-
-void MapReduceLayer::setParameterAt(int index, float value) {
-    // Implement as needed
-}
-
-float MapReduceLayer::getGradientAt(int index) const {
-    return 0; // Adjust as needed
+void MapReduceLayer::updateTargetBufferAt(const float* targetData, int timestep, int batchSize) {
+    // Typically a MapReduceLayer might ignore this or handle it differently
 }
 
 void MapReduceLayer::debugLog() {

@@ -7,6 +7,7 @@
 #include <stdexcept>
 
 #include "data-manager.h"
+#include <cassert>
 
 
 DataManager::DataManager(Dataset* dataset)
@@ -14,11 +15,14 @@ DataManager::DataManager(Dataset* dataset)
 }
 
 DataManager::~DataManager() {
-    if (current_dataset_) delete current_dataset_;
+    if (current_dataset_) {
+        delete current_dataset_;
+        current_dataset_ = nullptr;
+    }
 }
 
 void DataManager::setDataset(Dataset* dataset) {
-    if (current_dataset_) delete current_dataset_;
+    //FIXME if (current_dataset_) delete current_dataset_;
     current_dataset_ = dataset;
 }
 
@@ -29,12 +33,12 @@ Dataset* DataManager::getCurrentDataset() const {
     return current_dataset_;
 }
 
-void DataManager::initialize(std::function<void()> callback) {
+void DataManager::initialize(int batchSize, std::function<void()> callback) {
     if (!current_dataset_) {
         throw std::runtime_error("Cannot initialize DataManager: no dataset set.");
     }
 
-    current_dataset_->loadData();
+    current_dataset_->loadData(batchSize);
     callback();
 }
 
@@ -46,7 +50,6 @@ int DataManager::outputDim() const {
     return current_dataset_->outputDim();
 }
 
-void DataManager::loadNextSample() {
-    current_dataset_->loadSample(sampleIndex_);
-    sampleIndex_ = (sampleIndex_ + 1) % current_dataset_->getDatasetSize();
+void DataManager::loadNextBatch(int currentBatchSize) {
+    current_dataset_->loadNextBatch(currentBatchSize);
 }

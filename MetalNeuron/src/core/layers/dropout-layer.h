@@ -8,12 +8,11 @@
 #pragma once
 
 #include "layer.h"
-#import "data-source.h"
 #include <Metal/Metal.hpp>
 
 class DropoutLayer : public Layer {
 public:
-    DropoutLayer(float rate, int featureDim, int sequenceLength);
+    DropoutLayer(float rate, int inputDim, int featureDim, int sequenceLength);
     ~DropoutLayer() override;
 
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
@@ -22,6 +21,7 @@ public:
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
 
     void updateTargetBufferAt(const float*, int) override {}
+    void updateTargetBufferAt(const float*, int, int) override {}
     
     
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
@@ -34,13 +34,8 @@ public:
     void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) override;
     
+    int inputSize() const override { return inputDim_; }
     int outputSize() const override { return featureDim_; }
-    
-    
-    int getParameterCount() const override;
-    float getParameterAt(int index) const override;
-    void setParameterAt(int index, float value) override;
-    float getGradientAt(int index) const override;
     
     void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
     void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {
@@ -83,6 +78,7 @@ public:
 private:
     float rate_;
     int sequenceLength_;
+    int inputDim_;
     int featureDim_;
     bool isTerminal_;
 

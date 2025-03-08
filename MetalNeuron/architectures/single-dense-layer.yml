@@ -5,6 +5,8 @@ layers:
     input_size: 512
     output_size: 512
     activation: linear
+    initializer: xavier
+
 
 training:
   optimizer:
@@ -16,7 +18,7 @@ training:
       epsilon: 1e-8
 
   epochs: 1
-  batch_size: 1
+  batch_size: 2
 
 dataset:
   type: "function"

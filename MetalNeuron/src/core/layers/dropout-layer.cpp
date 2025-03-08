@@ -11,8 +11,10 @@
 #include "dropout-layer.h"
 #include "training-manager.h"
 
-DropoutLayer::DropoutLayer(float rate, int featureDim, int sequenceLength)
-: rate_(rate), featureDim_(featureDim), sequenceLength_(sequenceLength), bufferRandomMask_(nullptr),forwardPipelineState_(nullptr),
+DropoutLayer::DropoutLayer(float rate, int inputDim, int featureDim, int sequenceLength)
+: rate_(rate), featureDim_(featureDim),
+inputDim_(inputDim), sequenceLength_(sequenceLength),
+bufferRandomMask_(nullptr),forwardPipelineState_(nullptr),
 backwardPipelineState_(nullptr), isTerminal_(false) {
     inputBuffers_[BufferType::Input].resize(0, nullptr);
     outputBuffers_[BufferType::Output].resize(0, nullptr);
@@ -172,22 +174,6 @@ void DropoutLayer::connectBackwardConnections(Layer* prevLayer,
                                    int timestep)
 {
     prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
-}
-
-int DropoutLayer::getParameterCount() const {
-    return 1;
-}
-
-float DropoutLayer::getParameterAt(int index) const {
-    return 0.0f;
-}
-
-void DropoutLayer::setParameterAt(int index, float value) {
-    return;
-}
-
-float DropoutLayer::getGradientAt(int index) const {
-    return 0.0f;
 }
 
 void DropoutLayer::saveParameters(std::ostream& os) const {

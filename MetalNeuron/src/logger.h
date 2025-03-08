@@ -21,8 +21,8 @@ public:
 
 
     void logLoss(float loss);
-    void accumulateLoss(float loss);
-    float finalizeBatchLoss();
+    void accumulateLoss(float loss, int currentBatchSize);
+    void finalizeBatchLoss();
     
     void addSample(const float* prediction, const float* target);
 

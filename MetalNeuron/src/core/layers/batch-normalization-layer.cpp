@@ -13,8 +13,9 @@
 #include <iostream>
 #include "training-manager.h"
 
-BatchNormalizationLayer::BatchNormalizationLayer(int featureDim, int _unused, float epsilon)
-: featureDim_(featureDim),
+BatchNormalizationLayer::BatchNormalizationLayer(int inputDim, int outputDim, int _unused, float epsilon)
+: inputDim_(inputDim),
+outputDim_(outputDim),
 sequenceLength_(1),
 isTerminal_(false),
 epsilon_(epsilon),
@@ -45,15 +46,15 @@ BatchNormalizationLayer::~BatchNormalizationLayer() {
 }
 
 void BatchNormalizationLayer::initializeParameters(MTL::Device* device) {
-    std::vector<float> gamma(featureDim_, 1.0f);
-    std::vector<float> beta(featureDim_, 0.0f);
-    std::vector<float> runningMean(featureDim_, 0.0f);
-    std::vector<float> runningVariance(featureDim_, 1.0f);
+    std::vector<float> gamma(outputDim_, 1.0f);
+    std::vector<float> beta(outputDim_, 0.0f);
+    std::vector<float> runningMean(outputDim_, 0.0f);
+    std::vector<float> runningVariance(outputDim_, 1.0f);
     
-    bufferGamma_ = device->newBuffer(gamma.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeManaged);
-    bufferBeta_ = device->newBuffer(beta.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeManaged);
-    bufferRunningMean_ = device->newBuffer(runningMean.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeManaged);
-    bufferRunningVariance_ = device->newBuffer(runningVariance.data(), sizeof(float) * featureDim_, MTL::ResourceStorageModeManaged);
+    bufferGamma_ = device->newBuffer(gamma.data(), sizeof(float) * outputDim_, MTL::ResourceStorageModeManaged);
+    bufferBeta_ = device->newBuffer(beta.data(), sizeof(float) * outputDim_, MTL::ResourceStorageModeManaged);
+    bufferRunningMean_ = device->newBuffer(runningMean.data(), sizeof(float) * outputDim_, MTL::ResourceStorageModeManaged);
+    bufferRunningVariance_ = device->newBuffer(runningVariance.data(), sizeof(float) * outputDim_, MTL::ResourceStorageModeManaged);
 }
 
 void BatchNormalizationLayer::buildBuffers(MTL::Device* device) {
@@ -64,10 +65,10 @@ void BatchNormalizationLayer::buildBuffers(MTL::Device* device) {
     inputBuffers_[BufferType::InputErrors].clear();
     outputBuffers_[BufferType::OutputErrors].clear();
     
-    inputBuffers_[BufferType::Input].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
-    outputBuffers_[BufferType::Output].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
-    inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
-    outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+    inputBuffers_[BufferType::Input].push_back(device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+    outputBuffers_[BufferType::Output].push_back(device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+    inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+    outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged));
 }
 
 void BatchNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -106,11 +107,11 @@ void BatchNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize)
         encoder->setBuffer(bufferRunningMean_, 0, 4);
         encoder->setBuffer(bufferRunningVariance_, 0, 5);
         encoder->setBytes(&epsilon_, sizeof(float), 6);
-        encoder->setBytes(&featureDim_, sizeof(int), 7);
+        encoder->setBytes(&outputDim_, sizeof(int), 7);
         encoder->setBytes(&isTraining, sizeof(bool), 8);
         
-        MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
-        MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
+        MTL::Size threadsPerGroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
+        MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
         encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
         encoder->endEncoding();
     }
@@ -127,20 +128,24 @@ void BatchNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize
         encoder->setBuffer(bufferGamma_, 0, 3);
         encoder->setBuffer(bufferBeta_, 0, 4);
         encoder->setBytes(&epsilon_, sizeof(float), 5);
-        encoder->setBytes(&featureDim_, sizeof(int), 6);
+        encoder->setBytes(&outputDim_, sizeof(int), 6);
         
-        MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
-        MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
+        MTL::Size threadsPerGroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
+        MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
         encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
         encoder->endEncoding();
     }
 }
 
 int BatchNormalizationLayer::outputSize() const {
-    return featureDim_;
+    return outputDim_;
 }
 
 void BatchNormalizationLayer::updateTargetBufferAt(const float* targetData, int timestep) {
+    assert(timestep==0 && "Timesteps not supported for this layer");
+}
+
+void BatchNormalizationLayer::updateTargetBufferAt(const float* targetData, int timestep, int batchSize) {
     assert(timestep==0 && "Timesteps not supported for this layer");
 }
 
@@ -188,18 +193,6 @@ void BatchNormalizationLayer::connectBackwardConnections(Layer* prevLayer, Layer
     prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
 }
 
-int BatchNormalizationLayer::getParameterCount() const {
-    return 2;
-}
-float BatchNormalizationLayer::getParameterAt(int index) const {
-    return 0.0f;
-}
-void BatchNormalizationLayer::setParameterAt(int index, float value) {
-    return;
-}
-float BatchNormalizationLayer::getGradientAt(int index) const {
-    return 0.0f;
-}
 
 void BatchNormalizationLayer::saveParameters(std::ostream& os) const {
     os.write(reinterpret_cast<const char*>(bufferGamma_->contents()), bufferGamma_->length());

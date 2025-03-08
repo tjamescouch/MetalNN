@@ -14,24 +14,23 @@ class FunctionDataset : public Dataset {
 public:
     FunctionDataset(InputFunction inputFunc, TargetFunction targetFunc,
                                      int inputDim, int outputDim, int datasetSize);
-    ~FunctionDataset() override = default;
+    ~FunctionDataset() override;
 
-    void loadData() override;
+    void loadData(int batchSize) override;
     
-    float* getInputDataBuffer() override;
-    float* getTargetDataBuffer() override;
+    float* getInputDataAt(int timestep, int batchIndex) override;
+    float* getTargetDataAt(int timestep, int batchIndex) override;
+    
+    float calculateLoss(const float* predictedData, int outputDim, const float* targetData) override;
 
-    float* getInputDataAt(int timestep) override;
-    float* getTargetDataAt(int timestep) override;
-    float calculateLoss(const float* predictedData, int outputDim) override;
 
     int getDatasetSize() const override;
     
     int inputDim() const override { return inputDim_; };
     int outputDim() const override { return outputDim_; };
     
-    void loadSample(int sampleIndex) override;
-    
+    void loadNextBatch(int batchSize) override;
+
 
     int numSamples() const override;
     
@@ -42,15 +41,15 @@ private:
     int inputDim_;
     int outputDim_;
     int datasetSize_;
-    double offset_ = 0;
+    int offset_ = 0;
 
     std::vector<int> shuffledIndices_;
-    std::vector<std::vector<float>> inputs_;
-    std::vector<std::vector<float>> targets_;
+    std::vector<float> inputs_;
+    std::vector<float> targets_;
     
     std::vector<float> currentInputBuffer_;
     std::vector<float> currentTargetBuffer_;
     
     void shuffleIndices();
-    void generateDataset(double offset);
+    void generateDataset(double offset, int batchSize);
 };

@@ -161,18 +161,15 @@ void Logger::logLoss(float loss) {
     std::cout << "✨ Loss: " << loss << std::endl;
 }
 
-void Logger::accumulateLoss(float loss) {
+void Logger::accumulateLoss(float loss, int batchSize) {
     accumulatedLoss_ += loss;
-    numSamples_++;
+    numSamples_+= batchSize;
     logLoss(accumulatedLoss_ / numSamples_);
 }
 
-float Logger::finalizeBatchLoss() {
-    float averageLoss = accumulatedLoss_ / numSamples_;
+void Logger::finalizeBatchLoss() {
     accumulatedLoss_ = 0.0f;
     numSamples_ = 0;
-    logLoss(averageLoss); // Log average to your file or console.
-    return averageLoss;
 }
 
 

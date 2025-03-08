@@ -6,12 +6,16 @@
 //
 
 #include "mnist-dataset.h"
+#include "math-lib.h"
 #include <fstream>
 #include <iostream>
 #include <filesystem>
+#include <cassert>
 #include <mach-o/dyld.h>
 
-MNISTDataset::MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename) {
+MNISTDataset::MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename):
+currentSampleIndex_(0), batchedInputData_(nullptr), batchedTargetData_(nullptr)
+{
     namespace fs = std::filesystem;
 
     char path[PATH_MAX];
@@ -37,8 +41,23 @@ MNISTDataset::MNISTDataset(const std::string& imagesFilename, const std::string&
     loadLabels(labelsPath.string());
 }
 
-void MNISTDataset::loadData() {
+MNISTDataset::~MNISTDataset() {
+    if(batchedInputData_!=nullptr) {
+        delete batchedInputData_;
+        batchedInputData_ = nullptr;
+    }
+    
+    if(batchedTargetData_!=nullptr) {
+        delete batchedTargetData_;
+        batchedTargetData_ = nullptr;
+    }
+}
+
+void MNISTDataset::loadData(int batchSize) {
     // Data is already loaded in constructor, nothing else required here.
+    batchSize_ = batchSize;
+    batchedInputData_ = new float[inputs_.size() * batchSize * inputDim()];
+    batchedTargetData_ = new float[targets_.size() * batchSize * outputDim()];
 }
 
 int MNISTDataset::numSamples() const {
@@ -59,14 +78,6 @@ const std::vector<float>& MNISTDataset::inputAt(int index) {
 
 const std::vector<float>& MNISTDataset::targetAt(int index) {
     return targets_[index];
-}
-
-float* MNISTDataset::getInputDataAt(int timestep) {
-    return inputs_[timestep].data();
-}
-
-float* MNISTDataset::getTargetDataAt(int timestep) {
-    return targets_[timestep].data();
 }
 
 int MNISTDataset::getDatasetSize() const {
@@ -127,48 +138,69 @@ void MNISTDataset::loadLabels(const std::string& labelsPath) {
     }
 }
 
-float MNISTDataset::calculateLoss(const float* predictedData, int outputDim) {
+float MNISTDataset::calculateLoss(const float* predictedData, int outputDim, const float* targetData) {
     const float epsilon = 1e-10f;
-    const float* targetData = getTargetDataAt(0);  // Assuming current timestep
     float loss = 0.0f;
-
+    
+    std::cout << "targetData[i] ";
     for (int i = 0; i < outputDim; ++i) {
-        if (targetData[i] > 0.5f) { // one-hot target
-            loss = -logf(predictedData[i] + epsilon);
-            break;
+        std::cout << targetData[i] << " ";
+    }
+    std::cout << std::endl;
+    
+    std::cout << "predictedData[i] ";
+    for (int i = 0; i < outputDim; ++i) {
+        std::cout << predictedData[i] << " ";
+    }
+    std::cout << std::endl;
+    
+    
+    for (int i = 0; i < outputDim; ++i) {
+        if (targetData[i] > 0.5f) { // one-hot target per batch
+            float prediction = mathlib::max<float>(predictedData[i], epsilon);
+            assert(!isnan(prediction));
+            assert(prediction >= 0);
+            loss += -logf(prediction + epsilon);
         }
     }
 
+    
+    assert(!isnan(loss));
+
     return loss;
 }
-/*
-void MNISTDataset::loadSample(int sampleIndex) {
-    float* inputBuffer = getInputDataBuffer();
-    float* targetBuffer = getTargetDataBuffer();
 
-    const std::vector<float>& image = images_[sampleIndex];
-    const std::vector<float>& target = targets_[sampleIndex];
-
-    std::copy(image.begin(), image.end(), inputBuffer);
-    std::copy(target.begin(), target.end(), targetBuffer);
-}
-*/
-void MNISTDataset::loadSample(int sampleIndex) {
-    float* inputBuffer = inputs_[sampleIndex].data();
-    float* targetBuffer = targets_[sampleIndex].data();
-
-    std::memcpy(getInputDataBuffer(), inputBuffer, sizeof(float) * inputDim());
-    std::memcpy(getTargetDataBuffer(), targetBuffer, sizeof(float) * outputDim());
+void MNISTDataset::loadNextBatch(int currentBatchSize) {
+    assert(currentBatchSize > 0 && currentBatchSize <= batchSize_);
+    pageOffset_++;
 }
 
-// Returns pointer to the buffer for current input data
-float* MNISTDataset::getInputDataBuffer() {
-    return inputs_[0].data();
+float* MNISTDataset::getInputDataAt(int timestep, int _batchIndex) {
+    assert(timestep == 0);
+    assert(batchedInputData_);
+    
+    size_t numImages = inputs_.size();
+    int ib0 = (pageOffset_) * batchSize_;
+    const int imageSize = inputDim(); // The number of floats per image
+    
+    for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {
+        std::memcpy(batchedInputData_ + i * imageSize, inputs_[ib % numImages].data(), imageSize * sizeof(float));
+    }
+    
+    return batchedInputData_;
 }
 
-// Returns pointer to the buffer for current target data
-float* MNISTDataset::getTargetDataBuffer() {
-    return targets_[0].data();
+float* MNISTDataset::getTargetDataAt(int timestep, int _batchIndex) {
+    assert(timestep == 0);
+    assert(batchedTargetData_);
+    
+    size_t numTargets = targets_.size();
+    int ib0 =  (pageOffset_) * batchSize_;
+    const int targetSize = outputDim(); // The number of floats per image
+    
+    for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {
+        std::memcpy(batchedInputData_ + i * targetSize, targets_[ib % numTargets].data(), targetSize * sizeof(float));
+    }
+    
+    return batchedInputData_;
 }
-
-

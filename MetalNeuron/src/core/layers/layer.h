@@ -9,8 +9,7 @@
 #define LAYER_H
 
 #include <functional>
-#include "data-source.h"
-
+#include "common.h"
 
 // Forward declarations for Metal types.
 namespace MTL {
@@ -18,6 +17,8 @@ class Buffer;
 class Device;
 class Library;
 class CommandBuffer;
+class CommandQueue;
+class ComputePipelineState;
 }
 
 enum class ActivationFunction {
@@ -86,17 +87,17 @@ public:
     virtual void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) = 0;
     virtual MTL::Buffer* getInputBufferAt(BufferType type, int timestep) = 0;
     
+    virtual int inputSize() const = 0;
     virtual int outputSize() const = 0;
+    
     virtual void updateTargetBufferAt(const float* targetData, int timestep) = 0;
+    virtual void updateTargetBufferAt(const float* targetData, int timestep,
+                                      int batchSize) = 0;
+    
     virtual void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) = 0;
     virtual void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) = 0;
-    
-    virtual int getParameterCount() const = 0;
-    virtual float getParameterAt(int index) const = 0;
-    virtual void setParameterAt(int index, float value) = 0;
-    virtual float getGradientAt(int index) const = 0;
     
     virtual void debugLog() = 0;
     virtual void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) = 0;

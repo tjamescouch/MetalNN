@@ -3,7 +3,6 @@
 #define INPUT_LAYER_H
 
 #include "layer.h"
-#include "data-source.h"
 #include <vector>
 
 // Forward declarations for Metal classes.
@@ -15,17 +14,20 @@ class Layer;
 
 class InputLayer : public Layer {
 public:
-    InputLayer(int inputDim, int sequenceLength);
+    InputLayer(int inputDim, int sequenceLength, int batchSize);
     ~InputLayer();
     
     void buildBuffers(MTL::Device* device) override;
     void updateBufferAt(const float*, int timestep);
+    void updateBufferAt(const float*, int timestep, int batchSize);
     void buildPipeline(MTL::Device* device, MTL::Library* library) override {};
     void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
 
+    int inputSize() const override { return inputDim_; }
     int outputSize() const override { return inputDim_; }
     void updateTargetBufferAt(const float* targetData, int timestep) override {};
+    void updateTargetBufferAt(const float* targetData, int timestep, int batchSize) override {};
 
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
     MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;
@@ -38,11 +40,6 @@ public:
     void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
                                     MTL::Buffer* zeroBuffer, int timestep) override {};
     
-    
-    int getParameterCount() const override;
-    float getParameterAt(int index) const override;
-    void setParameterAt(int index, float value) override;
-    float getGradientAt(int index) const override;
     
     void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
     void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
@@ -70,6 +67,8 @@ private:
     int inputDim_;
     int sequenceLength_;
     bool isTerminal_;
+    int batchSize_;
+    
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
 };
