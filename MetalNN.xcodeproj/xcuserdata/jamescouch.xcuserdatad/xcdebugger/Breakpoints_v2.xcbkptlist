@@ -142,8 +142,8 @@
             filePath = "MetalNeuron/src/core/layers/dense-layer.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "141"
-            endingLineNumber = "141"
+            startingLineNumber = "140"
+            endingLineNumber = "140"
             landmarkName = "DenseLayer::updateTargetBufferAt(targetData, timestep)"
             landmarkType = "7">
          </BreakpointContent>
@@ -158,8 +158,8 @@
             filePath = "MetalNeuron/src/core/layers/dense-layer.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "153"
-            endingLineNumber = "153"
+            startingLineNumber = "152"
+            endingLineNumber = "152"
             landmarkName = "DenseLayer::forward(cmdBuf, batchSize)"
             landmarkType = "7">
          </BreakpointContent>
@@ -174,8 +174,8 @@
             filePath = "MetalNeuron/src/core/layers/dense-layer.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "156"
-            endingLineNumber = "156"
+            startingLineNumber = "155"
+            endingLineNumber = "155"
             landmarkName = "DenseLayer::forward(cmdBuf, batchSize)"
             landmarkType = "7">
          </BreakpointContent>
@@ -190,8 +190,8 @@
             filePath = "MetalNeuron/src/core/layers/dense-layer.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "173"
-            endingLineNumber = "173"
+            startingLineNumber = "172"
+            endingLineNumber = "172"
             landmarkName = "DenseLayer::forward(cmdBuf, batchSize)"
             landmarkType = "7">
          </BreakpointContent>
@@ -206,9 +206,9 @@
             filePath = "MetalNeuron/src/datasets/mnist-dataset.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "192"
-            endingLineNumber = "192"
-            landmarkName = "MNISTDataset::getInputDataAt(timestep, batchIndex)"
+            startingLineNumber = "190"
+            endingLineNumber = "190"
+            landmarkName = "MNISTDataset::getInputDataAt(timestep, _batchIndex)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -222,9 +222,9 @@
             filePath = "MetalNeuron/src/datasets/mnist-dataset.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "207"
-            endingLineNumber = "207"
-            landmarkName = "MNISTDataset::getTargetDataAt(timestep, batchIndex)"
+            startingLineNumber = "205"
+            endingLineNumber = "205"
+            landmarkName = "MNISTDataset::getTargetDataAt(timestep, _batchIndex)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -270,9 +270,9 @@
             filePath = "MetalNeuron/src/datasets/mnist-dataset.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "182"
-            endingLineNumber = "182"
-            landmarkName = "MNISTDataset::getInputDataAt(timestep, batchIndex)"
+            startingLineNumber = "180"
+            endingLineNumber = "180"
+            landmarkName = "MNISTDataset::getInputDataAt(timestep, _batchIndex)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -286,9 +286,9 @@
             filePath = "MetalNeuron/src/datasets/mnist-dataset.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "189"
-            endingLineNumber = "189"
-            landmarkName = "MNISTDataset::getInputDataAt(timestep, batchIndex)"
+            startingLineNumber = "187"
+            endingLineNumber = "187"
+            landmarkName = "MNISTDataset::getInputDataAt(timestep, _batchIndex)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -622,8 +622,8 @@
             filePath = "MetalNeuron/src/core/layers/dense-layer.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "227"
-            endingLineNumber = "227"
+            startingLineNumber = "226"
+            endingLineNumber = "226"
             landmarkName = "DenseLayer::getOutputBufferAt(type, timestep)"
             landmarkType = "7">
          </BreakpointContent>
@@ -814,9 +814,9 @@
             filePath = "MetalNeuron/src/datasets/mnist-dataset.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "204"
-            endingLineNumber = "204"
-            landmarkName = "MNISTDataset::getTargetDataAt(timestep, batchIndex)"
+            startingLineNumber = "202"
+            endingLineNumber = "202"
+            landmarkName = "MNISTDataset::getTargetDataAt(timestep, _batchIndex)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

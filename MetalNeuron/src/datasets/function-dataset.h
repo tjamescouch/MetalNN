@@ -44,8 +44,8 @@ private:
     int offset_ = 0;
 
     std::vector<int> shuffledIndices_;
-    std::vector<std::vector<float>> inputs_;
-    std::vector<std::vector<float>> targets_;
+    std::vector<float> inputs_;
+    std::vector<float> targets_;
     
     std::vector<float> currentInputBuffer_;
     std::vector<float> currentTargetBuffer_;

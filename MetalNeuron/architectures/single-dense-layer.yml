@@ -4,19 +4,7 @@ layers:
   - type: Dense
     input_size: 512
     output_size: 512
-    activation: relu
-    initializer: he
-
-  - type: Dense
-    input_size: 512
-    output_size: 512
-    activation: relu
-    initializer: he
-
-  - type: Dense
-    input_size: 512
-    output_size: 512
-    activation: tanh
+    activation: linear
     initializer: xavier
 
 
@@ -29,8 +17,8 @@ training:
       beta2: 0.999
       epsilon: 1e-8
 
-  epochs: 10
-  batch_size: 10
+  epochs: 1
+  batch_size: 2
 
 dataset:
   type: "function"

@@ -20,8 +20,8 @@ FunctionDataset::FunctionDataset(InputFunction inputFunc, TargetFunction targetF
   datasetSize_(datasetSize),
   currentInputBuffer_(inputDim, 0.0f),
   currentTargetBuffer_(outputDim, 0.0f),
-  inputs_(datasetSize, std::vector<float>(inputDim)),
-  targets_(datasetSize, std::vector<float>(outputDim)) {
+  inputs_(0),
+  targets_(0) {
 }
 
 FunctionDataset::~FunctionDataset() {
@@ -57,16 +57,12 @@ void FunctionDataset::loadData(int batchSize) {
 }
 
 void FunctionDataset::generateDataset(double offset, int batchSize) {
-    inputs_.resize(datasetSize_);
-    targets_.resize(datasetSize_);
-    for (int t = 0; t < datasetSize_; ++t) {
-        double effectiveTime = static_cast<double>(t);
-        for (int i = 0; i < inputDim_; ++i) {
-            inputs_[t][i] = inputFunc_(i, effectiveTime + offset);
-        }
-        for (int i = 0; i < outputDim_; ++i) {
-            targets_[t][i] = targetFunc_(i, effectiveTime + offset);
-        }
+    const int batchDatasetSize = datasetSize_ * batchSize;
+    inputs_.resize(batchDatasetSize);
+    targets_.resize(batchDatasetSize);
+    for (int t = 0; t < batchDatasetSize; ++t) {
+        inputs_[t] = inputFunc_(t, offset + offset_);
+        targets_[t] = targetFunc_(t, offset + offset_);
     }
 }
 
@@ -84,12 +80,10 @@ int FunctionDataset::numSamples() const {
 }
 
 
-float* FunctionDataset::getInputDataAt(int timestep, int batchIndex) {
-    int index = (offset_ + batchIndex) % inputs_.size();
-    return inputs_[index].data();
+float* FunctionDataset::getInputDataAt(int timestep, int _batchIndex) {
+    return inputs_.data();
 }
 
-float* FunctionDataset::getTargetDataAt(int timestep, int batchIndex) {
-    int index = (offset_ + batchIndex) % targets_.size();
-    return targets_[index].data();
+float* FunctionDataset::getTargetDataAt(int timestep, int _batchIndex) {
+    return targets_.data();
 }
