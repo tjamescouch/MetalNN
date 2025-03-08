@@ -7,16 +7,10 @@
 class MNISTDataset : public Dataset {
 public:
     MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename);
-    ~MNISTDataset() override = default;
+    ~MNISTDataset();
 
     // Overrides from Dataset interface
-    void loadData() override;
-    
-    float* getInputDataBuffer() override;
-    float* getTargetDataBuffer() override;
-
-    float* getInputDataAt(int timestep) override;
-    float* getTargetDataAt(int timestep) override;
+    void loadData(int batchSize) override;
     
     float* getInputDataAt(int timestep, int batchIndex) override;
     float* getTargetDataAt(int timestep, int batchIndex) override;
@@ -33,7 +27,7 @@ public:
     const std::vector<float>& inputAt(int index);
     const std::vector<float>& targetAt(int index);
     
-    void loadNextSample() override;
+    void loadNextBatch(int batchSize) override;
 
 private:
     void loadImages(const std::string& imagesPath);
@@ -41,9 +35,12 @@ private:
 
     std::vector<std::vector<float>> inputs_;
     std::vector<std::vector<float>> targets_;
+    
+    int batchSize_ = 1;
+    
+    float* batchedInputData_;
+    float* batchedTargetData_;
 
-
-    int num_samples_;
     int currentSampleIndex_;
 
     std::vector<float> currentInputBuffer_;

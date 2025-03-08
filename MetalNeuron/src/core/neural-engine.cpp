@@ -30,6 +30,7 @@ _pInputLayer(nullptr),
 input_dim(0),
 output_dim(0),
 epochs(0),
+zeroBuffer_(nullptr),
 filename(config.filename)
 {
     batch_size = config.training.batch_size;
@@ -37,6 +38,9 @@ filename(config.filename)
     
     input_dim = _pDataManager->inputDim();
     output_dim = _pDataManager->outputDim();
+    
+    int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
+    _pInputLayer = new InputLayer(input_dim, first_layer_time_steps, batch_size);
     
     _pLogger = new Logger(outputFileName, config.dataset.type == "function");
     
@@ -117,14 +121,11 @@ void NeuralEngine::createDynamicLayers(ModelConfig& config) {
     }
     dynamicLayers_.clear();
     
-    int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
-    
     input_dim = _pDataManager->inputDim();
     output_dim = _pDataManager->outputDim();
     
-    _pInputLayer = new InputLayer(input_dim, first_layer_time_steps);
     
-    _pDataManager->initialize([this, &config]() {
+    _pDataManager->initialize(batch_size, [this, &config]() {
         _pLogger->clear();
         buildBuffers();
         connectDynamicLayers(config);
@@ -146,11 +147,9 @@ void NeuralEngine::connectDynamicLayers(ModelConfig& config) {
     dynamicLayers_.back()->setIsTerminal(true);
     
     int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
-    
-    // Build + update input layer
-    _pInputLayer->buildBuffers(_pDevice);
+
     for (int t = 0; t < first_layer_time_steps; ++t) {
-        _pInputLayer->updateBufferAt(_pDataManager->getCurrentDataset()->getInputDataAt(t), t);
+        //_pInputLayer->updateBufferAt(_pDataManager->getCurrentDataset()->getInputDataAt(t, 0), t);
     }
     
     // Input wiring:
@@ -181,16 +180,18 @@ void NeuralEngine::buildComputePipeline() {
 }
 
 void NeuralEngine::buildBuffers() {
+    _pDataManager->loadNextBatch(batch_size);
+    
     _pInputLayer->buildBuffers(_pDevice);
+    
+    
+    zeroBuffer_ = _pDevice->newBuffer(input_dim * batch_size * sizeof(float), MTL::ResourceStorageModeManaged);
+    std::memset(zeroBuffer_->contents(), 0, input_dim  * batch_size* sizeof(float));
+    
     Dataset* currentDataset = _pDataManager->getCurrentDataset();
     for (int t = 0; t < _pInputLayer->getSequenceLength(); ++t) {
-        float* inputData = currentDataset->getInputDataAt(t);
+        float* inputData = currentDataset->getInputDataAt(t, 0);
         _pInputLayer->updateBufferAt(inputData, t);
-    }
-    
-    if (!zeroBuffer_) {
-        zeroBuffer_ = _pDevice->newBuffer(input_dim * sizeof(float), MTL::ResourceStorageModeManaged);
-        std::memset(zeroBuffer_->contents(), 0, input_dim * sizeof(float));
     }
     
     areBuffersBuilt = true;
@@ -200,7 +201,12 @@ void NeuralEngine::computeForward(int batchSize, std::function<void()> onComplet
     if (!areBuffersBuilt || currentlyComputing) return;
     currentlyComputing = true;
     
+    assert(_pCommandQueue != nullptr && "Command queue not initialized");
+    
     auto cmdBuf = _pCommandQueue->commandBuffer();
+    
+    assert(cmdBuf != nullptr && "Command buffer creation failed");
+    
     for (auto layer : dynamicLayers_)
         layer->forward(cmdBuf, batchSize);
     
@@ -219,11 +225,6 @@ void NeuralEngine::computeForward(int batchSize, std::function<void()> onComplet
     
     cmdBuf->commit();
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
-    
-#ifdef DEBUG_NETWORK_OUTPUTS
-    std::cout << "Output data at timestep 0: " << outputData[0] << ", " << outputData[1] << ", ...\n";
-#endif
-    
 }
 
 void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComplete) {
@@ -274,7 +275,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
               << " - current batch size " << currentBatchSize
               << " total samples remaining " << totalSamples << std::endl;
 
-    _pDataManager->loadNextBatch(currentBatchSize);  // Explicitly batch-aware
+    _pDataManager->loadNextBatch(currentBatchSize);
 
     int terminalSeqLen = dynamicLayers_.back()->getSequenceLength();
 
@@ -304,6 +305,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
         }
         batchLoss /= currentBatchSize;
         _pLogger->accumulateLoss(batchLoss);
+        assert(!isnan(batchLoss));
 
         if (((totalSamples - currentBatchSize) % 500) == 0) {
             _pLogger->finalizeBatchLoss();
@@ -321,6 +323,11 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
     uint32_t samplesRemaining = mathlib::min<int>((int)ceil(batchesRemaining * batch_size), totalSamples);
     uint32_t currentBatchSize = mathlib::min<int>(batch_size, samplesRemaining);
     uint32_t samplesProcessed = totalSamples - samplesRemaining;
+    
+    int numBatches = totalSamples / batch_size;
+    
+    int batchIndex = batchesRemaining % numBatches;
+
 
     std::cout << "⚙️ Backward batches remaining " << batchesRemaining
               << " - current batch size " << currentBatchSize << std::endl;
@@ -335,30 +342,47 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
 
     int terminalSeqLen = dynamicLayers_.back()->getSequenceLength();
     for (int t = 0; t < terminalSeqLen; ++t) {
-        float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(t, 0);
-        float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(t, 0);
+        float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(t, batchIndex);
+        float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(t, batchIndex);
 
         _pInputLayer->updateBufferAt(inBuffer, t, currentBatchSize);
         dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, t, currentBatchSize);
     }
 
     computeForward(currentBatchSize, [=, this]() mutable {
+#ifdef F
+        float* debugBuffer = static_cast<float*>(
+            dynamicLayers_.back()->getInputBufferAt(BufferType::Input, 0)->contents()
+        );
+
+        std::cout << "Input: ";
+        for (int sampleIdx = 0; sampleIdx < dynamicLayers_.back()->getInputBufferAt(BufferType::Input, 0)->length() / sizeof(float); ++sampleIdx) {
+                std::cout << debugBuffer[sampleIdx] << " ";
+        }
+        std::cout << std::endl;
+
+#endif
+        
         computeBackward(currentBatchSize, [=, this]() mutable {
             float batchLoss = 0.0f;
 
-            for (int i = 0; i < currentBatchSize; ++i) {
+
+                assert(dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->length() >= batch_size * output_dim * sizeof(float));
                 float* predictedData = static_cast<float*>(
                     dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
-                ) + (i * output_dim);
-
-                float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0, i);
+                                                           ) + (batchIndex * output_dim);
+                
+                float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0, batchIndex);
 
                 batchLoss += _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim, targetData);
+                //assert(!isnan(batchLoss));
 
                 _pLogger->logAnalytics(predictedData, output_dim, targetData, output_dim);
-            }
+
 
             _pLogger->accumulateLoss(batchLoss / currentBatchSize);
+            assert(currentBatchSize > 0);
+            //assert(!isnan(batchLoss));
 
             samplesProcessed += currentBatchSize;
 
@@ -426,8 +450,8 @@ void NeuralEngine::shiftBuffers() {
                );
         
         memcpy(
-               _pDataManager->getCurrentDataset()->getTargetDataAt(t),
-               _pDataManager->getCurrentDataset()->getTargetDataAt(t + 1),
+               _pDataManager->getCurrentDataset()->getTargetDataAt(t, 0),
+               _pDataManager->getCurrentDataset()->getTargetDataAt(t + 1, 0),
                output_dim * sizeof(float)
                );
     }

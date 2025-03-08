@@ -22,7 +22,7 @@ training:
       beta2: 0.999
 
   epochs: 5
-  batch_size: 2
+  batch_size: 1
 
 dataset:
   type: "function"

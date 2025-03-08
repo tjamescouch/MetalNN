@@ -54,7 +54,12 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
         ActivationFunction activation = parseActivation(activationStr);
         int timeSteps = layerConfig.time_steps;
-        layer = new RNNLayer(previousLayerOutputSize, outputSize, timeSteps, activation);
+        
+        
+        auto learningRate = layerConfig.params["learning_rate"].get_value_or<float>(globaLearningRate);
+        learningRate = learningRate > 0 ? learningRate : globaLearningRate;
+        
+        layer = new RNNLayer(previousLayerOutputSize, outputSize, timeSteps, activation, learningRate);
         previousLayerOutputSize = outputSize;
     }
     else if (layerConfig.type == "MapReduce") {

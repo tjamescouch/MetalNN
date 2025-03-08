@@ -3,17 +3,9 @@
 
 class Dataset {
 public:
-    virtual ~Dataset() = default;
-
     // Required methods:
-    virtual void loadData() = 0;
-    
-    virtual float* getInputDataBuffer() = 0;
-    virtual float* getTargetDataBuffer() = 0;
+    virtual void loadData(int batchSize) = 0;
 
-    virtual float* getInputDataAt(int timestep) = 0;
-    virtual float* getTargetDataAt(int timestep) = 0;
-    
     virtual float* getInputDataAt(int timestep, int batchIndex) = 0;
     virtual float* getTargetDataAt(int timestep, int batchIndex) = 0;
     
@@ -26,7 +18,7 @@ public:
     virtual int inputDim() const = 0;
     virtual int outputDim() const = 0;
     
-    virtual void loadNextSample() = 0;
+    virtual void loadNextBatch(int batchSize) = 0;
 };
 
 #endif

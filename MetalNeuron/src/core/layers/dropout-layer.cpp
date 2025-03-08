@@ -174,22 +174,6 @@ void DropoutLayer::connectBackwardConnections(Layer* prevLayer,
     prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
 }
 
-int DropoutLayer::getParameterCount() const {
-    return 1;
-}
-
-float DropoutLayer::getParameterAt(int index) const {
-    return 0.0f;
-}
-
-void DropoutLayer::setParameterAt(int index, float value) {
-    return;
-}
-
-float DropoutLayer::getGradientAt(int index) const {
-    return 0.0f;
-}
-
 void DropoutLayer::saveParameters(std::ostream& os) const {
     // No parameters to save
 }

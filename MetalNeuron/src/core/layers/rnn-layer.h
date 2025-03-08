@@ -14,7 +14,7 @@ namespace MTL {
 
 class RNNLayer : public Layer {
 public:
-    RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation);
+    RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation, float learningRate);
     ~RNNLayer();
     
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
@@ -31,12 +31,6 @@ public:
                              MTL::Buffer* zeroBuffer, int timestep) override;
     void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) override;
-    
-    
-    int getParameterCount() const override;
-    float getParameterAt(int index) const override;
-    void setParameterAt(int index, float value) override;
-    float getGradientAt(int index) const override;
     
     int outputSize() const override;
     void updateTargetBufferAt(const float* targetData, int timestep) override;
@@ -63,6 +57,7 @@ private:
     int hiddenDim_;
     int sequenceLength_;
     bool isTerminal_;
+    float learningRate_;
     
     ActivationFunction activation_;
 

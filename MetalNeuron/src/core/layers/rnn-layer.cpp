@@ -9,7 +9,7 @@
 #include "adam-optimizer.h"
 #include "configuration-manager.h"
 
-RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation)
+RNNLayer::RNNLayer(int inputDim, int hiddenDim, int sequenceLength, ActivationFunction activation, float learningRate)
 : inputDim_(inputDim),
 hiddenDim_(hiddenDim),
 sequenceLength_(sequenceLength),
@@ -22,7 +22,8 @@ forwardPipelineState_(nullptr),
 backwardPipelineState_(nullptr),
 zeroBuffer_(nullptr),
 isTerminal_(false),
-activation_(activation)
+activation_(activation),
+learningRate_(learningRate)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
     inputBuffers_[BufferType::PrevHiddenState].resize(sequenceLength_, nullptr);
@@ -352,20 +353,6 @@ void RNNLayer::connectBackwardConnections(Layer* prevLayer,
                                    int timestep)
 {
     prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
-}
-
-
-int RNNLayer::getParameterCount() const {
-    return 1;
-}
-float RNNLayer::getParameterAt(int index) const {
-    return 0.0f;
-}
-void RNNLayer::setParameterAt(int index, float value) {
-    return;
-}
-float RNNLayer::getGradientAt(int index) const {
-    return 0.0f;
 }
 
 void RNNLayer::saveParameters(std::ostream& os) const {

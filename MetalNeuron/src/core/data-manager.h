@@ -12,11 +12,10 @@ public:
     void setDataset(Dataset* dataset);
     Dataset* getCurrentDataset() const;
 
-    void initialize(std::function<void()> callback);
+    void initialize(int batchSize, std::function<void()> callback);
 
     int inputDim() const;
     int outputDim() const;
-    void loadNextSample();
     void loadNextBatch(int batchSize);
 
 private:

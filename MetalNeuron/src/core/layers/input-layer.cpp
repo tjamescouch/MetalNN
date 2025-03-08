@@ -9,18 +9,20 @@
 #include "common.h"  // For NS::Range
 #include <cstring>   // For memcpy
 #include <vector>
+#include <iostream>
 
-InputLayer::InputLayer(int inputDim, int sequenceLength)
-    : inputDim_(inputDim), sequenceLength_(sequenceLength), isTerminal_(false)
+InputLayer::InputLayer(int inputDim, int sequenceLength, int batchSize)
+: inputDim_(inputDim), sequenceLength_(sequenceLength),
+  isTerminal_(false), batchSize_(batchSize)
 {
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
+    assert(outputBuffers_[BufferType::Output].size() > 0);
+    std::cout << "Constructor: bufer output size in timesteps: " <<outputBuffers_[BufferType::Output].size() << std::endl;
+    std::cout << "Constructor: bufer output ptr: " << outputBuffers_[BufferType::Output][0] << std::endl;
 }
 
 InputLayer::~InputLayer() {
     for (int t = 0; t < sequenceLength_; ++t) {
-        for (auto ib : inputBuffers_) {
-            ib.second[t]->release();
-        }
         for (auto ob : outputBuffers_) {
             ob.second[t]->release();
         }
@@ -28,26 +30,36 @@ InputLayer::~InputLayer() {
 }
 
 void InputLayer::buildBuffers(MTL::Device* device) {
+    assert(outputBuffers_[BufferType::Output].size() > 0);
     // Allocate buffers for each timestep in the sequence.
     for (int t = 0; t < sequenceLength_; ++t) {
-        outputBuffers_[BufferType::Output][t] = device->newBuffer(inputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+        outputBuffers_[BufferType::Output][t] = device->newBuffer(inputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
         // Initialize buffer content to zeros.
-        memset(outputBuffers_[BufferType::Output][t]->contents(), 0, inputDim_ * sizeof(float));
-        outputBuffers_[BufferType::Output][t]->didModifyRange(NS::Range::Make(0, inputDim_ * sizeof(float)));
+        memset(outputBuffers_[BufferType::Output][t]->contents(), 0, inputDim_ * batchSize_ * sizeof(float));
+        outputBuffers_[BufferType::Output][t]->didModifyRange(NS::Range::Make(0, inputDim_ * batchSize_ * sizeof(float)));
     }
+    assert(outputBuffers_[BufferType::Output].size() > 0);
+    std::cout << "buildBuffers: bufer output size in timesteps: " <<outputBuffers_[BufferType::Output].size() << std::endl;
+    std::cout << "buildBuffers: bufer output ptr: " << outputBuffers_[BufferType::Output][0] << std::endl;
 }
 
 void InputLayer::updateBufferAt(const float* data, int timestep) {
-    assert(timestep >= 0  && timestep < sequenceLength_);
+    std::cout << "updateBufferAt: bufer output size in timesteps: " <<outputBuffers_[BufferType::Output].size() << std::endl;
+    std::cout << "updateBufferAt: bufer output ptr: " << outputBuffers_[BufferType::Output][0] << std::endl;
     
-    memcpy(outputBuffers_[BufferType::Output][timestep]->contents(),
+    assert(timestep >= 0  && timestep < sequenceLength_);
+    assert(outputBuffers_[BufferType::Output].size() > 0);
+    assert(outputBuffers_[BufferType::Output][0]!=nullptr);
+    
+    memcpy(outputBuffers_[BufferType::Output][0]->contents(),
            data,
-           inputDim_ * sizeof(float));
-    outputBuffers_[BufferType::Output][timestep]->didModifyRange(NS::Range::Make(0, outputBuffers_[BufferType::Output][timestep]->length()));
+           inputDim_ * batchSize_ * sizeof(float));
+    outputBuffers_[BufferType::Output][0]->didModifyRange(NS::Range::Make(0, outputBuffers_[BufferType::Output][0]->length()));
 }
 
 void InputLayer::updateBufferAt(const float* data, int timestep, int batchSize) {
     assert(timestep >= 0  && timestep < sequenceLength_);
+    assert(outputBuffers_[BufferType::Output].size() > 0);
     
     memcpy(outputBuffers_[BufferType::Output][timestep]->contents(),
            data,
@@ -61,12 +73,14 @@ void InputLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* bu
 }
 
 MTL::Buffer* InputLayer::getOutputBufferAt(BufferType type, int timestep) {
-    auto it = outputBuffers_.find(type);
-    return (it != outputBuffers_.end()) ? it->second[timestep] : nullptr;
+    assert(outputBuffers_[BufferType::Output].size() > 0);
+    return outputBuffers_[type][timestep];
 }
 
 void InputLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
-    inputBuffers_[type][timestep] = buffer;
+    assert(outputBuffers_[BufferType::Output].size() > 0);
+    outputBuffers_[type][timestep] = buffer;
+    assert(outputBuffers_[BufferType::Output].size() > 0);
 }
 
 MTL::Buffer* InputLayer::getInputBufferAt(BufferType, int) {
@@ -75,19 +89,6 @@ MTL::Buffer* InputLayer::getInputBufferAt(BufferType, int) {
 
 int InputLayer::getSequenceLength() {
     return sequenceLength_;
-}
-
-int InputLayer::getParameterCount() const {
-    return 1;
-}
-float InputLayer::getParameterAt(int index) const {
-    return 0.0f;
-}
-void InputLayer::setParameterAt(int index, float value) {
-    return;
-}
-float InputLayer::getGradientAt(int index) const {
-    return 0.0f;
 }
 
 void InputLayer::saveParameters(std::ostream& os) const {

@@ -25,21 +25,6 @@ FunctionDataset::FunctionDataset(InputFunction inputFunc, TargetFunction targetF
 }
 
 
-
-float* FunctionDataset::getInputDataAt(int timestep) {
-    if (timestep < 0 || timestep >= datasetSize_) {
-        throw std::out_of_range("❌ getInputDataAt: timestep out of range");
-    }
-    return inputs_[timestep].data();
-}
-
-float* FunctionDataset::getTargetDataAt(int timestep) {
-    if (timestep < 0 || timestep >= datasetSize_) {
-        throw std::out_of_range("❌ getTargetDataAt: timestep out of range");
-    }
-    return targets_[timestep].data();
-}
-
 int FunctionDataset::getDatasetSize() const {
     return datasetSize_;
 }
@@ -58,17 +43,17 @@ float FunctionDataset::calculateLoss(const float* predictedData, int outputDim, 
 
 
 
-void FunctionDataset::loadData() {
+void FunctionDataset::loadData(int batchSize) {
     bool isTraining = TrainingManager::instance().isTraining();
     if (isTraining) {
         shuffleIndices();
-        generateDataset(offset_);
+        generateDataset(offset_, batchSize);
     }else {
-        generateDataset(offset_++);
+        generateDataset(offset_++, batchSize);
     }
 }
 
-void FunctionDataset::generateDataset(double offset) {
+void FunctionDataset::generateDataset(double offset, int batchSize) {
     inputs_.resize(datasetSize_);
     targets_.resize(datasetSize_);
     for (int t = 0; t < datasetSize_; ++t) {
@@ -82,8 +67,8 @@ void FunctionDataset::generateDataset(double offset) {
     }
 }
 
-void FunctionDataset::loadNextSample() {
-    loadData();
+void FunctionDataset::loadNextBatch(int batchSize) {
+    loadData(batchSize);
 }
 
 void FunctionDataset::shuffleIndices() {
@@ -93,14 +78,6 @@ void FunctionDataset::shuffleIndices() {
 int FunctionDataset::numSamples() const {
     // Returns the total number of samples in this dataset
     return datasetSize_;
-}
-
-float* FunctionDataset::getInputDataBuffer() {
-    return inputs_[0].data();
-}
-
-float* FunctionDataset::getTargetDataBuffer() {
-    return targets_[0].data();
 }
 
 

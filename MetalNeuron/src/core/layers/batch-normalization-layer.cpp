@@ -192,18 +192,6 @@ void BatchNormalizationLayer::connectBackwardConnections(Layer* prevLayer, Layer
     prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
 }
 
-int BatchNormalizationLayer::getParameterCount() const {
-    return 2;
-}
-float BatchNormalizationLayer::getParameterAt(int index) const {
-    return 0.0f;
-}
-void BatchNormalizationLayer::setParameterAt(int index, float value) {
-    return;
-}
-float BatchNormalizationLayer::getGradientAt(int index) const {
-    return 0.0f;
-}
 
 void BatchNormalizationLayer::saveParameters(std::ostream& os) const {
     os.write(reinterpret_cast<const char*>(bufferGamma_->contents()), bufferGamma_->length());

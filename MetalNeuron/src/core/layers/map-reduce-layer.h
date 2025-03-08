@@ -38,11 +38,6 @@ public:
     void updateTargetBufferAt(const float* targetData, int timestep) override;
     void updateTargetBufferAt(const float* targetData, int timestep, int batchSize) override;
 
-    int getParameterCount() const override;
-    float getParameterAt(int index) const override;
-    void setParameterAt(int index, float value) override;
-    float getGradientAt(int index) const override;
-
     void debugLog() override;
 
     void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;

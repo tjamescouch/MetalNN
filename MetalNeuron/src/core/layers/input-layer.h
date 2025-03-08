@@ -14,7 +14,7 @@ class Layer;
 
 class InputLayer : public Layer {
 public:
-    InputLayer(int inputDim, int sequenceLength);
+    InputLayer(int inputDim, int sequenceLength, int batchSize);
     ~InputLayer();
     
     void buildBuffers(MTL::Device* device) override;
@@ -39,11 +39,6 @@ public:
     void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
                                     MTL::Buffer* zeroBuffer, int timestep) override {};
     
-    
-    int getParameterCount() const override;
-    float getParameterAt(int index) const override;
-    void setParameterAt(int index, float value) override;
-    float getGradientAt(int index) const override;
     
     void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
     void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
@@ -71,6 +66,8 @@ private:
     int inputDim_;
     int sequenceLength_;
     bool isTerminal_;
+    int batchSize_;
+    
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
 };

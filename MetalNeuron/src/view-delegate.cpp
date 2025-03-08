@@ -15,7 +15,7 @@
 #include "math-lib.h"
 #include "configuration-manager.h"
 
-const char* modelFilename = "multi-dense-layer.yml";
+const char* modelFilename = "ocr.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {

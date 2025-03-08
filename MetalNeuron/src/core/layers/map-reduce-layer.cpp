@@ -162,22 +162,6 @@ void MapReduceLayer::updateTargetBufferAt(const float* targetData, int timestep,
     // Typically a MapReduceLayer might ignore this or handle it differently
 }
 
-int MapReduceLayer::getParameterCount() const {
-    return 0; // Adjust as needed
-}
-
-float MapReduceLayer::getParameterAt(int index) const {
-    return 0; // Adjust as needed
-}
-
-void MapReduceLayer::setParameterAt(int index, float value) {
-    // Implement as needed
-}
-
-float MapReduceLayer::getGradientAt(int index) const {
-    return 0; // Adjust as needed
-}
-
 void MapReduceLayer::debugLog() {
     std::cout << "[MapReduceLayer] debugLog called." << std::endl;
 }

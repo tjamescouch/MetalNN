@@ -37,11 +37,6 @@ public:
                                      MTL::Buffer* zeroBuffer, int timestep) override;
     
     
-    int getParameterCount() const override;
-    float getParameterAt(int index) const override;
-    void setParameterAt(int index, float value) override;
-    float getGradientAt(int index) const override;
-    
     void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
     void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
     

@@ -14,15 +14,9 @@ class FunctionDataset : public Dataset {
 public:
     FunctionDataset(InputFunction inputFunc, TargetFunction targetFunc,
                                      int inputDim, int outputDim, int datasetSize);
-    ~FunctionDataset() override = default;
+    ~FunctionDataset();
 
-    void loadData() override;
-    
-    float* getInputDataBuffer() override;
-    float* getTargetDataBuffer() override;
-
-    float* getInputDataAt(int timestep) override;
-    float* getTargetDataAt(int timestep) override;
+    void loadData(int batchSize) override;
     
     float* getInputDataAt(int timestep, int batchIndex) override;
     float* getTargetDataAt(int timestep, int batchIndex) override;
@@ -35,8 +29,8 @@ public:
     int inputDim() const override { return inputDim_; };
     int outputDim() const override { return outputDim_; };
     
-    void loadNextSample() override;
-    
+    void loadNextBatch(int batchSize) override;
+
 
     int numSamples() const override;
     
@@ -57,5 +51,5 @@ private:
     std::vector<float> currentTargetBuffer_;
     
     void shuffleIndices();
-    void generateDataset(double offset);
+    void generateDataset(double offset, int batchSize);
 };
