@@ -187,13 +187,7 @@ float* MNISTDataset::getInputDataAt(int timestep, int _batchIndex) {
     for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {
         std::memcpy(batchedInputData_ + i * imageSize, inputs_[ib % numImages].data(), imageSize * sizeof(float));
     }
-#ifdef F
-    std::cout << "batchedInputData: ";
-    for(int i = 0; i < imageSize; i++){
-        std::cout << batchedInputData_[i] << " ";
-    }
-    std::cout << std::endl;
-#endif
+    
     return batchedInputData_;
 }
 
