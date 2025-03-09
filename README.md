@@ -53,9 +53,17 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 - [x] Implement dropout regularization.
 - [x] Create sample model configuration with good results
 - [x] Allow for saving and restoring parameters
-- [ ] Specify the input layer in the model configuration yaml
-- [ ] Create library of working model configuratikons
 - [ ] Fix convergence issues.
+    - [x] single-dense-layer.yml
+    - [x] multi-dense-layer.yml
+    - [x] simple-ocr.yml
+    - [ ] ocr.yml
+    - [ ] rnn.ym
+- [ ] Validate layer implementations
+    - [x] Dense Layer
+    - [ ] Dropout Layer
+    - [ ] Batch Normalization Layer
+    - [ ] RNN Layer
 - [x] Implement classification using MNIST dataset
 
 ### Medium-term Goals:
