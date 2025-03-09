@@ -109,7 +109,7 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::Delta][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::Delta][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Delta][t]->length()));
 
-    outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(inputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged); //TODO - understand the required dimensions here
+    outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(inputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::Output][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
 
     outputBuffers_[BufferType::Debug][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
