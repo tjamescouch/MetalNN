@@ -401,13 +401,13 @@ void NeuralEngine::saveModel(const std::string& filepath) {
     }
     
     file.close();
-    std::cout << "✅ Model parameters saved efficiently (binary) to: " << filepath << std::endl;
+    std::cout << "✅ Model parameters saved to: " << filepath << std::endl;
 }
 
 void NeuralEngine::loadModel(const std::string& filepath) {
     std::ifstream file(filepath, std::ios::binary);
     
-    int layerCount = 0;
+    size_t layerCount = 0;
     file.read(reinterpret_cast<char*>(&layerCount), sizeof(layerCount));
     assert(layerCount == dynamicLayers_.size() && "Layer count mismatch!");
     
@@ -416,7 +416,7 @@ void NeuralEngine::loadModel(const std::string& filepath) {
     }
     
     file.close();
-    std::cout << "✅ Model parameters loaded efficiently (binary) from: " << filepath << std::endl;
+    std::cout << "✅ Model parameters loaded from: " << filepath << std::endl;
 }
 
 void NeuralEngine::shiftBuffers() {

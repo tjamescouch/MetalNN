@@ -248,21 +248,17 @@ void DenseLayer::connectBackwardConnections(Layer* prevLayer,
     prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
 }
 
-void DenseLayer::saveParameters(std::ostream& os) const {
+void DenseLayer::saveParameters(std::ostream& os) const { //FIXME encode buffer lengths
     os.write(reinterpret_cast<const char*>(bufferWeights_->contents()), bufferWeights_->length());
     os.write(reinterpret_cast<const char*>(bufferBias_->contents()), bufferBias_->length());
-    os.write(reinterpret_cast<const char*>(bufferDecay_->contents()), bufferDecay_->length());
 }
 
-void DenseLayer::loadParameters(std::istream& is) {
+void DenseLayer::loadParameters(std::istream& is) { //FIXME - decode buffer lengths and verify
     is.read(reinterpret_cast<char*>(bufferWeights_->contents()), bufferWeights_->length());
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
     
     is.read(reinterpret_cast<char*>(bufferBias_->contents()), bufferBias_->length());
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
-    
-    is.read(reinterpret_cast<char*>(bufferDecay_->contents()), bufferDecay_->length());
-    bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
 }
 
 void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
