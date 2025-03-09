@@ -5,8 +5,8 @@
 #include <cmath>
 #include "math-lib.h"
 
-Logger::Logger(const std::string& filename, bool isRegression)
-: filename_(filename), logFileStream(nullptr), isRegression_(isRegression) {
+Logger::Logger(const std::string& filename, bool isRegression, int batchSize)
+: filename_(filename), logFileStream(nullptr), isRegression_(isRegression), batchSize_(batchSize) {
     logFileStream = new std::ofstream(filename_, std::ios::app);
     if (!logFileStream->is_open()) {
         std::cerr << "Error opening log file: " << filename_ << std::endl;
@@ -101,10 +101,11 @@ void Logger::flushClassificationAnalytics() {
         return;
     }
 
+    
     for (size_t sampleIdx = 0; sampleIdx < batchOutputs_.size(); ++sampleIdx) {
         const auto& output = batchOutputs_[sampleIdx];
         const auto& target = batchTargets_[sampleIdx];
-        size_t outputCount = output.size();
+        size_t outputCount = output.size() / batchSize_; //FIXME - just logging the first sample per batch for now
 
         *logFileStream << "clf; hold on;" << std::endl;
         *logFileStream << "xlabel('Class (Digit)'); ylabel('Probability');" << std::endl;

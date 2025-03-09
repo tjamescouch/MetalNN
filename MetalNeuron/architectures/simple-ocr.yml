@@ -1,22 +1,23 @@
-name: "Simplest MNIST OCR"
+name: "Stable OCR"
 
 layers:
   - type: Dense
-    input_size: 784      # 28x28 pixels flattened
-    output_size: 10      # 10 digits (0–9)
-    activation: softmax  # Probabilistic output
+    input_size: 784
+    output_size: 10
+    activation: softmax
+    initializer: xavier
 
 training:
   optimizer:
     type: adam
-    learning_rate: 0.001
+    learning_rate: 0.001  # Lower learning rate for more stability
     parameters:
       beta1: 0.9
       beta2: 0.999
       epsilon: 1e-8
 
-  epochs: 10
-  batch_size: 128
+  epochs: 2
+  batch_size: 32  # Smaller batches for more stable gradient estimates
 
 dataset:
   type: "mnist"
@@ -25,4 +26,4 @@ dataset:
 
 metadata:
   author: "James Couch"
-  description: "Minimal OCR model for MNIST"
+  description: "Numerically stable OCR"

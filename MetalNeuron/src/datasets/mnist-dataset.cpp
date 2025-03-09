@@ -142,6 +142,7 @@ float MNISTDataset::calculateLoss(const float* predictedData, int outputDim, con
     const float epsilon = 1e-10f;
     float loss = 0.0f;
     
+#ifdef DEBUG_MNIST
     std::cout << "targetData[i] ";
     for (int i = 0; i < outputDim; ++i) {
         std::cout << targetData[i] << " ";
@@ -153,7 +154,7 @@ float MNISTDataset::calculateLoss(const float* predictedData, int outputDim, con
         std::cout << predictedData[i] << " ";
     }
     std::cout << std::endl;
-    
+#endif
     
     for (int i = 0; i < outputDim; ++i) {
         if (targetData[i] > 0.5f) { // one-hot target per batch

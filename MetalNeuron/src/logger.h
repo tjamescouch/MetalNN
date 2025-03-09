@@ -6,7 +6,7 @@
 
 class Logger {
 public:
-    Logger(const std::string& filename, bool isRegression);
+    Logger(const std::string& filename, bool isRegression, int batchSize);
     ~Logger();
     
     void clear();
@@ -38,6 +38,8 @@ private:
     bool isRegression_ = true;
     float accumulatedLoss_ = 0.0f;
     int numSamples_ = 0;
+    int batchSize_ = 1;
+    
     std::ofstream *logFileStream = nullptr;
     std::string filename_;
     

@@ -23,23 +23,6 @@ using namespace metal;
 #define ACTIVATION_SOFTMAX 4
 
 
-inline void softmax(const device float* input, device float* output, uint outputDim) {
-    float maxVal = input[0];
-    //float maxVal = -INFINITY;
-    for (uint i = 1; i < outputDim; ++i) {
-        maxVal = max(maxVal, input[i]);
-    }
-
-    float sumExp = 0.0f;
-    for (uint i = 0; i < outputDim; ++i) {
-        sumExp += exp(input[i] - maxVal);
-    }
-
-    for (uint i = 0; i < outputDim; ++i) {
-        output[i] = exp(input[i] - maxVal) / sumExp;
-    }
-}
-
 // Global constants
 constant float decay_factor = 1.0f;//0.9999999f;
 constant float threshold = 0.1f;
@@ -76,6 +59,7 @@ kernel void forward_dense_layer(
     device const uint* pN         [[buffer(5)]],
     device const uint* activation [[buffer(6)]],
     constant uint& batchSize      [[buffer(7)]],
+    device float* debug           [[buffer(8)]],
     uint tid                      [[thread_position_in_threadgroup]],
     uint gid                      [[thread_position_in_grid]]
 ) {
@@ -108,6 +92,7 @@ kernel void forward_dense_layer(
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
         shared_y[tid] = exp(shared_y[tid] - maxVal);
+        
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
@@ -121,6 +106,8 @@ kernel void forward_dense_layer(
         }
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        debug[tid] = shared_y[tid];
     } else {
         shared_y[tid] = activate(shared_y[tid], *activation);
     }
@@ -133,7 +120,7 @@ kernel void forward_dense_layer(
 kernel void learn_non_terminal_dense_layer(
     device const float* h                [[buffer(0)]],  // input activations
     device float* W                      [[buffer(1)]],  // weights
-    device float* b                      [[buffer(2)]],  // biases
+    device const float* b                [[buffer(2)]],  // biases
     device const float* y_hat            [[buffer(3)]],  // predicted outputs
     device const float* inputErrors      [[buffer(4)]],  // errors from next layer
     device float* error                  [[buffer(5)]],  // output error (delta)
@@ -145,10 +132,11 @@ kernel void learn_non_terminal_dense_layer(
     device float* prevLayerErrors        [[buffer(11)]], // errors to prev layer
     constant uint& batch_size            [[buffer(12)]], // batch size
     device const float* pLearningRate    [[buffer(13)]], // learning rate
-    uint tid                             [[thread_position_in_grid]]
+    uint tid                      [[thread_position_in_threadgroup]],
+    uint gid                      [[thread_position_in_grid]]
 ) {
-    uint sample_id = tid / output_dim;
-    uint neuron_id = tid % output_dim;
+    uint sample_id = gid / output_dim;
+    uint neuron_id = gid % output_dim;
 
     if (sample_id >= batch_size || neuron_id >= output_dim) return;
 
@@ -163,7 +151,7 @@ kernel void learn_non_terminal_dense_layer(
     device float* sample_prevLayerErrors = prevLayerErrors + (sample_id * input_dim);
 
     float raw_error = sample_outputErrors[neuron_id];
-    debug[tid] = raw_error;
+    debug[gid] = raw_error;
 
     float delta = raw_error * activate_derivative(sample_y_hat[neuron_id], activation);
 
@@ -186,6 +174,7 @@ kernel void learn_non_terminal_dense_layer(
 
     // Update biases atomically
     atomic_fetch_add_explicit((device atomic_float*)&b[neuron_id], -learning_rate * delta * decay, memory_order_relaxed);
+
 }
 
 
@@ -204,10 +193,11 @@ kernel void learn_terminal_dense_layer(
     device float* prevLayerErrors        [[buffer(11)]], // errors to prev layer
     constant uint& batch_size            [[buffer(12)]], // batch size
     device const float* pLearningRate    [[buffer(13)]], // learning rate
-    uint tid                             [[thread_position_in_grid]]
+    uint tid                      [[thread_position_in_threadgroup]],
+    uint gid                      [[thread_position_in_grid]]
 ) {
-    uint sample_id = tid / output_dim;
-    uint neuron_id = tid % output_dim;
+    uint sample_id = gid / output_dim;
+    uint neuron_id = gid % output_dim;
 
     if (sample_id >= batch_size || neuron_id >= output_dim) return;
 
@@ -222,7 +212,9 @@ kernel void learn_terminal_dense_layer(
     device float* sample_prevLayerErrors = prevLayerErrors + (sample_id * input_dim);
 
     float raw_error = sample_y_hat[neuron_id] - sample_y[neuron_id];
-    debug[tid] = raw_error;
+    debug[gid] = raw_error;
+
+    
 
     float delta;
     if (activation == ACTIVATION_SOFTMAX) { // softmax
@@ -234,11 +226,14 @@ kernel void learn_terminal_dense_layer(
     delta = clamp(delta, -threshold, threshold);
     sample_error[neuron_id] = delta;
 
+
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
     // Accumulate weight gradients for each input neuron
     for (uint i = 0; i < input_dim; i++) {
+                
         float grad = sample_h[i] * delta;
+
         grad = clamp(grad, -threshold, threshold);
 
         // Atomic add for concurrent accumulation across batches
