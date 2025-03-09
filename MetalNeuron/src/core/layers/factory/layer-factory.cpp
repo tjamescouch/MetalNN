@@ -41,7 +41,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
     }
     else if (layerConfig.type == "Dropout") {
         float rate = layerConfig.params.at("rate").get_value<float>();
-        layer = new DropoutLayer(rate, inputSize, outputSize, 1);
+        layer = new DropoutLayer(rate, inputSize, outputSize, batchSize, 1);
     }
     else if (layerConfig.type == "BatchNormalization") {
         float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
