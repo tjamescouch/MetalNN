@@ -12,7 +12,7 @@
 
 class DropoutLayer : public Layer {
 public:
-    DropoutLayer(float rate, int inputDim, int featureDim, int sequenceLength);
+    DropoutLayer(float rate, int inputDim, int featureDim, int batchSize, int sequenceLength);
     ~DropoutLayer() override;
 
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
@@ -81,6 +81,7 @@ private:
     int inputDim_;
     int featureDim_;
     bool isTerminal_;
+    int batchSize_;
 
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;

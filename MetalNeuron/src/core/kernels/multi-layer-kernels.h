@@ -363,8 +363,8 @@ kernel void forward_dropout(
 //-------------------------------------------------------------------
 // Backward pass for Dropout layer
 kernel void backward_dropout(
-    device const float* output_error [[buffer(0)]],
-    device float* input_error        [[buffer(1)]],
+    device const float* input_error [[buffer(0)]],
+    device float* output_error        [[buffer(1)]],
     device const float* randomMask   [[buffer(2)]],
     device const float* rate         [[buffer(3)]],
     device const uint* featureDim    [[buffer(4)]],
@@ -372,7 +372,7 @@ kernel void backward_dropout(
 ) {
     if (tid >= *featureDim) return;
 
-    input_error[tid] = randomMask[tid] >= *rate ? output_error[tid] : 0;
+    output_error[tid] = randomMask[tid] >= *rate ? input_error[tid] : 0;
 }
 
 kernel void forward_batch_norm(

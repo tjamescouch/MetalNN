@@ -12,8 +12,6 @@
 #include "layer-factory.h"
 
 
-
-const char* outputFileName = "multilayer_nn_training.m";
 int globalTimestep = 0;
 
 
@@ -38,12 +36,12 @@ filename(config.filename)
     int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
     _pInputLayer = new InputLayer(input_dim, first_layer_time_steps, batch_size);
     
-    _pLogger = new Logger(outputFileName, config.dataset.type == "function", batch_size);
+    Logger::instance().setBatchSize(batch_size);
     
     _pKeyboardController = new KeyboardController();
     
     _pKeyboardController->setForwardCallback([this, config]() {
-        _pLogger->clear();
+        Logger::instance().clear();
         TrainingManager::instance().setTraining(false);
         
         computeForwardBatches(_pDataManager->getCurrentDataset()->numSamples(), ceil((float)_pDataManager->getCurrentDataset()->numSamples() / config.training.batch_size), [this]() {
@@ -52,7 +50,7 @@ filename(config.filename)
     });
     
     _pKeyboardController->setLearnCallback([this, config]() {
-        _pLogger->clear();
+        Logger::instance().clear();
         TrainingManager::instance().setTraining(true);
         
         auto currentEpoch = std::make_shared<int>(0);
@@ -80,7 +78,7 @@ filename(config.filename)
     });
     
     _pKeyboardController->setClearCallback([this]() {
-        _pLogger->clear();
+        Logger::instance().clear();
     });
     
     _pKeyboardController->setSaveCallback([this]() {
@@ -103,7 +101,6 @@ NeuralEngine::~NeuralEngine() {
         delete layer;
     
     delete _pKeyboardController;
-    delete _pLogger;
     
     if (_pCommandQueue) _pCommandQueue->release();
     if (_pDevice) _pDevice->release();
@@ -122,7 +119,7 @@ void NeuralEngine::createDynamicLayers(ModelConfig& config) {
     
     
     _pDataManager->initialize(batch_size, [this, &config]() {
-        _pLogger->clear();
+        Logger::instance().clear();
         buildBuffers();
         connectDynamicLayers(config);
     });
@@ -259,7 +256,7 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
 
 void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemaining, std::function<void()> onComplete) {
     if (batchesRemaining <= 0 || totalSamples == 0) {
-        _pLogger->finalizeBatchLoss();
+        Logger::instance().finalizeBatchLoss();
         onComplete();
         return;
     }
@@ -294,9 +291,9 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
             
             float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData);
             
-            _pLogger->logAnalytics(predictedData, output_dim * currentBatchSize, targetData, output_dim * currentBatchSize);
+            Logger::instance().logAnalytics(predictedData, output_dim * currentBatchSize, targetData, output_dim * currentBatchSize);
             if (currentBatchSize > 0) {
-                _pLogger->accumulateLoss(totalBatchLoss / currentBatchSize, 1);
+                Logger::instance().accumulateLoss(totalBatchLoss / currentBatchSize, 1);
             }
             assert(!isnan(totalBatchLoss)); 
         }
@@ -304,11 +301,11 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
         
         
         if (((totalSamples - currentBatchSize) % 500) == 0) {
-            _pLogger->finalizeBatchLoss();
+            Logger::instance().finalizeBatchLoss();
         }
         
-        _pLogger->flushAnalytics();
-        _pLogger->clearBatchData();
+        Logger::instance().flushAnalytics();
+        Logger::instance().clearBatchData();
         
         computeForwardBatches(totalSamples - currentBatchSize, batchesRemaining - 1, onComplete);
     });
@@ -326,7 +323,7 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
     << " - current batch size " << currentBatchSize << std::endl;
     
     if (totalSamples == 0 || currentBatchSize <= 0) {
-        _pLogger->finalizeBatchLoss();
+        Logger::instance().finalizeBatchLoss();
         onComplete();
         return;
     }
@@ -356,20 +353,20 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
             float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData);
             //assert(!isnan(batchLoss));
             
-            _pLogger->logAnalytics(predictedData, output_dim, targetData, output_dim);
+            Logger::instance().logAnalytics(predictedData, output_dim, targetData, output_dim);
             
-            _pLogger->accumulateLoss(totalBatchLoss / currentBatchSize, 1);
+            Logger::instance().accumulateLoss(totalBatchLoss / currentBatchSize, 1);
             assert(currentBatchSize > 0);
             //assert(!isnan(batchLoss));
             
             samplesProcessed += currentBatchSize;
             
             if (samplesProcessed % 500 == 0 && samplesProcessed > 0) {
-                _pLogger->finalizeBatchLoss();
+                Logger::instance().finalizeBatchLoss();
             }
             
-            _pLogger->flushAnalytics();
-            _pLogger->clearBatchData();
+            Logger::instance().flushAnalytics();
+            Logger::instance().clearBatchData();
             
             computeBackwardBatches(totalSamples, batchesRemaining - 1, onComplete);
         });

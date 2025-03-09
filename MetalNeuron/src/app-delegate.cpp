@@ -72,7 +72,7 @@ void AppDelegate::applicationWillFinishLaunching( NS::Notification* pNotificatio
 
 void AppDelegate::applicationDidFinishLaunching( NS::Notification* pNotification )
 {
-    CGRect frame = (CGRect){ {100, 100}, {700.0, 700.0} };
+    CGRect frame = (CGRect){ {10, 10}, {300.0, 300.0} };
     
     StartKeyboardMonitoring(static_cast<KeyboardEventCallback>(
                                                                [this](KeyPress kp) {

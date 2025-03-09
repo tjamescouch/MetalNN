@@ -42,7 +42,7 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice)
         dataset = new FunctionDataset(mathlib::inputFunc, mathlib::targetFunc,
                                     config.layers.front().params.at("input_size").get_value<int>(),
                                     config.layers.back().params.at("output_size").get_value<int>(),
-                                    config.layers.front().params.at("input_size").get_value<int>());
+                                    1000); //Arbitrary dataset size
     } else {
         throw std::runtime_error("Unsupported dataset type: " + config.dataset.type);
     }

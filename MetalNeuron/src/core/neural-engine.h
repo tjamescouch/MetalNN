@@ -31,10 +31,10 @@ public:
     
     void computeForward(int batchSize, std::function<void()> onComplete);
     void computeBackward(int batchSize, std::function<void()> onComplete);
-    
+
     void computeForwardBatches(uint32_t totalSamples, int iterationsRemaining, std::function<void()> onComplete);
     void computeBackwardBatches(uint32_t totalSamples, int iterationsRemaining, std::function<void()> onComplete);
-    
+
     void connectDynamicLayers(ModelConfig& config);
     void createDynamicLayers(ModelConfig& config);
     
@@ -56,7 +56,6 @@ private:
     void shiftBuffers();
     
     KeyboardController* _pKeyboardController;
-    Logger* _pLogger;
     DataManager* _pDataManager;
     
     InputLayer* _pInputLayer;

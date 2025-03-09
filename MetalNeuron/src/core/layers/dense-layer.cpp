@@ -9,6 +9,7 @@
 #include "adam-optimizer.h"
 #include "dense-layer.h"
 #include "common.h"
+#include "logger.h"
 
 DenseLayer::DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activation, int batchSize)
 : inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(1), activation_(activation),
@@ -262,10 +263,20 @@ void DenseLayer::loadParameters(std::istream& is) { //FIXME - decode buffer leng
 }
 
 void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    if (isTerminal_) {
+        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[F: Terminal Dense Layer Input Errors]");
+    } else {
+        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[F: [Non-Terminal Dense Layer Input Errors]");
+    }
 }
 
 
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    if (isTerminal_) {
+        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[B: Terminal Dense Layer Input Errors]");
+    } else {
+        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[B: [Non-Terminal Dense Layer Input Errors]");
+    }
     
     auto cmdBuf = _pCommandQueue->commandBuffer();
     auto encoder = cmdBuf->computeCommandEncoder();

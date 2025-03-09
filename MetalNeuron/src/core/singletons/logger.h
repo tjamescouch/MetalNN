@@ -3,11 +3,15 @@
 
 #include <string>
 #include <vector>
+#include <mutex>
+
+namespace MTL {
+class Buffer;
+}
 
 class Logger {
 public:
-    Logger(const std::string& filename, bool isRegression, int batchSize);
-    ~Logger();
+    static Logger& instance();
     
     void clear();
     
@@ -30,6 +34,9 @@ public:
     
     void clearBatchData();
     void flushBatchData();
+    void setBatchSize(int batchSize);
+    
+    void printFloatBuffer(MTL::Buffer* b, std::string message);
     
 private:
     void flushRegressionAnalytics();
@@ -46,6 +53,13 @@ private:
     std::vector<std::vector<float>> batchOutputs_;
     std::vector<std::vector<float>> batchTargets_;
     int outputDim_;
+
+    Logger();
+    ~Logger();
+    static void initSingleton();
+    
+    static Logger* instance_;
+    static std::once_flag initInstanceFlag;
 };
 
 #endif // LOGGER_H

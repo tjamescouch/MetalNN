@@ -5,8 +5,14 @@
 #include <cmath>
 #include "math-lib.h"
 
-Logger::Logger(const std::string& filename, bool isRegression, int batchSize)
-: filename_(filename), logFileStream(nullptr), isRegression_(isRegression), batchSize_(batchSize) {
+const char* filename = "multilayer_nn_training.m";
+
+Logger::Logger()
+:
+filename_(filename),
+logFileStream(nullptr),
+isRegression_(true),
+batchSize_(1) {
     logFileStream = new std::ofstream(filename_, std::ios::app);
     if (!logFileStream->is_open()) {
         std::cerr << "Error opening log file: " << filename_ << std::endl;
@@ -21,6 +27,9 @@ Logger::~Logger() {
         logFileStream = nullptr;
     }
 }
+
+Logger* Logger::instance_ = nullptr;
+std::once_flag Logger::initInstanceFlag;
 
 void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount, int hiddenCount, int sequenceLength) {
     float avgOutputError = 0.0f;
@@ -173,9 +182,34 @@ void Logger::finalizeBatchLoss() {
     numSamples_ = 0;
 }
 
-
-
 void Logger::clearBatchData() {
     batchOutputs_.clear();
     batchTargets_.clear();
+}
+
+void Logger::setBatchSize(int batchSize) {
+    batchSize_ = batchSize;
+}
+
+Logger& Logger::instance() {
+    std::call_once(initInstanceFlag, &Logger::initSingleton);
+    return *instance_;
+}
+
+void Logger::initSingleton() {
+    instance_ = new Logger();
+}
+
+void Logger::printFloatBuffer(MTL::Buffer* b, std::string message) {
+    float* data = static_cast<float*>(b->contents());
+    size_t numFloats = b->length() / sizeof(float);
+    
+    std::cout << message << " => [";
+    for (int i = 0; i < numFloats; ++i) {
+        std::cout << data[i];
+        if (i < numFloats - 1) {
+            std::cout << ", ";
+        }
+    }
+    std::cout << "]" << std::endl;
 }
