@@ -266,16 +266,6 @@ void DenseLayer::loadParameters(std::istream& is) {
 }
 
 void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    // Quick sanity check:
-    if (isTerminal_) {
-        float* outputData = static_cast<float*>(outputBuffers_[BufferType::Output][0]->contents());
-        std::cout << "F:batch output: L=" << outputBuffers_[BufferType::Output][0]->length() / sizeof(float) << " ";
-        for (int i = 0; i < 10; i++) {
-            std::cout << outputData[i] << " ";
-        }
-        std::cout << std::endl;
-    }
-    outputBuffers_[BufferType::Output][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Output][0]->length()));
 }
 
 
@@ -289,18 +279,8 @@ void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batch
 
     encoder->endEncoding();
     
-    if (isTerminal_) {
-        float* outputData = static_cast<float*>(outputBuffers_[BufferType::Output][0]->contents());
-        std::cout << "B:batch output: L=" << outputBuffers_[BufferType::Output][0]->length() / sizeof(float) << " ";
-        for (int i = 0; i < 10; i++) {
-            std::cout << outputData[i] << " ";
-        }
-        std::cout << std::endl;
-    }
-    
     memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
     outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
-    outputBuffers_[BufferType::Output][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Output][0]->length()));
 }
 
 void DenseLayer::debugLog() {
