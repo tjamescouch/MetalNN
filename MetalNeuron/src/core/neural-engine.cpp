@@ -12,10 +12,6 @@
 #include "layer-factory.h"
 
 
-#ifdef DEBUG_GRADIENT_CHECKS
-#include "debug/gradient-checker.h"
-#endif
-
 
 const char* outputFileName = "multilayer_nn_training.m";
 int globalTimestep = 0;
@@ -42,7 +38,7 @@ filename(config.filename)
     int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
     _pInputLayer = new InputLayer(input_dim, first_layer_time_steps, batch_size);
     
-    _pLogger = new Logger(outputFileName, config.dataset.type == "function");
+    _pLogger = new Logger(outputFileName, config.dataset.type == "function", batch_size);
     
     _pKeyboardController = new KeyboardController();
     
@@ -294,7 +290,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
                                                        dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, t)->contents()
                                                        );
             
-            float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(t, batchIndex);
+            float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(t, (int)batchIndex);
             
             float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData);
             
@@ -348,18 +344,6 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
     
     
     computeForward(currentBatchSize, [=, this]() mutable {
-#ifdef F
-        for (int i = 0; i < currentBatchSize; i++) {
-            float* inputData = static_cast<float*>(
-                                                   dynamicLayers_[2]->getOutputBufferAt(BufferType::Output, 0)->contents()
-                                                   ) + (i * dynamicLayers_[2]->outputSize());
-            std::cout << "inputData for batch " << i << " : ";
-            for (int i = 0; i < 10; i++)
-                std::cout << inputData[i] << " ";
-            std::cout << std::endl;
-        }
-#endif
-        
         computeBackward(currentBatchSize, [=, this]() mutable {
             
             assert(dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->length() >= batch_size * output_dim * sizeof(float));

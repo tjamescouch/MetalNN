@@ -5,7 +5,7 @@ layers:
     input_size: 512
     output_size: 512
     activation: tanh
-    
+
   - type: Dense
     input_size: 512
     output_size: 512
@@ -20,7 +20,7 @@ training:
       beta2: 0.999
 
   epochs: 2
-  batch_size: 1
+  batch_size: 2
 
 dataset:
   type: "function"

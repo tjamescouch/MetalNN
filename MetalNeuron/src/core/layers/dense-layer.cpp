@@ -109,7 +109,7 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::Delta][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::Delta][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Delta][t]->length()));
 
-    outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(inputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged); //TODO - understand the required dimensions here
     outputBuffers_[BufferType::Output][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
 
     outputBuffers_[BufferType::Debug][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
@@ -162,6 +162,7 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize) {
         encoder->setBytes(&outputDim_, sizeof(int), 5);
         encoder->setBytes(&activationRaw, sizeof(uint), 6);
         encoder->setBytes(&bs, sizeof(uint), 7);
+        encoder->setBuffer(outputBuffers_[BufferType::Debug][0], 0, 8);
         
         uint gridSize = batchSize * outputDim_;
         uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
@@ -207,10 +208,6 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
 
-    for (int t = 0; t < sequenceLength_; ++t) {
-        //inputBuffers_[BufferType::InputErrors][t]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::InputErrors][t]->length()));
-        //outputBuffers_[BufferType::OutputErrors][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][t]->length()));
-    }
 }
 
 void DenseLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
@@ -270,7 +267,15 @@ void DenseLayer::loadParameters(std::istream& is) {
 
 void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
     // Quick sanity check:
-
+    if (isTerminal_) {
+        float* outputData = static_cast<float*>(outputBuffers_[BufferType::Output][0]->contents());
+        std::cout << "F:batch output: L=" << outputBuffers_[BufferType::Output][0]->length() / sizeof(float) << " ";
+        for (int i = 0; i < 10; i++) {
+            std::cout << outputData[i] << " ";
+        }
+        std::cout << std::endl;
+    }
+    outputBuffers_[BufferType::Output][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Output][0]->length()));
 }
 
 
@@ -284,19 +289,20 @@ void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batch
 
     encoder->endEncoding();
     
+    if (isTerminal_) {
+        float* outputData = static_cast<float*>(outputBuffers_[BufferType::Output][0]->contents());
+        std::cout << "B:batch output: L=" << outputBuffers_[BufferType::Output][0]->length() / sizeof(float) << " ";
+        for (int i = 0; i < 10; i++) {
+            std::cout << outputData[i] << " ";
+        }
+        std::cout << std::endl;
+    }
+    
     memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
     outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
+    outputBuffers_[BufferType::Output][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Output][0]->length()));
 }
 
 void DenseLayer::debugLog() {
-#ifdef F
-    float* errors = static_cast<float*>(outputBuffers_[BufferType::OutputErrors][0]->contents());
-    size_t numErrors = outputBuffers_[BufferType::OutputErrors][0]->length() / sizeof(float);
-    
-    std::cout << "errors = ";
-    for (int i = 0; i < numErrors; ++i) {
-        std::cout << errors[i] << " ";
-    }
-    std::cout << std::endl;
-#endif
+
 }
