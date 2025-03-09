@@ -37,7 +37,7 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 <img width="579" alt="Screenshot 2025-03-02 at 3 50 40 PM" src="https://github.com/user-attachments/assets/8616c562-ceb4-4ea0-a454-7b8a6fd61904" />
 
 - Example classification output (WIP):
-<img width="567" alt="Screenshot 2025-03-02 at 5 57 26 PM" src="https://github.com/user-attachments/assets/12aa7d74-6c3e-4d4d-9709-bfeb009162a9" />
+<img width="573" alt="Screenshot 2025-03-09 at 9 35 04 AM" src="https://github.com/user-attachments/assets/e700d791-f972-48ab-aa95-8e57fe2a2aa6" />
 
 
 ---
