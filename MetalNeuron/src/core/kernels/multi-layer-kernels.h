@@ -120,8 +120,8 @@ kernel void forward_dense_layer(
 kernel void learn_non_terminal_dense_layer(
     device const float* h                [[buffer(0)]],  // input activations
     device float* W                      [[buffer(1)]],  // weights
-    device const float* b                      [[buffer(2)]],  // biases
-    device float* y_hat            [[buffer(3)]],  // predicted outputs
+    device const float* b                [[buffer(2)]],  // biases
+    device const float* y_hat            [[buffer(3)]],  // predicted outputs
     device const float* inputErrors      [[buffer(4)]],  // errors from next layer
     device float* error                  [[buffer(5)]],  // output error (delta)
     constant uint& input_dim             [[buffer(6)]],  // input dimension
