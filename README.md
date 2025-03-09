@@ -17,6 +17,8 @@ This project implements a dynamic, configurable Neural Network framework. Curren
 - **Interactive Training & Inference:**
   - Press `L` to run training (learning) iterations.
   - Press `F` to run forward-pass inference.
+  - Press `S` to save model parameters to a binary file.
+  - Press `O` to load parameters from a binary file.
 
 - **Logging & Visualization:**
   - Generates a MATLAB-compatible file (`multilayer_nn_training.m`) for easy result visualization in Octave/MATLAB.
