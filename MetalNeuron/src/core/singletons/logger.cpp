@@ -200,9 +200,9 @@ void Logger::initSingleton() {
     instance_ = new Logger();
 }
 
-void Logger::printFloatBuffer(MTL::Buffer* b, std::string message) {
+void Logger::printFloatBuffer(MTL::Buffer* b, std::string message, int maxElements) {
     float* data = static_cast<float*>(b->contents());
-    size_t numFloats = b->length() / sizeof(float);
+    size_t numFloats = mathlib::min<size_t>(b->length() / sizeof(float), maxElements);
     
     std::cout << message << " => [";
     for (int i = 0; i < numFloats; ++i) {
@@ -212,4 +212,32 @@ void Logger::printFloatBuffer(MTL::Buffer* b, std::string message) {
         }
     }
     std::cout << "]" << std::endl;
+}
+
+void Logger::printFloatBuffer(MTL::Buffer* b, std::string message) {
+    this->printFloatBuffer(b, message, INFINITY);
+}
+
+void Logger::printFloatBufferL2Norm(MTL::Buffer* b, std::string message) {
+    float* data = static_cast<float*>(b->contents());
+    size_t numFloats = b->length() / sizeof(float);
+
+    float norm = 0.0f;
+    for (size_t i = 0; i < numFloats; ++i)
+        norm += data[i] * data[i];
+    
+    norm = sqrtf(norm);
+    std::cout << message << " => " << norm << std::endl;
+}
+
+void Logger::printFloatBufferMeanL2Norm(MTL::Buffer* b, std::string message) {
+    float* data = static_cast<float*>(b->contents());
+    size_t numFloats = b->length() / sizeof(float);
+
+    float norm = 0.0f;
+    for (size_t i = 0; i < numFloats; ++i)
+        norm += data[i] * data[i];
+    
+    norm = sqrtf(norm) / numFloats;
+    std::cout << message << " => " << norm << std::endl;
 }

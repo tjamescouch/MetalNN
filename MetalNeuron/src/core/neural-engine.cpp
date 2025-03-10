@@ -12,9 +12,6 @@
 #include "layer-factory.h"
 
 
-int globalTimestep = 0;
-
-
 NeuralEngine::NeuralEngine(MTL::Device* pDevice, ModelConfig& config, DataManager* pDataManager)
 : _pDevice(pDevice->retain()),
 areBuffersBuilt(false),

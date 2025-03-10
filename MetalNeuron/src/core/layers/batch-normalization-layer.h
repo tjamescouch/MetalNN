@@ -12,7 +12,7 @@
 
 class BatchNormalizationLayer : public Layer {
 public:
-    BatchNormalizationLayer(int inputDim, int outputDim, int sequenceLength, float epsilon = 1e-5f);
+    BatchNormalizationLayer(int inputDim, int outputDim, int batchSize, int sequenceLength, float epsilon = 1e-5f);
     ~BatchNormalizationLayer() override;
 
     void buildBuffers(MTL::Device* device) override;
@@ -55,6 +55,7 @@ private:
     int sequenceLength_;
     float epsilon_;
     bool isTerminal_;
+    int batchSize_;
 
     // Parameter buffers
     MTL::Buffer* bufferGamma_; // Scale

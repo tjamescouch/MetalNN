@@ -25,7 +25,7 @@ using namespace metal;
 
 // Global constants
 constant float decay_factor = 1.0f;//0.9999999f;
-constant float threshold = 0.1f;
+constant float threshold = 1.f;
 constant float max_abs_sum = 1000.0f;
 
 // Activation functions
@@ -376,46 +376,54 @@ kernel void backward_dropout(
 }
 
 kernel void forward_batch_norm(
-    device const float* input         [[buffer(0)]],
-    device float* output              [[buffer(1)]],
-    device float* gamma               [[buffer(2)]],
-    device float* beta                [[buffer(3)]],
-    device float* runningMean         [[buffer(4)]],
-    device float* runningVariance     [[buffer(5)]],
-    constant float& epsilon           [[buffer(6)]],
-    constant int& featureDim          [[buffer(7)]],
-    constant bool& isTraining         [[buffer(8)]],
-    uint tid                          [[thread_position_in_grid]]
+    device const float* input           [[buffer(0)]],
+    device float* output                [[buffer(1)]],
+    device float* gamma                 [[buffer(2)]],
+    device float* beta                  [[buffer(3)]],
+    device float* runningMean           [[buffer(4)]],
+    device float* runningVariance       [[buffer(5)]],
+    constant float& epsilon             [[buffer(6)]],
+    constant int& featureDim            [[buffer(7)]],
+    constant bool& isTraining           [[buffer(8)]],
+    constant uint& batchSize            [[buffer(9)]],
+    uint gid                            [[thread_position_in_grid]]
 ) {
-    if (tid >= (uint)featureDim) return;
+    uint sample_id = gid / featureDim;
+    uint feature_id = gid % featureDim;
 
-    float mean = runningMean[tid];
-    float variance = runningVariance[tid];
+    if (sample_id >= batchSize) return;
 
-    float normalized = (input[tid] - mean) / sqrt(variance + epsilon);
-    output[tid] = gamma[tid] * normalized + beta[tid];
+    float mean = runningMean[feature_id];
+    float variance = runningVariance[feature_id];
+
+    uint idx = sample_id * featureDim + feature_id;
+
+    float normalized = (input[gid] - mean) / sqrt(variance + epsilon);
+    output[gid] = gamma[feature_id] * normalized + beta[feature_id];
 }
 
 kernel void backward_batch_norm(
-    device const float* output        [[buffer(0)]],
-    device const float* outputError   [[buffer(1)]],
-    device float* inputError          [[buffer(2)]],
-    device float* gamma               [[buffer(3)]],
-    device float* beta                [[buffer(4)]],
-    constant float& epsilon           [[buffer(5)]],
-    constant int& featureDim          [[buffer(6)]],
-    uint tid                          [[thread_position_in_grid]]
+    device const float* output           [[buffer(0)]],
+    device const float* outputError      [[buffer(1)]],
+    device float* inputError             [[buffer(2)]],
+    device float* gamma                  [[buffer(3)]],
+    device float* beta                   [[buffer(3)]],
+    device float* runningMean            [[buffer(4)]],
+    device float* runningVariance        [[buffer(5)]],
+    constant float& epsilon              [[buffer(6)]],
+    constant int& featureDim             [[buffer(7)]],
+    constant uint& batchSize             [[buffer(8)]],
+    uint gid                             [[thread_position_in_grid]]
 ) {
-    if (tid >= (uint)featureDim) return;
+    uint sample_id = gid / featureDim;
+    uint feature_id = gid % featureDim;
 
-    // Simplified initial gradient propagation (full implementation requires batch stats)
-    float normalized = (output[tid] - beta[tid]) / (gamma[tid] + epsilon);
-    inputError[tid] = outputError[tid] * gamma[tid] / sqrt(normalized + epsilon);
+    if (sample_id >= batchSize) return;
 
-    // Simple parameter updates (extendable for optimization algorithms)
-    gamma[tid] -= 0.001f * outputError[tid] * normalized;
-    beta[tid] -= 0.001f * outputError[tid];
+    float normalized = (output[gid] - beta[feature_id]) / (gamma[feature_id] + epsilon);
+    inputError[gid] = outputError[gid] * gamma[feature_id] / sqrt(normalized + epsilon);
 }
+
 
 kernel void adam_kernel(
     device float* parameters        [[buffer(0)]],   // Parameters (weights or biases)

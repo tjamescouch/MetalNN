@@ -381,18 +381,6 @@ void RNNLayer::loadParameters(std::istream& is) {
 }
 
 void RNNLayer::debugLog() {
-#ifdef DEBUG_RNN_LAYER
-    float* outputErrors = static_cast<float*>(outputBuffers_[BufferType::OutputErrors][0]->contents());
-    size_t outputErrorCount = outputBuffers_[BufferType::OutputErrors][0]->length() / sizeof(float);
-    
-    float outputErrorNorm = 0.0f;
-    for (size_t i = 0; i < outputErrorCount; ++i)
-        outputErrorNorm += outputErrors[i] * outputErrors[i];
-    
-    outputErrorNorm = sqrtf(outputErrorNorm);
-    const std::string s = std::string("[") + (isTerminal_ ? "Terminal " : "") +  "RNN Layer DebugLog] Output Error Gradient L2 Norm: %.10e\n";
-    printf(s.c_str(), outputErrorNorm);
-#endif
 }
 
 

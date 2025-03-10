@@ -37,6 +37,10 @@ public:
     void setBatchSize(int batchSize);
     
     void printFloatBuffer(MTL::Buffer* b, std::string message);
+    void printFloatBuffer(MTL::Buffer* b, std::string message, int maxElements);
+    
+    void printFloatBufferL2Norm(MTL::Buffer* b, std::string message);
+    void printFloatBufferMeanL2Norm(MTL::Buffer* b, std::string message);
     
 private:
     void flushRegressionAnalytics();

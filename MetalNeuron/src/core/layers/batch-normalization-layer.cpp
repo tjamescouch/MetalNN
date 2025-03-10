@@ -13,9 +13,10 @@
 #include <iostream>
 #include "training-manager.h"
 
-BatchNormalizationLayer::BatchNormalizationLayer(int inputDim, int outputDim, int _unused, float epsilon)
+BatchNormalizationLayer::BatchNormalizationLayer(int inputDim, int outputDim, int batchSize, int _unused, float epsilon)
 : inputDim_(inputDim),
 outputDim_(outputDim),
+batchSize_(batchSize),
 sequenceLength_(1),
 isTerminal_(false),
 epsilon_(epsilon),
@@ -25,6 +26,8 @@ bufferRunningMean_(nullptr),
 bufferRunningVariance_(nullptr),
 forwardPipelineState_(nullptr),
 backwardPipelineState_(nullptr) {
+    assert(inputDim == outputDim);
+    assert(_unused==1);
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
 }

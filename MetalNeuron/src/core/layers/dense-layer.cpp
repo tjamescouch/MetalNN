@@ -264,18 +264,27 @@ void DenseLayer::loadParameters(std::istream& is) { //FIXME - decode buffer leng
 
 void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
     if (isTerminal_) {
-        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[F: Terminal Dense Layer Input Errors]");
+        //Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[F: Terminal Dense Layer Input Errors]");
+        //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "[F: Terminal Dense Layer Output Errors]");
     } else {
-        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[F: [Non-Terminal Dense Layer Input Errors]");
+        //Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[F: Non-Terminal Dense Layer Input Errors]", 10);
+        //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "[F: Non-Terminal Dense Layer Output Errors]");
     }
 }
 
 
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
     if (isTerminal_) {
-        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[B: Terminal Dense Layer Input Errors]");
+        //Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[B: Terminal Dense Layer Input Errors]");
+        //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "[B: Terminal Dense Layer Output Errors]", 10);
+        Logger::instance().printFloatBufferMeanL2Norm(outputBuffers_[BufferType::OutputErrors][0], "[B: Terminal Dense Layer Output MSE]");
+        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Input][0], "[B: Terminal Dense Layer Input]", 10);
+        Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Output][0], "[B: Terminal Dense Layer Ouptput]", 10);
     } else {
-        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[B: [Non-Terminal Dense Layer Input Errors]");
+        //Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[B: Non-Terminal Dense Layer Input Error]", 10);
+        Logger::instance().printFloatBufferMeanL2Norm(inputBuffers_[BufferType::InputErrors][0], "[B: Non-Terminal Dense Layer Input Error MSE]");
+        //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "[B: Non-Terminal Dense Layer Output Errors]");
+        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Input][0], "[B: Non-Terminal Dense Layer Input]", 10);
     }
     
     auto cmdBuf = _pCommandQueue->commandBuffer();
@@ -286,7 +295,7 @@ void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batch
 
     encoder->endEncoding();
     
-    memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
+    //memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
     outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
 }
 

@@ -46,7 +46,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
     else if (layerConfig.type == "BatchNormalization") {
         float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
         epsilon = epsilon > 0 ? epsilon : 1e-5f;
-        layer = new BatchNormalizationLayer(inputSize, outputSize, 1, epsilon);
+        layer = new BatchNormalizationLayer(inputSize, outputSize, batchSize, 1, epsilon);
     }
     else if (layerConfig.type == "RNN") {
         int outputSize = layerConfig.params.at("output_size").get_value<int>();
