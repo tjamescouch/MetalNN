@@ -51,5 +51,5 @@ private:
     std::vector<float> currentTargetBuffer_;
     
     void shuffleIndices();
-    void generateDataset(double offset, int batchSize);
+    void generateBatch(double offset, int batchSize);
 };

@@ -12,6 +12,7 @@
 #include "layer-factory.h"
 
 
+
 NeuralEngine::NeuralEngine(MTL::Device* pDevice, ModelConfig& config, DataManager* pDataManager)
 : _pDevice(pDevice->retain()),
 areBuffersBuilt(false),
@@ -34,6 +35,7 @@ filename(config.filename)
     _pInputLayer = new InputLayer(input_dim, first_layer_time_steps, batch_size);
     
     Logger::instance().setBatchSize(batch_size);
+    Logger::instance().setIsRegression(config.dataset.type == "function");
     
     _pKeyboardController = new KeyboardController();
     
@@ -258,8 +260,6 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
         return;
     }
     
-    size_t batchIndex = batchesRemaining;
-    
     uint32_t currentBatchSize = mathlib::min<int>(batch_size, totalSamples);
     
     std::cout << "⚙️ Forward batches remaining "  << batchesRemaining
@@ -271,8 +271,8 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
     int terminalSeqLen = dynamicLayers_.back()->getSequenceLength();
     
     for (int t = 0; t < terminalSeqLen; ++t) {
-        float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(t, batchesRemaining);
-        float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(t, batchesRemaining);
+        float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(t, 0);
+        float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(t, 0);
         
         _pInputLayer->updateBufferAt(inBuffer, t, currentBatchSize);
         dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, t, currentBatchSize);
@@ -284,7 +284,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
                                                        dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, t)->contents()
                                                        );
             
-            float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(t, (int)batchIndex);
+            float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(t, 0);
             
             float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData);
             
@@ -313,8 +313,6 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
     uint32_t samplesRemaining = mathlib::min<int>((int)ceil(batchesRemaining * batch_size), totalSamples);
     uint32_t currentBatchSize = mathlib::min<int>(batch_size, samplesRemaining);
     uint32_t samplesProcessed = totalSamples - samplesRemaining;
-    
-    int batchIndex = batchesRemaining;
     
     std::cout << "⚙️ Backward batches remaining " << batchesRemaining
     << " - current batch size " << currentBatchSize << std::endl;
@@ -345,7 +343,7 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
                                                        dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, 0)->contents()
                                                        );
             
-            float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0, batchIndex);
+            float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0, 0);
             
             float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData);
             //assert(!isnan(batchLoss));

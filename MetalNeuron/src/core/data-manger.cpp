@@ -22,7 +22,9 @@ DataManager::~DataManager() {
 }
 
 void DataManager::setDataset(Dataset* dataset) {
-    //FIXME if (current_dataset_) delete current_dataset_;
+    if (current_dataset_) {
+        delete current_dataset_;
+    }
     current_dataset_ = dataset;
 }
 

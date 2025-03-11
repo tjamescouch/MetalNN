@@ -22,229 +22,378 @@ using namespace metal;
 #define ACTIVATION_SIGMOID 3
 #define ACTIVATION_SOFTMAX 4
 
-
-// Global constants
-constant float decay_factor = 1.0f;//0.9999999f;
-constant float threshold = 1.f;
+// Clamping thresholds
 constant float max_abs_sum = 1000.0f;
+constant float threshold    = 1.0f;
+constant float decay_factor = 0.9999f;
 
-// Activation functions
-inline float activate(const float x, const uint activation) {
-    switch (activation) {
-        case ACTIVATION_LINEAR: return x;                      // Linear
-        case ACTIVATION_RELU: return max(0.0f, x);           // ReLU
-        case ACTIVATION_TANH: return tanh(x);                // Tanh
-        case ACTIVATION_SIGMOID: return 1.0f / (1.0f + exp(-x)); // Sigmoid
-        default: return 0.0f;                   // Error return 0
+/**
+ * A utility function to apply an activation.
+ *
+ * x: the input activation value
+ * act: which activation to apply (e.g. ACTIVATION_RELU)
+ */
+inline float activate(const float x, const uint act) {
+    switch (act) {
+        case ACTIVATION_LINEAR:  return x;
+        case ACTIVATION_RELU:    return max(0.0f, x);
+        case ACTIVATION_TANH:    return tanh(x);
+        case ACTIVATION_SIGMOID: return 1.0f / (1.0f + exp(-x));
+        default:                 return 0.0f;  // Fallback
     }
 }
 
-// Activation derivatives
-inline float activate_derivative(const float y, const uint activation) {
-    switch (activation) {
-        case ACTIVATION_LINEAR: return 1.0f;                   // Linear
-        case ACTIVATION_RELU: return y > 0.0f ? 1.0f : 0.0f; // ReLU
-        case ACTIVATION_TANH: return 1.0f - y * y;           // Tanh
-        case ACTIVATION_SIGMOID: return y * (1.0f - y);         // Sigmoid
-        default: return 0.0f;                  // Error return 0
+/**
+ * Derivative of the activation function.
+ *
+ * y: the already-activated value (e.g. y = activate(x, act))
+ * act: which activation (e.g. ACTIVATION_RELU)
+ */
+inline float activate_derivative(const float y, const uint act) {
+    switch (act) {
+        case ACTIVATION_LINEAR:  return 1.0f;
+        case ACTIVATION_RELU:    return (y > 0.0f) ? 1.0f : 0.0f;
+        case ACTIVATION_TANH:    return 1.0f - (y * y);
+        case ACTIVATION_SIGMOID: return y * (1.0f - y);
+        default:                 return 0.0f;
     }
 }
 
+/**
+ * forward_dense_layer
+ *
+ * This kernel computes the forward pass of a dense (fully-connected) layer.
+ * 
+ * Buffers (in order):
+ *  0) h:    The input activations to this layer (shape: [batchSize * hidden_dim]).
+ *           Index as h[sample_id * hidden_dim + i].
+ *  1) y:    The output activations of this layer (shape: [batchSize * output_dim]).
+ *           We'll fill y with activated outputs.
+ *  2) W:    The weight matrix (shape: [hidden_dim * output_dim]), row-major:
+ *           W[i * output_dim + neuron_id].
+ *  3) b:    The bias vector (shape: [output_dim]).
+ *  4) pH:   A single uint specifying the hidden_dim (the # of inputs per neuron).
+ *  5) pN:   A single uint specifying the output_dim (the # of neurons in this layer).
+ *  6) activation: A single uint specifying the activation type (RELU, TANH, etc.).
+ *  7) batchSize: The # of samples in the batch (uint).
+ *  8) debug: A debug float buffer [batchSize * output_dim], for optional logging if desired.
+ *
+ * Thread positions:
+ *  tid: thread_position_in_threadgroup
+ *  gid: thread_position_in_grid
+ *
+ * We typically dispatch with gridSize = batchSize * output_dim,
+ * so each thread handles (sample_id, neuron_id).
+ */
 kernel void forward_dense_layer(
-    device const float* h         [[buffer(0)]],
-    device       float* y         [[buffer(1)]],
-    device const float* W         [[buffer(2)]],
-    device const float* b         [[buffer(3)]],
-    device const uint* pH         [[buffer(4)]],
-    device const uint* pN         [[buffer(5)]],
-    device const uint* activation [[buffer(6)]],
-    constant uint& batchSize      [[buffer(7)]],
-    device float* debug           [[buffer(8)]],
+    device const float* h         [[buffer(0)]],  // Input activations
+    device       float* y         [[buffer(1)]],  // Output activations
+    device const float* W         [[buffer(2)]],  // Weights
+    device const float* b         [[buffer(3)]],  // Biases
+    device const uint* pH         [[buffer(4)]],  // hidden_dim
+    device const uint* pN         [[buffer(5)]],  // output_dim
+    device const uint* activation [[buffer(6)]],  // Activation type
+    constant uint& batchSize      [[buffer(7)]],  // # of samples
+    device float* debug           [[buffer(8)]],  // Debug buffer
     uint tid                      [[thread_position_in_threadgroup]],
     uint gid                      [[thread_position_in_grid]]
-) {
+)
+{
     uint hidden_dim = *pH;
     uint output_dim = *pN;
+    uint act_type   = *activation;
 
+    // sample_id, neuron_id
     uint sample_id = gid / output_dim;
     uint neuron_id = gid % output_dim;
+
     if (sample_id >= batchSize || neuron_id >= output_dim) return;
 
-    threadgroup float shared_y[1024]; 
+    // We'll use a threadgroup array for partial storage
+    threadgroup float shared_y[1024];
 
+    // 1) Compute the pre-activation sum
     float sum = b[neuron_id];
     for (uint i = 0; i < hidden_dim; ++i) {
-        sum += h[sample_id * hidden_dim + i] * W[i * output_dim + neuron_id];
+        float inputVal = h[sample_id * hidden_dim + i];
+        float weightVal = W[i * output_dim + neuron_id];
+        sum += inputVal * weightVal;
     }
 
-    shared_y[tid] = clamp(sum, -max_abs_sum, max_abs_sum);
+    // Clamp to avoid numerical blow-up
+    sum = clamp(sum, -max_abs_sum, max_abs_sum);
+
+    // Store in threadgroup memory to do optional softmax
+    shared_y[tid] = sum;
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    if (*activation == ACTIVATION_SOFTMAX) {
+    // 2) If activation is softmax, handle it per sample
+    if (act_type == ACTIVATION_SOFTMAX) {
+        // We do a per-sample softmax in threadgroup memory
         uint sample_offset = sample_id * output_dim;
-
-        // Numerically stable softmax per sample
-        float maxVal = shared_y[sample_offset];
-        for (uint i = 1; i < output_dim; ++i)
-            maxVal = max(maxVal, shared_y[sample_offset + i]);
-
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-
-        shared_y[tid] = exp(shared_y[tid] - maxVal);
-        
-
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-
-        if (neuron_id == 0) {
-            float sumExp = 0.0f;
-            for (uint i = 0; i < output_dim; ++i)
-                sumExp += shared_y[sample_offset + i];
-
-            for (uint i = 0; i < output_dim; ++i)
-                shared_y[sample_offset + i] /= sumExp;
+        // Find max for numeric stability
+        float maxVal = shared_y[sample_offset];  // We assume sample_offset+0 is in range
+        for (uint i = 1; i < output_dim; ++i) {
+            float val = shared_y[sample_offset + i];
+            maxVal = max(maxVal, val);
         }
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
-        debug[tid] = shared_y[tid];
-    } else {
-        shared_y[tid] = activate(shared_y[tid], *activation);
+        // Exponentiate each
+        shared_y[tid] = exp(shared_y[tid] - maxVal);
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        // One thread (neuron_id=0) sums and normalizes
+        if (neuron_id == 0) {
+            float sumExp = 0.0f;
+            for (uint i = 0; i < output_dim; ++i) {
+                sumExp += shared_y[sample_offset + i];
+            }
+            // Normalize
+            for (uint i = 0; i < output_dim; ++i) {
+                shared_y[sample_offset + i] /= sumExp;
+            }
+        }
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        // Optionally store debug
+        debug[gid] = shared_y[tid];
+    }
+    else {
+        // For non-softmax, apply the chosen activation in place
+        shared_y[tid] = activate(shared_y[tid], act_type);
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
+    // 3) Write the result to the output array
     y[gid] = shared_y[tid];
 }
 
+
+/**
+ * learn_non_terminal_dense_layer
+ *
+ * This kernel handles the backward pass for a dense layer that is NOT the final
+ * layer (i.e., it receives "input errors" from the next layer). 
+ *
+ * Buffers (in order):
+ *  0) h:             The input activations fed into this dense layer [batchSize * input_dim].
+ *  1) W:             The weight matrix for this layer [input_dim * output_dim].
+ *  2) b:             The bias vector [output_dim].
+ *  3) y_hat:         The output activations from this layer [batchSize * output_dim].
+ *  4) inputErrors:   The "errors" fed INTO the current layer from the next layer [batchSize * output_dim].
+ *                    (Sometimes called dY or "output gradient of next layer.")
+ *  5) outputError:   The "errors" fed BACK by this layer to the previous layer [batchSize * output_dim].
+ *                    However, here we only store each neuron's partial ∂L/∂(neuron output).
+ *  6) input_dim:     # of inputs per neuron (uint).
+ *  7) output_dim:    # of neurons in this layer (uint).
+ *  8) pDecay:        A float pointer for weight decay or momentum factor (decay).
+ *  9) activation:    The activation type for this layer (uint).
+ * 10) debug:         Debug buffer [batchSize * output_dim].
+ * 11) prevLayerErrors: The "output errors" from this layer to the PREVIOUS layer [batchSize * input_dim].
+ *                      (i.e., ∂L/∂(h), shape [batchSize * input_dim]).
+ * 12) batch_size:    The number of samples in the batch (uint).
+ * 13) pLearningRate: A float pointer giving the learning rate.
+ *
+ * Thread positions:
+ *  tid: thread_position_in_threadgroup
+ *  gid: thread_position_in_grid
+ *
+ * Typically, dispatch with gridSize = batchSize * output_dim.
+ * Each thread corresponds to (sample_id, neuron_id).
+ */
 kernel void learn_non_terminal_dense_layer(
     device const float* h                [[buffer(0)]],  // input activations
-    device float* W                      [[buffer(1)]],  // weights
+    device float*       W                [[buffer(1)]],  // weights
     device const float* b                [[buffer(2)]],  // biases
-    device const float* y_hat            [[buffer(3)]],  // predicted outputs
-    device const float* inputErrors      [[buffer(4)]],  // errors from next layer
-    device float* error                  [[buffer(5)]],  // output error (delta)
-    constant uint& input_dim             [[buffer(6)]],  // input dimension
-    constant uint& output_dim            [[buffer(7)]],  // output dimension
-    device float* pDecay                 [[buffer(8)]],  // decay factor
-    constant uint& activation            [[buffer(9)]],  // activation type
-    device float* debug                  [[buffer(10)]], // debug buffer
-    device float* prevLayerErrors        [[buffer(11)]], // errors to prev layer
-    constant uint& batch_size            [[buffer(12)]], // batch size
-    device const float* pLearningRate    [[buffer(13)]], // learning rate
-    uint tid                      [[thread_position_in_threadgroup]],
-    uint gid                      [[thread_position_in_grid]]
-) {
+    device const float* y_hat            [[buffer(3)]],  // layer outputs
+    device const float* inputErrors      [[buffer(4)]],  // errors fed INTO this layer from next
+    device float*       outputError      [[buffer(5)]],  // errors fed BACK to previous (delta)
+    constant uint&      input_dim        [[buffer(6)]],
+    constant uint&      output_dim       [[buffer(7)]],
+    device float*       pDecay           [[buffer(8)]],  // e.g., momentum or weight decay factor
+    constant uint&      activation       [[buffer(9)]],
+    device float*       debug            [[buffer(10)]],
+    device float*       prevLayerErrors  [[buffer(11)]], // final error to the previous layer's activations
+    constant uint&      batch_size       [[buffer(12)]],
+    device const float* pLearningRate    [[buffer(13)]], 
+    uint tid                               [[thread_position_in_threadgroup]],
+    uint gid                               [[thread_position_in_grid]]
+)
+{
+    // Identify sample + neuron
     uint sample_id = gid / output_dim;
     uint neuron_id = gid % output_dim;
 
     if (sample_id >= batch_size || neuron_id >= output_dim) return;
 
-    float decay = *pDecay;
+    float decay         = *pDecay;
     float learning_rate = *pLearningRate;
 
-    // Compute index offsets based on batch sample
-    const device float* sample_h = h + (sample_id * input_dim);
-    const device float* sample_y_hat = y_hat + (sample_id * output_dim);
-    const device float* sample_outputErrors = inputErrors + (sample_id * output_dim);
-    device float* sample_error = error + (sample_id * output_dim);
-    device float* sample_prevLayerErrors = prevLayerErrors + (sample_id * input_dim);
+    // Pointers to this sample's portion of each buffer
+    const device float* sample_h         = h + (sample_id * input_dim);
+    const device float* sample_y_hat     = y_hat + (sample_id * output_dim);
+    const device float* sample_inErrors  = inputErrors + (sample_id * output_dim);
+    device float*       sample_outError  = outputError + (sample_id * output_dim);
+    device float*       sample_prevError = prevLayerErrors + (sample_id * input_dim);
 
-    float raw_error = sample_outputErrors[neuron_id];
+    // raw_error is the incoming gradient wrt this neuron's output
+    float raw_error = sample_inErrors[neuron_id];
     debug[gid] = raw_error;
 
-    float delta = raw_error * activate_derivative(sample_y_hat[neuron_id], activation);
+    // Delta = error * activation derivative
+    float dAct = activate_derivative(sample_y_hat[neuron_id], activation);
+    float delta = raw_error * dAct;
 
+    // Clamp to avoid numerical blow-up
     delta = clamp(delta, -threshold, threshold);
-    sample_error[neuron_id] = delta;
+
+    // Save partial delta in outputError (i.e., error from this layer's viewpoint)
+    sample_outError[neuron_id] = delta;
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    // Accumulate weight gradients for each input neuron
+    // For each input in [0..input_dim-1], update weight and accumulate error
     for (uint i = 0; i < input_dim; i++) {
-        float grad = sample_h[i] * delta;
+        float grad = sample_h[i] * delta;  // partial dW
+
+        // clamp grad
         grad = clamp(grad, -threshold, threshold);
 
-        // Atomic add for concurrent accumulation across batches
-        atomic_fetch_add_explicit((device atomic_float*)&W[i * output_dim + neuron_id], -learning_rate * grad * decay, memory_order_relaxed);
+        // We want to read the old weight, THEN do an atomic add
+        device atomic_float* wAddr = (device atomic_float*)&W[i * output_dim + neuron_id];
 
-        // Accumulate error signals for previous layer (for backprop)
-        atomic_fetch_add_explicit((device atomic_float*)&sample_prevLayerErrors[i], W[i * output_dim + neuron_id] * delta, memory_order_relaxed);
+        float oldWeight = atomic_load_explicit(wAddr, memory_order_relaxed);
+
+        // Atomic update the weight
+        // W -= learning_rate * grad * decay
+        float wUpdate = -learning_rate * grad * decay;
+        atomic_fetch_add_explicit(wAddr, wUpdate, memory_order_relaxed);
+
+        // For the error to pass back to previous layer: oldWeight * delta
+        // Use oldWeight from before we updated it.
+        float prevErrTerm = oldWeight * delta;
+        atomic_fetch_add_explicit((device atomic_float*)&sample_prevError[i],
+                                  prevErrTerm, memory_order_relaxed);
     }
 
-    // Update biases atomically
-    atomic_fetch_add_explicit((device atomic_float*)&b[neuron_id], -learning_rate * delta * decay, memory_order_relaxed);
-
+    // Update bias
+    device atomic_float* bAddr = (device atomic_float*)&b[neuron_id];
+    float biasUpdate = -learning_rate * delta * decay;
+    atomic_fetch_add_explicit(bAddr, biasUpdate, memory_order_relaxed);
 }
 
 
+/**
+ * learn_terminal_dense_layer
+ *
+ * This kernel handles the backward pass for a dense layer that IS the final layer.
+ * Instead of "inputErrors," it receives the direct target difference (y_hat - y)
+ * or some derivative thereof. We call that "inputErrors" in a final layer, but
+ * you have it as the "targets" array. We'll keep to your naming scheme:
+ * 
+ * Buffers (in order):
+ *  0) h:      input activations for this final layer [batchSize * input_dim].
+ *  1) W:      the weight matrix [input_dim * output_dim].
+ *  2) b:      the bias vector [output_dim].
+ *  3) y_hat:  the predicted outputs for this layer [batchSize * output_dim].
+ *  4) y:      the ground-truth targets [batchSize * output_dim].
+ *  5) error:  the partial errors from this final layer's perspective [batchSize * output_dim].
+ *  6) input_dim:  # of inputs per neuron (uint).
+ *  7) output_dim: # of neurons in this layer (uint).
+ *  8) pDecay:     float pointer for weight decay or momentum factor.
+ *  9) activation: the activation type for this final layer (uint).
+ * 10) debug:      debug buffer [batchSize * output_dim].
+ * 11) prevLayerErrors: the "output errors" from this final layer to the previous layer [batchSize * input_dim].
+ * 12) batch_size: how many samples in the batch (uint).
+ * 13) pLearningRate: the learning rate (float pointer).
+ *
+ * Thread positions:
+ *  tid: thread_position_in_threadgroup
+ *  gid: thread_position_in_grid
+ */
 kernel void learn_terminal_dense_layer(
-    device const float* h                [[buffer(0)]],  // input activations
-    device float* W                      [[buffer(1)]],  // weights
-    device float* b                      [[buffer(2)]],  // biases
+    device const float* h                [[buffer(0)]],  // final layer input activations
+    device float*       W                [[buffer(1)]],  // weights
+    device float*       b                [[buffer(2)]],  // biases
     device const float* y_hat            [[buffer(3)]],  // predicted outputs
     device const float* y                [[buffer(4)]],  // targets
-    device float* error                  [[buffer(5)]],  // output error (delta)
-    constant uint& input_dim             [[buffer(6)]],  // input dimension
-    constant uint& output_dim            [[buffer(7)]],  // output dimension
-    device float* pDecay                 [[buffer(8)]],  // decay factor
-    constant uint& activation            [[buffer(9)]],  // activation type
-    device float* debug                  [[buffer(10)]], // debug buffer
-    device float* prevLayerErrors        [[buffer(11)]], // errors to prev layer
-    constant uint& batch_size            [[buffer(12)]], // batch size
-    device const float* pLearningRate    [[buffer(13)]], // learning rate
-    uint tid                      [[thread_position_in_threadgroup]],
-    uint gid                      [[thread_position_in_grid]]
-) {
+    device float*       error            [[buffer(5)]],  // partial error (this final layer's delta)
+    constant uint&      input_dim        [[buffer(6)]],
+    constant uint&      output_dim       [[buffer(7)]],
+    device float*       pDecay           [[buffer(8)]],
+    constant uint&      activation       [[buffer(9)]],
+    device float*       debug            [[buffer(10)]],
+    device float*       prevLayerErrors  [[buffer(11)]], // error to previous layer
+    constant uint&      batch_size       [[buffer(12)]],
+    device const float* pLearningRate    [[buffer(13)]],
+    uint tid                               [[thread_position_in_threadgroup]],
+    uint gid                               [[thread_position_in_grid]]
+)
+{
+    // Identify sample + neuron
     uint sample_id = gid / output_dim;
     uint neuron_id = gid % output_dim;
 
     if (sample_id >= batch_size || neuron_id >= output_dim) return;
 
-    float decay = *pDecay;
+    float decay         = *pDecay;
     float learning_rate = *pLearningRate;
 
-    // Compute index offsets based on batch sample
-    const device float* sample_h = h + (sample_id * input_dim);
+    // Pointers to this sample's data
+    const device float* sample_h     = h     + (sample_id * input_dim);
     const device float* sample_y_hat = y_hat + (sample_id * output_dim);
-    const device float* sample_y = y + (sample_id * output_dim);
-    device float* sample_error = error + (sample_id * output_dim);
-    device float* sample_prevLayerErrors = prevLayerErrors + (sample_id * input_dim);
+    const device float* sample_y     = y     + (sample_id * output_dim);
+    device float*       sample_error = error + (sample_id * output_dim);
+    device float*       sample_prevE = prevLayerErrors + (sample_id * input_dim);
 
+    // For terminal layer, raw_error is typically (y_hat - y).
+    // We'll clamp, then multiply by derivative if not softmax.
     float raw_error = sample_y_hat[neuron_id] - sample_y[neuron_id];
     debug[gid] = raw_error;
 
-    
-
     float delta;
-    if (activation == ACTIVATION_SOFTMAX) { // softmax
+    if (activation == ACTIVATION_SOFTMAX) {
+        // In typical frameworks, for cross-entropy + softmax => delta = (y_hat - y).
         delta = raw_error;
     } else {
-        delta = raw_error * activate_derivative(sample_y_hat[neuron_id], activation);
+        // Multiply by derivative of the activation
+        float dAct = activate_derivative(sample_y_hat[neuron_id], activation);
+        delta = raw_error * dAct;
     }
 
+    // clamp
     delta = clamp(delta, -threshold, threshold);
+    // Save in error buffer
     sample_error[neuron_id] = delta;
-
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    // Accumulate weight gradients for each input neuron
+    // Weight + bias update
     for (uint i = 0; i < input_dim; i++) {
-                
         float grad = sample_h[i] * delta;
-
         grad = clamp(grad, -threshold, threshold);
 
-        // Atomic add for concurrent accumulation across batches
-        atomic_fetch_add_explicit((device atomic_float*)&W[i * output_dim + neuron_id], -learning_rate * grad * decay, memory_order_relaxed);
+        device atomic_float* wAddr = (device atomic_float*)&W[i * output_dim + neuron_id];
+        float oldWeight = atomic_load_explicit(wAddr, memory_order_relaxed);
 
-        // Accumulate error signals for previous layer (for backprop)
-        atomic_fetch_add_explicit((device atomic_float*)&sample_prevLayerErrors[i], W[i * output_dim + neuron_id] * delta, memory_order_relaxed);
+        float wUpdate = -learning_rate * grad * decay;
+        atomic_fetch_add_explicit(wAddr, wUpdate, memory_order_relaxed);
+
+        // error to feed back
+        float prevErrTerm = oldWeight * delta;
+        atomic_fetch_add_explicit((device atomic_float*)&sample_prevE[i], prevErrTerm, memory_order_relaxed);
     }
 
-    // Update biases atomically
-    atomic_fetch_add_explicit((device atomic_float*)&b[neuron_id], -learning_rate * delta * decay, memory_order_relaxed);
+    // Bias
+    device atomic_float* bAddr = (device atomic_float*)&b[neuron_id];
+    float biasUpdate = -learning_rate * delta * decay;
+    atomic_fetch_add_explicit(bAddr, biasUpdate, memory_order_relaxed);
 }
 
 //-------------------------------------------------------------------
@@ -363,8 +512,8 @@ kernel void forward_dropout(
 //-------------------------------------------------------------------
 // Backward pass for Dropout layer
 kernel void backward_dropout(
-    device const float* input_error [[buffer(0)]],
-    device float* output_error        [[buffer(1)]],
+    device const float* input_error  [[buffer(0)]],
+    device float* output_error       [[buffer(1)]],
     device const float* randomMask   [[buffer(2)]],
     device const float* rate         [[buffer(3)]],
     device const uint* featureDim    [[buffer(4)]],
@@ -375,58 +524,225 @@ kernel void backward_dropout(
     output_error[tid] = randomMask[tid] >= *rate ? input_error[tid] : 0;
 }
 
+
+/**
+ * forward_batch_norm
+ *
+ * This kernel computes the forward pass of Batch Normalization.
+ * It calculates per-batch mean/variance for each feature if isTraining = true,
+ * and uses them to normalize. It also updates “runningMean”/“runningVariance”
+ * and *stores the exact batch stats in “savedMean”/“savedVariance”* for the backward pass.
+ *
+ * Buffers (in order):
+ *  0) input:
+ *     The activations/input to this BN layer, shape [batchSize * featureDim].
+ *  1) output:
+ *     The normalized output after BN, same shape as input.
+ *  2) gamma:
+ *     The per-feature scale vector, length = featureDim.
+ *  3) beta:
+ *     The per-feature shift vector, length = featureDim.
+ *  4) runningMean:
+ *     The running (moving) mean, length = featureDim.
+ *     Updated each time if isTraining = true.
+ *  5) runningVariance:
+ *     The running variance, length = featureDim.
+ *     Updated each time if isTraining = true.
+ *  6) savedMean:
+ *     A buffer (length = featureDim) to store the *exact batch mean* for the backward pass.
+ *  7) savedVariance:
+ *     A buffer (length = featureDim) to store the *exact batch variance* for the backward pass.
+ *  8) epsilon:
+ *     A float for numeric stability in the denominator (e.g. 1e-5).
+ *  9) featureDim:
+ *     The number of features (channels).
+ * 10) isTraining:
+ *     Boolean: true => training mode (use batch stats), false => inference (use running stats).
+ * 11) batchSize:
+ *     The number of samples in the batch.
+ * 12) debug:
+ *     A debug buffer (float*) if needed. Not used here.
+ *
+ * Thread info:
+ *  - thread_position_in_grid (gid) => which feature index [0..featureDim-1]
+ */
 kernel void forward_batch_norm(
-    device const float* input           [[buffer(0)]],
-    device float* output                [[buffer(1)]],
-    device float* gamma                 [[buffer(2)]],
-    device float* beta                  [[buffer(3)]],
-    device float* runningMean           [[buffer(4)]],
-    device float* runningVariance       [[buffer(5)]],
-    constant float& epsilon             [[buffer(6)]],
-    constant int& featureDim            [[buffer(7)]],
-    constant bool& isTraining           [[buffer(8)]],
-    constant uint& batchSize            [[buffer(9)]],
-    uint gid                            [[thread_position_in_grid]]
-) {
-    uint sample_id = gid / featureDim;
-    uint feature_id = gid % featureDim;
+    device const float*  input           [[buffer(0)]],
+    device float*        output          [[buffer(1)]],
+    device const float*  gamma           [[buffer(2)]],
+    device const float*  beta            [[buffer(3)]],
+    device float*        runningMean     [[buffer(4)]],
+    device float*        runningVariance [[buffer(5)]],
+    device float*        savedMean       [[buffer(6)]],
+    device float*        savedVariance   [[buffer(7)]],
+    constant float&      epsilon         [[buffer(8)]],
+    constant int&        featureDim      [[buffer(9)]],
+    constant bool&       isTraining      [[buffer(10)]],
+    constant uint&       batchSize       [[buffer(11)]],
+    device float*        debug           [[buffer(12)]],  // not used
+    uint                 gid             [[thread_position_in_grid]]
+)
+{
+    if ((int)gid >= featureDim) return;
 
-    if (sample_id >= batchSize) return;
+    // 1) Compute per-batch mean for this feature
+    float sum = 0.0f;
+    for (uint b = 0; b < batchSize; b++) {
+        sum += input[b * featureDim + gid];
+    }
+    float batchMean = sum / float(batchSize);
 
-    float mean = runningMean[feature_id];
-    float variance = runningVariance[feature_id];
+    // 2) Compute per-batch variance
+    float sqSum = 0.0f;
+    for (uint b = 0; b < batchSize; b++) {
+        float diff = input[b * featureDim + gid] - batchMean;
+        sqSum += diff * diff;
+    }
+    float batchVar = sqSum / float(batchSize);
 
-    uint idx = sample_id * featureDim + feature_id;
+    // 3) Save these batch stats for backward pass, no matter what
+    savedMean[gid]     = batchMean;
+    savedVariance[gid] = batchVar;
 
-    float normalized = (input[gid] - mean) / sqrt(variance + epsilon);
-    output[gid] = gamma[feature_id] * normalized + beta[feature_id];
+    // 4) Update running stats if training
+    if (isTraining) {
+        // Typically: running = momentum*running + (1 - momentum)*new
+        float momentum = 0.9f;
+        runningMean[gid]     = momentum * runningMean[gid]     + (1.0f - momentum) * batchMean;
+        runningVariance[gid] = momentum * runningVariance[gid] + (1.0f - momentum) * batchVar;
+    }
+
+    // 5) Decide which mean and variance to use
+    float usedMean     = isTraining ? batchMean  : runningMean[gid];
+    float usedVariance = isTraining ? batchVar   : runningVariance[gid];
+    float invStd       = rsqrt(usedVariance + epsilon);
+
+    // 6) Normalize each sample’s value
+    for (uint b = 0; b < batchSize; b++) {
+        float val  = input[b * featureDim + gid];
+        float norm = (val - usedMean) * invStd;
+        output[b * featureDim + gid] = gamma[gid] * norm + beta[gid];
+    }
 }
 
+
+/**
+ * backward_batch_norm
+ *
+ * This kernel computes the backward pass for Batch Normalization.
+ * It uses the *saved* batch mean/variance from the forward pass if training,
+ * or the running stats if not. Then it computes the gradients w.r.t. gamma/beta
+ * and updates them. Finally, it computes the “output errors” (a.k.a. ∂L/∂(input))
+ * for this BN layer.
+ *
+ * We keep your “inputErrors” = the errors fed into this layer by the next layer,
+ * and “outputErrors” = the errors fed back from this layer to the previous layer.
+ *
+ * Buffers (in the order of the buffer indices):
+ *  0) input:
+ *     The original forward-pass input data [batchSize * featureDim].
+ *  1) inputErrors:
+ *     The gradient from the next layer: ∂L/∂(BN output), shape [batchSize * featureDim].
+ *  2) outputErrors:
+ *     The gradient we produce to feed back to the previous layer: ∂L/∂(BN input),
+ *     shape [batchSize * featureDim].
+ *  3) gamma:
+ *     The scale vector, length = featureDim. We will update gamma in place.
+ *  4) beta:
+ *     The shift vector, length = featureDim. We will update beta in place.
+ *  5) savedMean:
+ *     The exact batch mean from the forward pass, length = featureDim.
+ *     (Used if isTraining = true).
+ *  6) savedVariance:
+ *     The exact batch variance from the forward pass, length = featureDim.
+ *     (Used if isTraining = true).
+ *  7) runningMean:
+ *     The running mean array, length = featureDim.
+ *     (Used if isTraining = false).
+ *  8) runningVariance:
+ *     The running variance array, length = featureDim.
+ *     (Used if isTraining = false).
+ *  9) epsilon:
+ *     Float for numerical stability (e.g. 1e-5).
+ * 10) featureDim:
+ *     The number of features.
+ * 11) isTraining:
+ *     Boolean: true => use saved batch stats; false => use running stats.
+ * 12) batchSize:
+ *     Number of samples in the batch.
+ * 13) learningRate:
+ *     Float for updating gamma/beta.
+ * 14) debug:
+ *     A debug float buffer if needed (not used here).
+ *
+ * Typically, we dispatch with gridSize >= featureDim so each thread handles one feature index.
+ */
 kernel void backward_batch_norm(
-    device const float* output           [[buffer(0)]],
-    device const float* outputError      [[buffer(1)]],
-    device float* inputError             [[buffer(2)]],
-    device float* gamma                  [[buffer(3)]],
-    device float* beta                   [[buffer(3)]],
-    device float* runningMean            [[buffer(4)]],
-    device float* runningVariance        [[buffer(5)]],
-    constant float& epsilon              [[buffer(6)]],
-    constant int& featureDim             [[buffer(7)]],
-    constant uint& batchSize             [[buffer(8)]],
-    uint gid                             [[thread_position_in_grid]]
-) {
-    uint sample_id = gid / featureDim;
-    uint feature_id = gid % featureDim;
+    device const float*  input            [[buffer(0)]],
+    device const float*  inputErrors      [[buffer(1)]],
+    device float*        outputErrors     [[buffer(2)]],
+    device float*        gamma            [[buffer(3)]],
+    device float*        beta             [[buffer(4)]],
+    device const float*  savedMean        [[buffer(5)]],
+    device const float*  savedVariance    [[buffer(6)]],
+    device const float*  runningMean      [[buffer(7)]],
+    device const float*  runningVariance  [[buffer(8)]],
+    constant float&      epsilon          [[buffer(9)]],
+    constant int&        featureDim       [[buffer(10)]],
+    constant bool&       isTraining       [[buffer(11)]],
+    constant uint&       batchSize        [[buffer(12)]],
+    constant float&      learningRate     [[buffer(13)]],
+    device float*        debug            [[buffer(14)]],
+    uint                 gid              [[thread_position_in_grid]]
+)
+{
+    if ((int)gid >= featureDim) return;
 
-    if (sample_id >= batchSize) return;
+    // 1) Decide which mean/variance to use:
+    float mean     = isTraining ? savedMean[gid]     : runningMean[gid];
+    float var      = isTraining ? savedVariance[gid] : runningVariance[gid];
+    float invStd   = rsqrt(var + epsilon);
 
-    float normalized = (output[gid] - beta[feature_id]) / (gamma[feature_id] + epsilon);
-    inputError[gid] = outputError[gid] * gamma[feature_id] / sqrt(normalized + epsilon);
+    // 2) Accumulate sum(dY) and sum(dY*xhat) for this feature
+    float sum_dY      = 0.0f;
+    float sum_dY_xhat = 0.0f;
+
+    for (uint b = 0; b < batchSize; b++) {
+        float x    = input[b * featureDim + gid];
+        float xhat = (x - mean) * invStd;
+        float dY   = inputErrors[b * featureDim + gid];
+        sum_dY      += dY;
+        sum_dY_xhat += (dY * xhat);
+    }
+
+    // 3) Gradients for gamma/beta
+    float grad_gamma = sum_dY_xhat;
+    float grad_beta  = sum_dY;
+
+    grad_gamma /= float(batchSize);
+    grad_beta  /= float(batchSize);
+
+    // Update gamma, beta in place
+    gamma[gid] -= learningRate * grad_gamma;
+    beta[gid]  -= learningRate * grad_beta;
+
+    // 4) Now compute outputErrors: ∂L/∂(BN input)
+    //    Formula:
+    //     dX = (1/N) * gamma * invStd * [ N*dY - sum(dY) - xhat * sum(dY*xhat) ]
+    for (uint b = 0; b < batchSize; b++) {
+        float x    = input[b * featureDim + gid];
+        float xhat = (x - mean) * invStd;
+        float dY   = inputErrors[b * featureDim + gid];
+
+        float dX = (gamma[gid] * invStd / float(batchSize)) *
+                   (float(batchSize) * dY - sum_dY - xhat * sum_dY_xhat);
+
+        outputErrors[b * featureDim + gid] = dX;
+    }
 }
-
 
 kernel void adam_kernel(
-    device float* parameters        [[buffer(0)]],   // Parameters (weights or biases)
+    device float* parameters         [[buffer(0)]],   // Parameters (weights or biases)
     device float* gradients          [[buffer(1)]],  // Gradients accumulated
     device float* m                  [[buffer(2)]],  // First moment vector
     device float* v                  [[buffer(3)]],  // Second moment vector

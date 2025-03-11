@@ -35,6 +35,7 @@ public:
     void clearBatchData();
     void flushBatchData();
     void setBatchSize(int batchSize);
+    void setIsRegression(bool isRegression) { isRegression_ = isRegression; }
     
     void printFloatBuffer(MTL::Buffer* b, std::string message);
     void printFloatBuffer(MTL::Buffer* b, std::string message, int maxElements);
