@@ -50,19 +50,22 @@ void FunctionDataset::loadData(int batchSize) {
     bool isTraining = TrainingManager::instance().isTraining();
     if (isTraining) {
         shuffleIndices();
-        generateDataset(offset_, batchSize);
+        generateBatch(offset_, batchSize);
     }else {
-        generateDataset(offset_++, batchSize);
+        generateBatch(offset_++, batchSize);
     }
 }
 
-void FunctionDataset::generateDataset(double offset, int batchSize) {
-    const int batchDatasetSize = datasetSize_ * batchSize;
-    inputs_.resize(batchDatasetSize);
-    targets_.resize(batchDatasetSize);
-    for (int t = 0; t < batchDatasetSize; ++t) {
-        inputs_[t] = inputFunc_(t, offset + offset_);
-        targets_[t] = targetFunc_(t, offset + offset_);
+void FunctionDataset::generateBatch(double offset, int batchSize) {
+    const int batchDataSize = inputDim_ * batchSize;
+    inputs_.resize(batchDataSize);
+    targets_.resize(batchDataSize);
+    for (int t = 0; t < batchSize; ++t) {
+        for (int i = 0; i < inputDim_; ++i) {
+            int index = t * inputDim_ + i;
+            inputs_[index] = inputFunc_(index, offset + offset_);
+            targets_[index] = targetFunc_(index, offset + offset_);
+        }
     }
 }
 

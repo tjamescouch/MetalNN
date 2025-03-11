@@ -2,19 +2,24 @@ name: "Multi Layer Dense NN"
 
 layers:
   - type: Dense
-    input_size: 512
-    output_size: 512
+    input_size: 256
+    output_size: 256
     activation: tanh
+    
+  - type: BatchNormalization
+    learning_rate: 0.00001
+    input_size: 256
+    output_size: 256
 
   - type: Dense
-    input_size: 512
-    output_size: 512
+    input_size: 256
+    output_size: 256
     activation: linear
 
 training:
   optimizer:
     type: adam
-    learning_rate: 0.001
+    learning_rate: 0.0001
     parameters:
       beta1: 0.9
       beta2: 0.999

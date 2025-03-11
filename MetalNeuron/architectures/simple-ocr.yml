@@ -3,6 +3,16 @@ name: "Stable OCR"
 layers:
   - type: Dense
     input_size: 784
+    output_size: 128
+    activation: relu
+    initializer: he
+    
+  - type: BatchNormalization
+    input_size: 128
+    output_size: 128
+
+  - type: Dense
+    input_size: 128
     output_size: 10
     activation: softmax
     initializer: xavier

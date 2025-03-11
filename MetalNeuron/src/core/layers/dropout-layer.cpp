@@ -150,7 +150,9 @@ void DropoutLayer::generateRandomMask() {
     
     if (bufferRandomMask_) bufferRandomMask_->release();
     
-    bufferRandomMask_ = _pDevice->newBuffer(maskData.data(), featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    bufferRandomMask_ = _pDevice->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    memcpy(bufferRandomMask_->contents(), maskData.data(), featureDim_ * sizeof(float));
+    bufferRandomMask_->didModifyRange(NS::Range(0, bufferRandomMask_->length()));
 }
 
 void DropoutLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {

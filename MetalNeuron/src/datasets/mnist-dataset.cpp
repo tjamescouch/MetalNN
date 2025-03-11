@@ -43,12 +43,12 @@ currentSampleIndex_(0), batchedInputData_(nullptr), batchedTargetData_(nullptr)
 
 MNISTDataset::~MNISTDataset() {
     if(batchedInputData_!=nullptr) {
-        delete batchedInputData_;
+        delete[] batchedInputData_;
         batchedInputData_ = nullptr;
     }
     
     if(batchedTargetData_!=nullptr) {
-        delete batchedTargetData_;
+        delete[]  batchedTargetData_;
         batchedTargetData_ = nullptr;
     }
 }
@@ -56,8 +56,8 @@ MNISTDataset::~MNISTDataset() {
 void MNISTDataset::loadData(int batchSize) {
     // Data is already loaded in constructor, nothing else required here.
     batchSize_ = batchSize;
-    batchedInputData_ = new float[inputs_.size() * batchSize * inputDim()];
-    batchedTargetData_ = new float[targets_.size() * batchSize * outputDim()];
+    batchedInputData_ = new float[batchSize * inputDim()];
+    batchedTargetData_ = new float[batchSize * outputDim()];
 }
 
 int MNISTDataset::numSamples() const {
@@ -173,7 +173,7 @@ float MNISTDataset::calculateLoss(const float* predictedData, int outputDim, con
 
 void MNISTDataset::loadNextBatch(int currentBatchSize) {
     assert(currentBatchSize > 0 && currentBatchSize <= batchSize_);
-    pageOffset_++;
+    pageOffset_ += currentBatchSize;
 }
 
 float* MNISTDataset::getInputDataAt(int timestep, int _batchIndex) {
@@ -181,7 +181,7 @@ float* MNISTDataset::getInputDataAt(int timestep, int _batchIndex) {
     assert(batchedInputData_);
     
     size_t numImages = inputs_.size();
-    int ib0 = (pageOffset_) * batchSize_;
+    int ib0 = pageOffset_;
     const int imageSize = inputDim(); // The number of floats per image
     
     for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {
@@ -196,12 +196,12 @@ float* MNISTDataset::getTargetDataAt(int timestep, int _batchIndex) {
     assert(batchedTargetData_);
     
     size_t numTargets = targets_.size();
-    int ib0 =  (pageOffset_) * batchSize_;
+    int ib0 =  pageOffset_;
     const int targetSize = outputDim(); // The number of floats per image
     
     for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {
-        std::memcpy(batchedInputData_ + i * targetSize, targets_[ib % numTargets].data(), targetSize * sizeof(float));
+        std::memcpy(batchedTargetData_ + i * targetSize, targets_[ib % numTargets].data(), targetSize * sizeof(float));
     }
     
-    return batchedInputData_;
+    return batchedTargetData_;
 }
