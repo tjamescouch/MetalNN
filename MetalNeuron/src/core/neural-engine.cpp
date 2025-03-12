@@ -120,7 +120,12 @@ void NeuralEngine::createDynamicLayers(ModelConfig& config) {
     _pDataManager->initialize(batch_size, [this, &config]() {
         Logger::instance().clear();
         buildBuffers();
-        connectDynamicLayers(config);
+        try {
+            connectDynamicLayers(config);
+        } catch (...) {
+            std::cout << "Caught error connecting layers" << std::endl;
+            throw;
+        }
     });
 }
 
@@ -149,8 +154,8 @@ void NeuralEngine::connectDynamicLayers(ModelConfig& config) {
     }
     
     // Backward error buffer connections
-    for (size_t i = dynamicLayers_.size() - 1; i > 0; --i) {
-        dynamicLayers_[i]->connectBackwardConnections(dynamicLayers_[i - 1], _pInputLayer, zeroBuffer_, 0);
+    for (int64_t i = dynamicLayers_.size() - 1; i >= 0; --i) {
+        dynamicLayers_[i]->connectBackwardConnections(i > 0 ? dynamicLayers_[i - 1] : nullptr, _pInputLayer, zeroBuffer_, 0);
     }
 }
 
@@ -333,7 +338,6 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
         _pInputLayer->updateBufferAt(inBuffer, t, batch_size);
         dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, t, batch_size);
     }
-    
     
     computeForward(currentBatchSize, [=, this]() mutable {
         computeBackward(currentBatchSize, [=, this]() mutable {

@@ -1,35 +1,35 @@
-name: "Stable OCR"
-
+name: "OCR"
+# The layer list below must match your layer factory's expectations:
 layers:
   - type: Dense
     input_size: 784
-    output_size: 256
+    output_size: 128
     activation: relu
     initializer: he
-
+    
   - type: Dense
-    input_size: 256
+    input_size: 128
     output_size: 10
     activation: softmax
     initializer: xavier
 
 training:
-  optimizer:
-    type: adam
-    learning_rate: 0.0001  # Lower learning rate for more stability
-    parameters:
-      beta1: 0.9
-      beta2: 0.999
-      epsilon: 1e-8
+    optimizer:
+        type: adam
+        learning_rate: 0.0001  # Lower learning rate for more stability
+        parameters:
+            beta1: 0.9
+            beta2: 0.999
+            epsilon: 1e-8
 
-  epochs: 1
-  batch_size: 64  # Smaller batches for more stable gradient estimates
+    epochs: 2
+    batch_size: 64  # Smaller batches for more stable gradient estimates
 
 dataset:
-  type: "mnist"
-  images: "train-images-idx3-ubyte"
-  labels: "train-labels-idx1-ubyte"
+    type: "mnist"
+    images: "train-images-idx3-ubyte"
+    labels: "train-labels-idx1-ubyte"
 
 metadata:
-  author: "James Couch"
-  description: "Numerically stable OCR"
+    author: "James Couch"
+    description: "OCR"

@@ -4,12 +4,13 @@
 //
 //  Created by James Couch on 2025-02-27.
 //
-
-#include "input-layer.h"
-#include "common.h"  // For NS::Range
 #include <cstring>   // For memcpy
 #include <vector>
 #include <iostream>
+
+#include "input-layer.h"
+#include "logger.h"
+#include "common.h"  // For NS::Range
 
 InputLayer::InputLayer(int inputDim, int sequenceLength, int batchSize)
 : inputDim_(inputDim), sequenceLength_(sequenceLength),
@@ -58,12 +59,10 @@ void InputLayer::updateBufferAt(const float* data, int timestep) {
 }
 
 void InputLayer::updateBufferAt(const float* data, int timestep, int batchSize) {
-    assert(timestep >= 0  && timestep < sequenceLength_);
+    assert(timestep == 0);
     assert(outputBuffers_[BufferType::Output].size() > 0);
     
-    memcpy(outputBuffers_[BufferType::Output][timestep]->contents(),
-           data,
-           inputDim_ * batchSize * sizeof(float));
+    memcpy(outputBuffers_[BufferType::Output][timestep]->contents(), data, inputDim_ * batchSize * sizeof(float));
     outputBuffers_[BufferType::Output][timestep]->didModifyRange(NS::Range::Make(0, outputBuffers_[BufferType::Output][timestep]->length()));
 }
 

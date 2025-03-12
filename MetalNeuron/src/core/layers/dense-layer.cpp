@@ -61,7 +61,7 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     float beta1   = parameters["beta1"].get_value_or<float>(0.9f);
     float beta2   = parameters["beta2"].get_value_or<float>(0.999f);
     float epsilon = parameters["epsilon"].get_value_or<float>(1e-8);
-    
+        
     optimizerWeights_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
     optimizerBiases_  = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
     
@@ -113,13 +113,13 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(inputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::Output][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
 
-    outputBuffers_[BufferType::Debug][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    outputBuffers_[BufferType::Debug][t] = device->newBuffer(inputDim_ * outputDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     inputBuffers_[BufferType::Targets][t] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
     
     memset(outputBuffers_[BufferType::Output][t]->contents(), 0, outputDim_ * batchSize_ * sizeof(float));
     memset(inputBuffers_[BufferType::Targets][t]->contents(), 0, outputDim_ * batchSize_ * sizeof(float));
-    memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, outputDim_ * batchSize_ * sizeof(float));
-    memset(outputBuffers_[BufferType::Debug][t]->contents(), 0, outputDim_ * batchSize_ * sizeof(float));
+    memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, inputDim_ * batchSize_ * sizeof(float));
+    memset(outputBuffers_[BufferType::Debug][t]->contents(), 0, inputDim_ * outputDim_ * sizeof(float));
     
     inputBuffers_[BufferType::Targets][t]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][t]->length()));
     outputBuffers_[BufferType::Output][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Output][t]->length()));
@@ -151,7 +151,7 @@ void DenseLayer::updateTargetBufferAt(const float* targetData, int timestep, int
 void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     uint activationRaw = static_cast<uint>(activation_);
     uint bs = (uint)batchSize_;
-    
+        
     for (int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(forwardPipelineState_);
@@ -164,7 +164,7 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
         encoder->setBytes(&activationRaw, sizeof(uint), 6);
         encoder->setBytes(&bs, sizeof(uint), 7);
         encoder->setBuffer(outputBuffers_[BufferType::Debug][0], 0, 8);
-        
+                
         uint gridSize = batchSize_ * outputDim_;
         uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
 
@@ -172,6 +172,8 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
         MTL::Size threadgroups((gridSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
         encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
         encoder->endEncoding();
+        
+        inputBuffers_[BufferType::Input][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][0]->length()));
     }
 }
 
@@ -206,6 +208,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
     encoder->endEncoding();
 
+    inputBuffers_[BufferType::Input][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][0]->length()));
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
     bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
@@ -247,7 +250,9 @@ void DenseLayer::connectBackwardConnections(Layer* prevLayer,
                                    MTL::Buffer* zeroBuffer,
                                    int timestep)
 {
-    prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
+    if (prevLayer) {
+        prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
+    }
 }
 
 void DenseLayer::saveParameters(std::ostream& os) const { //FIXME encode buffer lengths
@@ -264,27 +269,25 @@ void DenseLayer::loadParameters(std::istream& is) { //FIXME - decode buffer leng
 }
 
 void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-#ifdef F
-    if (isTerminal_) {
-        //Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[B: Terminal Dense Layer Input Errors]");
-        //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "[B: Terminal Dense Layer Output Errors]", 10);
-        //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "[B: Terminal Dense Layer Output Errors]", 10);
-        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Input][0], "[B: Terminal Dense Layer Input]", 10);
-        Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Output][0], "[B: Terminal Dense Layer Ouptput]", 10);
-        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Targets][0], "[B: Terminal Dense Layer Targets]", 10);
-    } else {
-        //Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[B: Non-Terminal Dense Layer Input Error]", 10);
-        //Logger::instance().printFloatBufferMeanL2Norm(inputBuffers_[BufferType::InputErrors][0], "[B: Non-Terminal Dense Layer Input Error MSE]");
-        //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "[B: Non-Terminal Dense Layer Output Errors]");
-        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Input][0], "[B: Non-Terminal Dense Layer Input]", 10);
-        Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Output][0], "[B: Non-Terminal Dense Layer Output]", 10);
-    }
-#endif
 }
 
 
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-
+#ifdef F
+    
+    if (isTerminal_) {
+        Logger::instance().printFloatBuffer(bufferWeights_, "[Terminal Dense Layer Weights]", 10);
+        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Targets][0], "[Terminal Dense Layer Targets]", 10);
+        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Input][0], "[Terminal Dense Layer Input]", 10);
+    } else {
+        Logger::instance().printFloatBuffer(bufferWeights_, "[Non Terminal Dense Layer Weights]", 10);
+        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[Non Terminal Dense Layer Input Errors]", 10);
+        Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Debug][0], "[Non Terminal Dense Layer Debug]", 784);
+        Logger::instance().count(outputBuffers_[BufferType::Debug][0], "Non zero debug values", [](float f){ return abs(f) > 0.01f;});
+        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Input][0], "[Non Terminal Dense Layer Input]", 784);
+    }
+        
+#endif
     
     auto cmdBuf = _pCommandQueue->commandBuffer();
     auto encoder = cmdBuf->computeCommandEncoder();
@@ -294,7 +297,7 @@ void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batch
 
     encoder->endEncoding();
     
-    //memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
+    memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
     outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
 }
 
