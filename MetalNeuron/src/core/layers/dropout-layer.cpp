@@ -207,12 +207,7 @@ void DropoutLayer::loadParameters(std::istream& is) {
 
 
 void DropoutLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-#ifdef F
-    Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Debug][0], "[F: Dropout Layer debug]", 100);
-#endif
 }
 
 void DropoutLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    Logger::log << "Dropout Input Errors @" << inputBuffers_[BufferType::InputErrors][0] << std::endl;
-    Logger::log << "Dropout Output Errors @" << outputBuffers_[BufferType::OutputErrors][0] << std::endl;
 }
