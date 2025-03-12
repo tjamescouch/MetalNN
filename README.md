@@ -38,8 +38,8 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 - Example regression output:
 <img width="579" alt="Screenshot 2025-03-02 at 3 50 40 PM" src="https://github.com/user-attachments/assets/8616c562-ceb4-4ea0-a454-7b8a6fd61904" />
 
-- Example classification output (WIP):
-<img width="573" alt="Screenshot 2025-03-09 at 9 35 04 AM" src="https://github.com/user-attachments/assets/e700d791-f972-48ab-aa95-8e57fe2a2aa6" />
+- Example classification output:
+<img width="559" alt="Screenshot 2025-03-11 at 8 22 16 PM" src="https://github.com/user-attachments/assets/93455b84-bfca-40cf-834c-1be2d6e0a9a1" />
 
 
 ---
@@ -59,7 +59,8 @@ Visualization of results is possible by executing the output MATLAB script in Oc
     - [x] single-dense-layer.yml
     - [x] multi-dense-layer.yml
     - [x] simple-ocr.yml
-    - [ ] ocr.yml
+    - [x] ocr.yml
+    - [x] advanced-ocr.yml
     - [ ] rnn.ym
 - [ ] Validate layer implementations
     - [x] Dense Layer
