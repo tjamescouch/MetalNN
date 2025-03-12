@@ -19,11 +19,6 @@ using namespace metal;
 float activate(const float x, const uint act);
 float activate_derivative(const float y, const uint act);
 
-
-// Clamping thresholds
-constant float threshold    = 1.0f;
-constant float decay_factor = 0.9999f;
-
  kernel void forward_dropout(
      device const float* input       [[buffer(0)]],
      device       float* output      [[buffer(1)]],
