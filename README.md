@@ -70,7 +70,7 @@ Visualization of results is possible by executing the output MATLAB script in Oc
 - [x] Implement classification using MNIST dataset
 
 ### Medium-term Goals:
-- [ ] Expand support for additional layer types (e.g., GRU, LSTM, Attention layers).
+- [ ] Expand support for additional layer types (e.g., GRU, LSTM, CNNs, Attention layers).
 - [x] Implement ADAM optimizer algorithm.
 - [ ] Implement distributed training capabilities, enabling local and distributed workloads (similar to SETI@Home model).
 - [ ] Enhance GPU memory management and computation scheduling for better performance.
