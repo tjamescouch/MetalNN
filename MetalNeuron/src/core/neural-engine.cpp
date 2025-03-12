@@ -4,7 +4,6 @@
 #include <algorithm>
 
 #include "neural-engine.h"
-#include "multi-layer-kernels.h"
 #include "dropout-layer.h"
 #include "mnist-dataset.h"
 #include "training-manager.h"
@@ -163,9 +162,7 @@ void NeuralEngine::buildComputePipeline() {
     _pCommandQueue = _pDevice->newCommandQueue();
     NS::Error* pError = nullptr;
     
-    _pComputeLibrary = _pDevice->newLibrary(
-                                            NS::String::string(multilayerkernels::nnKernelSrc, NS::UTF8StringEncoding),
-                                            nullptr, &pError);
+    _pComputeLibrary = _pDevice->newDefaultLibrary();
     
     if (!_pComputeLibrary) {
         std::cerr << "Error creating compute library: "
