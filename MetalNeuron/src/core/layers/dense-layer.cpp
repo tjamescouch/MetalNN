@@ -277,8 +277,6 @@ void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchS
 
 
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    Logger::log << "Dense Input Errors @" << inputBuffers_[BufferType::InputErrors][0] << std::endl;
-    Logger::log << "Dense Output Errors @" << outputBuffers_[BufferType::OutputErrors][0] << std::endl;
     
     auto cmdBuf = _pCommandQueue->commandBuffer();
     auto encoder = cmdBuf->computeCommandEncoder();
