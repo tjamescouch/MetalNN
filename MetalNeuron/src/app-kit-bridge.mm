@@ -36,13 +36,26 @@ extern "C" void setupTextField(void* nsWindow) {
 }
 
 extern "C" void updateTextField(const char* message) {
-    if (globalTextView) {
-        NSString* str = message ? [NSString stringWithUTF8String:message] : @"";
+    if (globalTextView && message) {
+        NSString* safeString = [NSString stringWithUTF8String:message];
+
         dispatch_async(dispatch_get_main_queue(), ^{
-            NSDictionary* attributes = @{ NSForegroundColorAttributeName : [NSColor textColor] };
-            NSAttributedString* attributedStr = [[NSAttributedString alloc] initWithString:[str stringByAppendingString:@""] attributes:attributes];
-            [[globalTextView textStorage] appendAttributedString:attributedStr];
-            [globalTextView scrollRangeToVisible:NSMakeRange([[globalTextView string] length], 0)];
+            NSScrollView* scrollView = [globalTextView enclosingScrollView];
+            NSClipView* clipView = [scrollView contentView];
+            NSRect visibleRect = [clipView documentVisibleRect];
+            NSRect documentRect = [[scrollView documentView] bounds];
+
+            BOOL isAtBottom = NSMaxY(visibleRect) >= NSMaxY(documentRect) - NSHeight(visibleRect) * 0.05;
+
+            NSString* appendString = [safeString hasSuffix:@"\n"] ? safeString : [safeString stringByAppendingString:@"\n"];
+            NSDictionary* attributes = @{NSForegroundColorAttributeName : [NSColor textColor]};
+            NSAttributedString* attributedMessage = [[NSAttributedString alloc] initWithString:appendString attributes:attributes];
+
+            [[globalTextView textStorage] appendAttributedString:attributedMessage];
+
+            if (isAtBottom) {
+                [globalTextView scrollRangeToVisible:NSMakeRange([[globalTextView string] length], 0)];
+            }
         });
     }
 }
