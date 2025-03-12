@@ -7,6 +7,7 @@
 #include "map-reduce-layer.h"
 #include <stdexcept>
 #include <iostream>
+#include "logger.h"
 
 
 MapReduceLayer::MapReduceLayer(int inputSize, int outputSize, ReductionType reductionType)
@@ -168,7 +169,7 @@ void MapReduceLayer::updateTargetBufferAt(const float* targetData, int timestep,
 }
 
 void MapReduceLayer::debugLog() {
-    std::cout << "[MapReduceLayer] debugLog called." << std::endl;
+    Logger::log << "[MapReduceLayer] debugLog called." << std::endl;
 }
 
 void MapReduceLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {

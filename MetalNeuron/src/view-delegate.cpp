@@ -58,7 +58,7 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice)
     // Instantiate NeuralEngine using the updated constructor with DataManager
     _pComputer = new NeuralEngine(_pDevice, config, _pDataManager);
 
-    std::cout << "✅ NeuralEngine loaded with model: " << config.name << std::endl;
+    Logger::log << "✅ NeuralEngine loaded with model: " << config.name << std::endl;
 }
 
 ViewDelegate::~ViewDelegate()
@@ -97,7 +97,7 @@ std::string ViewDelegate::getDefaultModelFilePath() {
     if (!fs::exists(resourcePath)) {
         throw std::runtime_error("❌ Could not find configuration yml at " + resourcePath.string());
     }
-    std::cout << "📂 Loaded file " << modelFilename << std::endl;
+    Logger::log << "📂 Loaded file " << modelFilename << std::endl;
 
     return resourcePath.string();
 }

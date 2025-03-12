@@ -95,7 +95,7 @@ void DropoutLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::OutputErrors][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][t]->length()));
     outputBuffers_[BufferType::Debug][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Debug][t]->length()));
     
-    std::cout << "dropout output error buffer initalized @" << outputBuffers_[BufferType::OutputErrors][t] << std::endl;
+    Logger::log << "dropout output error buffer initalized @" << outputBuffers_[BufferType::OutputErrors][t] << std::endl;
     
     generateRandomMask();
     assert(bufferRandomMask_ && "Random mask buffer allocation failed");
@@ -191,7 +191,7 @@ void DropoutLayer::connectBackwardConnections(Layer* prevLayer,
                                    MTL::Buffer* zeroBuffer,
                                    int timestep)
 {
-    std::cout << "dropout output error buffer @" << getOutputBufferAt(BufferType::OutputErrors, timestep) << std::endl;
+    Logger::log << "dropout output error buffer @" << getOutputBufferAt(BufferType::OutputErrors, timestep) << std::endl;
     if (prevLayer) {
         prevLayer->setInputBufferAt(BufferType::InputErrors, timestep, getOutputBufferAt(BufferType::OutputErrors, timestep));
     }
@@ -213,6 +213,6 @@ void DropoutLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batc
 }
 
 void DropoutLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    std::cout << "Dropout Input Errors @" << inputBuffers_[BufferType::InputErrors][0] << std::endl;
-    std::cout << "Dropout Output Errors @" << outputBuffers_[BufferType::OutputErrors][0] << std::endl;
+    Logger::log << "Dropout Input Errors @" << inputBuffers_[BufferType::InputErrors][0] << std::endl;
+    Logger::log << "Dropout Output Errors @" << outputBuffers_[BufferType::OutputErrors][0] << std::endl;
 }

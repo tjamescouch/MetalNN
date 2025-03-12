@@ -143,17 +143,17 @@ float MNISTDataset::calculateLoss(const float* predictedData, int outputDim, con
     float loss = 0.0f;
     
 #ifdef DEBUG_MNIST
-    std::cout << "targetData[i] ";
+    Logger::log << "targetData[i] ";
     for (int i = 0; i < outputDim; ++i) {
-        std::cout << targetData[i] << " ";
+        Logger::log << targetData[i] << " ";
     }
-    std::cout << std::endl;
+    Logger::log << std::endl;
     
-    std::cout << "predictedData[i] ";
+    Logger::log << "predictedData[i] ";
     for (int i = 0; i < outputDim; ++i) {
-        std::cout << predictedData[i] << " ";
+        Logger::log << predictedData[i] << " ";
     }
-    std::cout << std::endl;
+    Logger::log << std::endl;
 #endif
     
     for (int i = 0; i < outputDim; ++i) {

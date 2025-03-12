@@ -43,7 +43,7 @@ filename(config.filename)
         TrainingManager::instance().setTraining(false);
         
         computeForwardBatches(_pDataManager->getCurrentDataset()->numSamples(), ceil((float)_pDataManager->getCurrentDataset()->numSamples() / config.training.batch_size), [this]() {
-            std::cout << "✅ Forward pass complete!" << std::endl;
+            Logger::log << "✅ Forward pass complete!" << std::endl;
         });
     });
     
@@ -58,11 +58,11 @@ filename(config.filename)
         
         *epochCallback = [this, currentEpoch, epochCallback, config]() {
             if (*currentEpoch >= epochs) {
-                std::cout << "✅ Training complete!" << std::endl;
+                Logger::log << "✅ Training complete!" << std::endl;
                 return;
             }
             
-            std::cout << "🔄 Starting epoch: " << (*currentEpoch + 1) << " / " << epochs << std::endl;
+            Logger::log << "🔄 Starting epoch: " << (*currentEpoch + 1) << " / " << epochs << std::endl;
             
             // Run batches for the current epoch, and then call next epoch on completion
             computeBackwardBatches(_pDataManager->getCurrentDataset()->numSamples(), ceil((float)_pDataManager->getCurrentDataset()->numSamples() / config.training.batch_size), [this, currentEpoch, epochCallback]() {
@@ -122,7 +122,7 @@ void NeuralEngine::createDynamicLayers(ModelConfig& config) {
         try {
             connectDynamicLayers(config);
         } catch (...) {
-            std::cout << "Caught error connecting layers" << std::endl;
+            Logger::log << "Caught error connecting layers" << std::endl;
             throw;
         }
     });
@@ -264,7 +264,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
     
     uint32_t currentBatchSize = mathlib::min<int>(batch_size, totalSamples);
     
-    std::cout << "⚙️ Forward batches remaining "  << batchesRemaining
+    Logger::log << "⚙️ Forward batches remaining "  << batchesRemaining
     << " - current batch size " << currentBatchSize
     << " total samples remaining " << totalSamples << std::endl;
     
@@ -316,7 +316,7 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
     uint32_t currentBatchSize = mathlib::min<int>(batch_size, samplesRemaining);
     uint32_t samplesProcessed = totalSamples - samplesRemaining;
     
-    std::cout << "⚙️ Backward batches remaining " << batchesRemaining
+    Logger::log << "⚙️ Backward batches remaining " << batchesRemaining
     << " - current batch size " << currentBatchSize << std::endl;
     
     if (totalSamples == 0 || currentBatchSize <= 0) {
@@ -394,7 +394,7 @@ void NeuralEngine::saveModel(const std::string& filepath) {
     }
     
     file.close();
-    std::cout << "✅ Model parameters saved to: " << filepath << std::endl;
+    Logger::log << "✅ Model parameters saved to: " << filepath << std::endl;
 }
 
 void NeuralEngine::loadModel(const std::string& filepath) {
@@ -409,7 +409,7 @@ void NeuralEngine::loadModel(const std::string& filepath) {
     }
     
     file.close();
-    std::cout << "✅ Model parameters loaded from: " << filepath << std::endl;
+    Logger::log << "✅ Model parameters loaded from: " << filepath << std::endl;
 }
 
 void NeuralEngine::shiftBuffers() {

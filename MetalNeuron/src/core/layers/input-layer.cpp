@@ -18,8 +18,8 @@ InputLayer::InputLayer(int inputDim, int sequenceLength, int batchSize)
 {
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
     assert(outputBuffers_[BufferType::Output].size() > 0);
-    std::cout << "Constructor: bufer output size in timesteps: " <<outputBuffers_[BufferType::Output].size() << std::endl;
-    std::cout << "Constructor: bufer output ptr: " << outputBuffers_[BufferType::Output][0] << std::endl;
+    Logger::log << "Constructor: bufer output size in timesteps: " <<outputBuffers_[BufferType::Output].size() << std::endl;
+    Logger::log << "Constructor: bufer output ptr: " << outputBuffers_[BufferType::Output][0] << std::endl;
 }
 
 InputLayer::~InputLayer() {
@@ -40,13 +40,13 @@ void InputLayer::buildBuffers(MTL::Device* device) {
         outputBuffers_[BufferType::Output][t]->didModifyRange(NS::Range::Make(0, inputDim_ * batchSize_ * sizeof(float)));
     }
     assert(outputBuffers_[BufferType::Output].size() > 0);
-    std::cout << "buildBuffers: bufer output size in timesteps: " <<outputBuffers_[BufferType::Output].size() << std::endl;
-    std::cout << "buildBuffers: bufer output ptr: " << outputBuffers_[BufferType::Output][0] << std::endl;
+    Logger::log << "buildBuffers: bufer output size in timesteps: " <<outputBuffers_[BufferType::Output].size() << std::endl;
+    Logger::log << "buildBuffers: bufer output ptr: " << outputBuffers_[BufferType::Output][0] << std::endl;
 }
 
 void InputLayer::updateBufferAt(const float* data, int timestep) {
-    std::cout << "updateBufferAt: bufer output size in timesteps: " <<outputBuffers_[BufferType::Output].size() << std::endl;
-    std::cout << "updateBufferAt: bufer output ptr: " << outputBuffers_[BufferType::Output][0] << std::endl;
+    Logger::log << "updateBufferAt: bufer output size in timesteps: " <<outputBuffers_[BufferType::Output].size() << std::endl;
+    Logger::log << "updateBufferAt: bufer output ptr: " << outputBuffers_[BufferType::Output][0] << std::endl;
     
     assert(timestep >= 0  && timestep < sequenceLength_);
     assert(outputBuffers_[BufferType::Output].size() > 0);

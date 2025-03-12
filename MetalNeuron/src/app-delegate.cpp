@@ -7,6 +7,7 @@
 //
 #import "app-delegate.h"
 #import "input-handler-bridge.h"
+#include "app-kit-bridge.h"
 
 #pragma mark - AppDelegate
 #pragma region AppDelegate {
@@ -72,7 +73,7 @@ void AppDelegate::applicationWillFinishLaunching( NS::Notification* pNotificatio
 
 void AppDelegate::applicationDidFinishLaunching( NS::Notification* pNotification )
 {
-    CGRect frame = (CGRect){ {10, 10}, {300.0, 300.0} };
+    CGRect frame = (CGRect){ {10, 10}, {600.0, 600.0} };
     
     StartKeyboardMonitoring(static_cast<KeyboardEventCallback>(
                                                                [this](KeyPress kp) {
@@ -107,6 +108,8 @@ void AppDelegate::applicationDidFinishLaunching( NS::Notification* pNotification
     _pWindow->setTitle( NS::String::string( "Metal Compute", NS::StringEncoding::UTF8StringEncoding ) );
     
     _pWindow->makeKeyAndOrderFront( nullptr );
+    
+    setupTextField((void*)_pWindow);
     
     NS::Application* pApp = reinterpret_cast< NS::Application* >( pNotification->object() );
     pApp->activateIgnoringOtherApps( true );
