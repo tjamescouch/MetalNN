@@ -64,7 +64,7 @@ Visualization of results is possible by executing the output MATLAB script in Oc
     - [ ] rnn.ym
 - [ ] Validate layer implementations
     - [x] Dense Layer
-    - [ ] Dropout Layer
+    - [x] Dropout Layer
     - [ ] Batch Normalization Layer
     - [ ] RNN Layer
 - [x] Implement classification using MNIST dataset
