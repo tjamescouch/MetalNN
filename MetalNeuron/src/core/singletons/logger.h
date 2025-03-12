@@ -5,6 +5,7 @@
 #include <vector>
 #include <mutex>
 #include <functional>
+#include <sstream>
 
 namespace MTL {
 class Buffer;
@@ -23,7 +24,6 @@ public:
     
     void logMSE(float* targetData, float* outputData, int dimension);
     void logCrossEntropyLoss(float* targetData, float* outputData, int dimension);
-
 
     void logLoss(float loss);
     void accumulateLoss(float loss, int currentBatchSize);
@@ -44,6 +44,22 @@ public:
     void printFloatBufferL2Norm(MTL::Buffer* b, std::string message);
     void printFloatBufferMeanL2Norm(MTL::Buffer* b, std::string message);
     void count(MTL::Buffer* b, std::string message, std::function<bool(float)> predicate);
+    
+    static Logger log;
+
+    template <typename T>
+    Logger& operator<<(const T& msg) {
+        _stream << msg;
+        return *this;
+    }
+
+    typedef std::ostream& (*Manipulator)(std::ostream&);
+    Logger& operator<<(Manipulator manip) {
+        manip(_stream);
+        flush();
+        return *this;
+    }
+
     
 private:
     void flushRegressionAnalytics();
@@ -67,6 +83,9 @@ private:
     
     static Logger* instance_;
     static std::once_flag initInstanceFlag;
+    
+    std::stringstream _stream;
+    void flush();
 };
 
 #endif // LOGGER_H

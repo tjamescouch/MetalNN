@@ -10,7 +10,7 @@
 
 int main( int argc, char* argv[] )
 {
-    std::cout << std::filesystem::current_path() << std::endl;
+    Logger::log << std::filesystem::current_path() << std::endl;
     
     NS::AutoreleasePool* pAutoreleasePool = NS::AutoreleasePool::alloc()->init();
 

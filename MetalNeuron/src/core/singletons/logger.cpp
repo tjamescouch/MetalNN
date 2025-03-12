@@ -2,8 +2,10 @@
 #include "common.h"
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <cmath>
 #include "math-lib.h"
+#include "app-kit-bridge.h"
 
 const char* filename = "multilayer_nn_training.m";
 
@@ -46,7 +48,7 @@ void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount,
     
     avgOutputError /= sequenceLength;
     
-    std::cout << "AVG OUTPUT ERROR (across sequence): " << avgOutputError << std::endl;
+    Logger::log << "AVG OUTPUT ERROR (across sequence): " << avgOutputError << std::endl;
 }
 
 void Logger::flushAnalytics() {
@@ -168,7 +170,7 @@ void Logger::clear() {
 }
 
 void Logger::logLoss(float loss) {
-    std::cout << "✨ Loss: " << loss << std::endl;
+    Logger::log << "✨ Loss: " << loss << std::endl;
 }
 
 void Logger::accumulateLoss(float loss, int batchSize) {
@@ -204,14 +206,14 @@ void Logger::printFloatBuffer(MTL::Buffer* b, std::string message, int maxElemen
     float* data = static_cast<float*>(b->contents());
     size_t numFloats = mathlib::min<size_t>(b->length() / sizeof(float), maxElements);
     
-    std::cout << message << " => [";
+    Logger::log << message << " => [";
     for (int i = 0; i < numFloats; ++i) {
-        std::cout << data[i];
+        Logger::log << data[i];
         if (i < numFloats - 1) {
-            std::cout << ", ";
+            Logger::log << ", ";
         }
     }
-    std::cout << "]" << std::endl;
+    Logger::log << "]" << std::endl;
 }
 
 void Logger::count(MTL::Buffer* b, std::string message, std::function<bool(float)> predicate) {
@@ -224,7 +226,7 @@ void Logger::count(MTL::Buffer* b, std::string message, std::function<bool(float
             count++;
         }
     }
-    std::cout << message << " => " << count << std::endl;
+    Logger::log << message << " => " << count << std::endl;
 }
 
 void Logger::printFloatBuffer(MTL::Buffer* b, std::string message) {
@@ -240,7 +242,7 @@ void Logger::printFloatBufferL2Norm(MTL::Buffer* b, std::string message) {
         norm += data[i] * data[i];
     
     norm = sqrtf(norm);
-    std::cout << message << " => " << norm << std::endl;
+    Logger::log << message << " => " << norm << std::endl;
 }
 
 void Logger::printFloatBufferMeanL2Norm(MTL::Buffer* b, std::string message) {
@@ -252,5 +254,14 @@ void Logger::printFloatBufferMeanL2Norm(MTL::Buffer* b, std::string message) {
         norm += data[i] * data[i];
     
     norm = sqrtf(norm) / numFloats;
-    std::cout << message << " => " << norm << std::endl;
+    Logger::log << message << " => " << norm << std::endl;
+}
+
+Logger Logger::log; // Static instance initialization
+
+void Logger::flush() {
+    std::string output = _stream.str();
+    updateTextField(output.c_str());  // Your existing Objective-C bridge
+    _stream.str(std::string()); // clear buffer after flush
+    _stream.clear();
 }

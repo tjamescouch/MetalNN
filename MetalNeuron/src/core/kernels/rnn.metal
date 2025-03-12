@@ -15,7 +15,6 @@ using namespace metal;
 #define ACTIVATION_SIGMOID 3
 #define ACTIVATION_SOFTMAX 4
 
-constant float max_abs_sum = 1000.0f;
 constant float threshold    = 1.0f;
 constant float decay_factor = 1.0f;
 
