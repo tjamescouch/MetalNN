@@ -7,9 +7,14 @@
 #include <iostream>
 #include <random>
 
+#include "logger.h"
 #include "input-layer.h"
 #include "dropout-layer.h"
 #include "training-manager.h"
+
+std::random_device rd;
+std::mt19937 gen(rd());
+std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
 DropoutLayer::DropoutLayer(float rate, int inputDim, int outputDim, int batchSize, int sequenceLength)
 : rate_(rate),
@@ -23,8 +28,12 @@ backwardPipelineState_(nullptr),
 isTerminal_(false) {
     assert(inputDim_ == outputDim);
     
-    inputBuffers_[BufferType::Input].resize(0, nullptr);
-    outputBuffers_[BufferType::Output].resize(0, nullptr);
+    inputBuffers_[BufferType::Input].resize(1, nullptr);
+    outputBuffers_[BufferType::Output].resize(1, nullptr);
+    outputBuffers_[BufferType::Debug].resize(1, nullptr);
+    
+    inputBuffers_[BufferType::InputErrors].resize(1, nullptr);
+    outputBuffers_[BufferType::OutputErrors].resize(1, nullptr);
 }
 
 DropoutLayer::~DropoutLayer() {
@@ -35,7 +44,6 @@ DropoutLayer::~DropoutLayer() {
     }
     
     if(bufferRandomMask_) bufferRandomMask_->release();
-    
     if(forwardPipelineState_) forwardPipelineState_->release();
     if(backwardPipelineState_) backwardPipelineState_->release();
 }
@@ -67,28 +75,27 @@ void DropoutLayer::buildBuffers(MTL::Device* device) {
     assert(device && "Device is null!");
     
     
-    inputBuffers_[BufferType::Input].clear();
-    outputBuffers_[BufferType::Output].clear();
-    inputBuffers_[BufferType::InputErrors].clear();
-    outputBuffers_[BufferType::OutputErrors].clear();
+    outputBuffers_[BufferType::Output].resize(sequenceLength_);
+    inputBuffers_[BufferType::InputErrors].resize(sequenceLength_);
+    outputBuffers_[BufferType::OutputErrors].resize(sequenceLength_);
+    outputBuffers_[BufferType::Debug].resize(sequenceLength_);
     
-    for(int t = 0; t < sequenceLength_; ++t) {
-        auto inputBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-        assert(inputBuf && "Failed to allocate input buffer");
-        inputBuffers_[BufferType::Input].push_back(inputBuf);
-        
-        auto outputBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-        assert(outputBuf && "Failed to allocate output buffer");
-        outputBuffers_[BufferType::Output].push_back(outputBuf);
-        
-        auto inputErrBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-        assert(inputErrBuf && "Failed to allocate input error buffer");
-        inputBuffers_[BufferType::InputErrors].push_back(inputErrBuf);
-        
-        auto outputErrBuf = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-        assert(outputErrBuf && "Failed to allocate output error buffer");
-        outputBuffers_[BufferType::OutputErrors].push_back(outputErrBuf);
-    }
+    int t = 0;
+    
+
+    outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(featureDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    outputBuffers_[BufferType::Output][t] = device->newBuffer(featureDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    outputBuffers_[BufferType::Debug][t] = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    
+    memset(outputBuffers_[BufferType::Output][t]->contents(), 0, featureDim_ * batchSize_ * sizeof(float));
+    memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, featureDim_ * batchSize_ * sizeof(float));
+    memset(outputBuffers_[BufferType::Debug][t]->contents(), 0, featureDim_ * sizeof(float));
+    
+    outputBuffers_[BufferType::Output][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Output][t]->length()));
+    outputBuffers_[BufferType::OutputErrors][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][t]->length()));
+    outputBuffers_[BufferType::Debug][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Debug][t]->length()));
+    
+    std::cout << "dropout output error buffer initalized @" << outputBuffers_[BufferType::OutputErrors][t] << std::endl;
     
     generateRandomMask();
     assert(bufferRandomMask_ && "Random mask buffer allocation failed");
@@ -111,6 +118,7 @@ void DropoutLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize) {
         encoder->setBytes(&rate_, sizeof(float), 3);
         encoder->setBytes(&featureDim_, sizeof(int), 4);
         encoder->setBytes(&isTraining, sizeof(bool), 5);
+        encoder->setBuffer(outputBuffers_[BufferType::Debug][t], 0, 6);
         
         MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
         MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
@@ -130,6 +138,7 @@ void DropoutLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
         encoder->setBuffer(bufferRandomMask_, 0, 2);
         encoder->setBytes(&rate_, sizeof(float), 3);
         encoder->setBytes(&featureDim_, sizeof(int), 4);
+        encoder->setBuffer(outputBuffers_[BufferType::Debug][t], 0, 5);
         
         MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
         MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
@@ -139,19 +148,15 @@ void DropoutLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
 }
 
 void DropoutLayer::generateRandomMask() {
-    std::vector<float> maskData(featureDim_);
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
-    
-    for (auto& val : maskData) {
-        val = dist(gen);
+    if (!bufferRandomMask_) {
+        bufferRandomMask_ = _pDevice->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     }
-    
-    if (bufferRandomMask_) bufferRandomMask_->release();
-    
-    bufferRandomMask_ = _pDevice->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
-    memcpy(bufferRandomMask_->contents(), maskData.data(), featureDim_ * sizeof(float));
+
+    float* maskData = (float*)bufferRandomMask_->contents();
+    for (int i = 0; i < featureDim_; ++i) {
+        maskData[i] = (dist(gen) > rate_) ? 1.0f : 0.0f;
+    }
+
     bufferRandomMask_->didModifyRange(NS::Range(0, bufferRandomMask_->length()));
 }
 
@@ -161,7 +166,7 @@ void DropoutLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* 
 }
 
 MTL::Buffer* DropoutLayer::getOutputBufferAt(BufferType type, int timestep) {
-    return outputBuffers_[BufferType::Output][timestep];
+    return outputBuffers_[type][timestep];
 }
 
 void DropoutLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
@@ -173,7 +178,7 @@ MTL::Buffer* DropoutLayer::getInputBufferAt(BufferType type, int timestep) {
 }
 
 void DropoutLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                             MTL::Buffer* zeroBuffer, int timestep) {
+                                     MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
                      previousLayer
                      ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
@@ -182,11 +187,14 @@ void DropoutLayer::connectForwardConnections(Layer* previousLayer, Layer* inputL
 }
 
 void DropoutLayer::connectBackwardConnections(Layer* prevLayer,
-                                              Layer* inputLayer,
-                                              MTL::Buffer* zeroBuffer,
-                                              int timestep)
+                                   Layer* inputLayer,
+                                   MTL::Buffer* zeroBuffer,
+                                   int timestep)
 {
-    prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
+    std::cout << "dropout output error buffer @" << getOutputBufferAt(BufferType::OutputErrors, timestep) << std::endl;
+    if (prevLayer) {
+        prevLayer->setInputBufferAt(BufferType::InputErrors, timestep, getOutputBufferAt(BufferType::OutputErrors, timestep));
+    }
 }
 
 void DropoutLayer::saveParameters(std::ostream& os) const {
@@ -195,4 +203,16 @@ void DropoutLayer::saveParameters(std::ostream& os) const {
 
 void DropoutLayer::loadParameters(std::istream& is) {
     // No parameters to load
+}
+
+
+void DropoutLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+#ifdef F
+    Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Debug][0], "[F: Dropout Layer debug]", 100);
+#endif
+}
+
+void DropoutLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    std::cout << "Dropout Input Errors @" << inputBuffers_[BufferType::InputErrors][0] << std::endl;
+    std::cout << "Dropout Output Errors @" << outputBuffers_[BufferType::OutputErrors][0] << std::endl;
 }

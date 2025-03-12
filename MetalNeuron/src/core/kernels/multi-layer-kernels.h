@@ -491,50 +491,49 @@ kernel void learn_rnn(
     b[tid] -= learning_rate * delta * decay;
 }
 
-kernel void forward_dropout(
-    device const float* input       [[buffer(0)]],
-    device float*       output      [[buffer(1)]],
-    device const float* randomMask  [[buffer(2)]], // each tid in [0..1]
-    device const float* rate        [[buffer(3)]],
-    device const uint*  featureDim  [[buffer(4)]],
-    constant bool&      isTraining  [[buffer(5)]],
-    uint                tid         [[thread_position_in_grid]]
-) {
-    if (tid >= *featureDim) return;
+ kernel void forward_dropout(
+     device const float* input       [[buffer(0)]],
+     device       float* output      [[buffer(1)]],
+     device const float* randomMask  [[buffer(2)]], // binary mask: 0 or 1
+     constant float& rate        [[buffer(3)]],
+     constant int&   featureDim  [[buffer(4)]],
+     constant bool&      isTraining  [[buffer(5)]],
+     device float*       debug       [[buffer(6)]],
+     uint                tid         [[thread_position_in_grid]]
+ ) {
+     if ((int)tid >= featureDim) return;
+ 
+     float x        = input[tid];
+     float maskVal  = randomMask[tid]; // binary mask value
 
-    float dropRate = *rate;
-    float x        = input[tid];
-    float maskVal  = randomMask[tid];
-
-    if (isTraining) {
-        // Keep if maskVal >= dropRate
-        bool keep = (maskVal >= dropRate);
-        // Rescale by 1/(1-dropRate) for the kept units
-        output[tid] = keep ? (x / (1.0f - dropRate)) : 0.0f;
-    } else {
-        // No dropout in inference
-        output[tid] = x;
+    if (tid < 100) {
+        debug[tid] = input[tid];  // BEFORE dropout scaling
     }
-}
+ 
+     if (isTraining) {
+         output[tid] = (maskVal > 0.5f) ? (x / (1.0f - rate)) : 0.0f;
+     } else {
+         output[tid] = x;
+     }
+
+ }
 
 //-------------------------------------------------------------------
 // Backward pass for Dropout layer
-kernel void backward_dropout(
-    device const float* input_error  [[buffer(0)]],
-    device float* output_error       [[buffer(1)]],
-    device const float* randomMask   [[buffer(2)]],
-    device const float* rate         [[buffer(3)]],
-    device const uint* featureDim    [[buffer(4)]],
-    uint tid                         [[thread_position_in_grid]]
-) {
-    if (tid >= *featureDim) return;
-    
-    float dropRate = *rate;
-    float maskVal  = randomMask[tid];
-    bool keep = (maskVal >= dropRate);
-
-    output_error[tid] = keep ? (input_error[tid] / (1.0f - dropRate)) : 0.0f;
-}
+ kernel void backward_dropout(
+     device const float* input_error  [[buffer(0)]],
+     device float*       output_error  [[buffer(1)]],
+     device const float* randomMask   [[buffer(2)]],
+     constant float& rate         [[buffer(3)]],
+     constant uint&  featureDim   [[buffer(4)]],
+     device float* debug   [[buffer(5)]],
+     uint tid                         [[thread_position_in_grid]]
+ ) {
+     if ((int)tid >= featureDim) return;
+ 
+     float maskVal  = randomMask[tid]; // binary mask value
+     output_error[tid] = (maskVal > 0.5) ? (input_error[tid] / (1.0f - rate)) : 0.0f;
+ }
 
 
 /**
