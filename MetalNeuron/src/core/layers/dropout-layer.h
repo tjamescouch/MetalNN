@@ -10,6 +10,7 @@
 #include "layer.h"
 #include <Metal/Metal.hpp>
 
+
 class DropoutLayer : public Layer {
 public:
     DropoutLayer(float rate, int inputDim, int featureDim, int batchSize, int sequenceLength);
@@ -37,13 +38,8 @@ public:
     int inputSize() const override { return inputDim_; }
     int outputSize() const override { return featureDim_; }
     
-    void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
-    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {
-        for (int t = 0; t < sequenceLength_; ++t)
-            memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, outputBuffers_[BufferType::OutputErrors][t]->length());
-        
-        generateRandomMask();
-    };
+    void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
+    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
     
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;

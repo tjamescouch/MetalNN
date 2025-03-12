@@ -17,9 +17,12 @@ bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr), bufferLear
 forwardPipelineState_(nullptr), backwardPipelineState_(nullptr), learningRate_(0.001), batchSize_(batchSize)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
+    inputBuffers_[BufferType::InputErrors].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::OutputErrors].resize(sequenceLength_, nullptr);
     inputBuffers_[BufferType::Targets].resize(sequenceLength_, nullptr);
+    
+    layerIndex = ++layerCounter;
 }
 
 DenseLayer::~DenseLayer() {
@@ -251,7 +254,7 @@ void DenseLayer::connectBackwardConnections(Layer* prevLayer,
                                    int timestep)
 {
     if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
+        prevLayer->setInputBufferAt(BufferType::InputErrors, timestep, getOutputBufferAt(BufferType::OutputErrors, timestep));
     }
 }
 
@@ -269,25 +272,13 @@ void DenseLayer::loadParameters(std::istream& is) { //FIXME - decode buffer leng
 }
 
 void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    inputBuffers_[BufferType::InputErrors][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::InputErrors][0]->length()));
 }
 
 
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-#ifdef F
-    
-    if (isTerminal_) {
-        Logger::instance().printFloatBuffer(bufferWeights_, "[Terminal Dense Layer Weights]", 10);
-        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Targets][0], "[Terminal Dense Layer Targets]", 10);
-        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Input][0], "[Terminal Dense Layer Input]", 10);
-    } else {
-        Logger::instance().printFloatBuffer(bufferWeights_, "[Non Terminal Dense Layer Weights]", 10);
-        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[Non Terminal Dense Layer Input Errors]", 10);
-        Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Debug][0], "[Non Terminal Dense Layer Debug]", 784);
-        Logger::instance().count(outputBuffers_[BufferType::Debug][0], "Non zero debug values", [](float f){ return abs(f) > 0.01f;});
-        Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Input][0], "[Non Terminal Dense Layer Input]", 784);
-    }
-        
-#endif
+    std::cout << "Dense Input Errors @" << inputBuffers_[BufferType::InputErrors][0] << std::endl;
+    std::cout << "Dense Output Errors @" << outputBuffers_[BufferType::OutputErrors][0] << std::endl;
     
     auto cmdBuf = _pCommandQueue->commandBuffer();
     auto encoder = cmdBuf->computeCommandEncoder();
@@ -304,3 +295,5 @@ void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batch
 void DenseLayer::debugLog() {
 
 }
+
+int DenseLayer::layerCounter = 0;
