@@ -19,6 +19,9 @@ This project implements a dynamic, configurable Neural Network framework. Curren
   - Press `F` to run forward-pass inference.
   - Press `S` to save model parameters to a binary file.
   - Press `O` to load parameters from a binary file.
+ 
+- **Logging is displayed in Window:**
+<img width="609" alt="Screenshot 2025-03-12 at 4 58 49 AM" src="https://github.com/user-attachments/assets/3920744a-fe69-4fde-9239-21e5ba30b6b8" />
 
 - **Logging & Visualization:**
   - Generates a MATLAB-compatible file (`multilayer_nn_training.m`) for easy result visualization in Octave/MATLAB.
