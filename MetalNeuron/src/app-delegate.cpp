@@ -86,11 +86,10 @@ void AppDelegate::applicationDidFinishLaunching( NS::Notification* pNotification
                                                                }
                                                                ));
     
-    _pWindow = NS::Window::alloc()->init(
-                                         frame,
-                                         NS::WindowStyleMaskClosable|NS::WindowStyleMaskTitled,
+    _pWindow = NS::Window::alloc()->init(frame,
+                                         NS::WindowStyleMaskClosable | NS::WindowStyleMaskTitled | NS::WindowStyleMaskResizable,
                                          NS::BackingStoreBuffered,
-                                         false );
+                                         false);
     
     _pDevice = MTL::CreateSystemDefaultDevice();
     
