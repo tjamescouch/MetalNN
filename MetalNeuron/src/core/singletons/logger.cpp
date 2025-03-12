@@ -214,6 +214,19 @@ void Logger::printFloatBuffer(MTL::Buffer* b, std::string message, int maxElemen
     std::cout << "]" << std::endl;
 }
 
+void Logger::count(MTL::Buffer* b, std::string message, std::function<bool(float)> predicate) {
+    float* data = static_cast<float*>(b->contents());
+    size_t numFloats = b->length() / sizeof(float);
+    
+    size_t count = 0;
+    for (int i = 0; i < numFloats; ++i) {
+        if (predicate(data[i])) {
+            count++;
+        }
+    }
+    std::cout << message << " => " << count << std::endl;
+}
+
 void Logger::printFloatBuffer(MTL::Buffer* b, std::string message) {
     this->printFloatBuffer(b, message, INFINITY);
 }

@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <functional>
 
 namespace MTL {
 class Buffer;
@@ -42,6 +43,7 @@ public:
     
     void printFloatBufferL2Norm(MTL::Buffer* b, std::string message);
     void printFloatBufferMeanL2Norm(MTL::Buffer* b, std::string message);
+    void count(MTL::Buffer* b, std::string message, std::function<bool(float)> predicate);
     
 private:
     void flushRegressionAnalytics();

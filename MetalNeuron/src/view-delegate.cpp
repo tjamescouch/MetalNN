@@ -15,7 +15,9 @@
 #include "math-lib.h"
 #include "configuration-manager.h"
 
-const char* modelFilename = "simple-ocr.yml";
+//const char* modelFilename = "ocr.yml";
+//const char* modelFilename = "simple-ocr.yml";
+const char* modelFilename = "advanced-ocr.yml";
 //const char* modelFilename = "multi-dense-layer.yml";
 //const char* modelFilename = "single-dense-layer.yml";
 

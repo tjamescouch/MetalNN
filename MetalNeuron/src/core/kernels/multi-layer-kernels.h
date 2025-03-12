@@ -244,7 +244,6 @@ kernel void learn_non_terminal_dense_layer(
 
     // raw_error is the incoming gradient wrt this neuron's output
     float raw_error = sample_inErrors[neuron_id];
-    debug[gid] = raw_error;
 
     // Delta = error * activation derivative
     float dAct = activate_derivative(sample_y_hat[neuron_id], activation);
@@ -263,7 +262,10 @@ kernel void learn_non_terminal_dense_layer(
         float grad = sample_h[i] * delta;  // partial dW
 
         // clamp grad
-        grad = clamp(grad, -threshold, threshold);
+        //grad = clamp(grad, -threshold, threshold);
+
+
+        debug[i * output_dim + neuron_id] = grad;
 
         // We want to read the old weight, THEN do an atomic add
         device atomic_float* wAddr = (device atomic_float*)&W[i * output_dim + neuron_id];
@@ -489,23 +491,29 @@ kernel void learn_rnn(
     b[tid] -= learning_rate * delta * decay;
 }
 
-//-------------------------------------------------------------------
-// Forward pass for Dropout layer (CPU-generated randomness)
 kernel void forward_dropout(
     device const float* input       [[buffer(0)]],
-    device float* output            [[buffer(1)]],
-    device const float* randomMask  [[buffer(2)]],
+    device float*       output      [[buffer(1)]],
+    device const float* randomMask  [[buffer(2)]], // each tid in [0..1]
     device const float* rate        [[buffer(3)]],
-    device const uint* featureDim   [[buffer(4)]],
-    constant bool& isTraining       [[buffer(5)]],
-    uint tid                        [[thread_position_in_grid]]
+    device const uint*  featureDim  [[buffer(4)]],
+    constant bool&      isTraining  [[buffer(5)]],
+    uint                tid         [[thread_position_in_grid]]
 ) {
     if (tid >= *featureDim) return;
 
+    float dropRate = *rate;
+    float x        = input[tid];
+    float maskVal  = randomMask[tid];
+
     if (isTraining) {
-        output[tid] = (1.0f - *rate) * input[tid];
+        // Keep if maskVal >= dropRate
+        bool keep = (maskVal >= dropRate);
+        // Rescale by 1/(1-dropRate) for the kept units
+        output[tid] = keep ? (x / (1.0f - dropRate)) : 0.0f;
     } else {
-        output[tid] = randomMask[tid] >= *rate ? input[tid] : 0;
+        // No dropout in inference
+        output[tid] = x;
     }
 }
 
@@ -520,8 +528,12 @@ kernel void backward_dropout(
     uint tid                         [[thread_position_in_grid]]
 ) {
     if (tid >= *featureDim) return;
+    
+    float dropRate = *rate;
+    float maskVal  = randomMask[tid];
+    bool keep = (maskVal >= dropRate);
 
-    output_error[tid] = randomMask[tid] >= *rate ? input_error[tid] : 0;
+    output_error[tid] = keep ? (input_error[tid] / (1.0f - dropRate)) : 0.0f;
 }
 
 
@@ -743,38 +755,43 @@ kernel void backward_batch_norm(
 
 kernel void adam_kernel(
     device float* parameters         [[buffer(0)]],   // Parameters (weights or biases)
-    device float* gradients          [[buffer(1)]],  // Gradients accumulated
-    device float* m                  [[buffer(2)]],  // First moment vector
-    device float* v                  [[buffer(3)]],  // Second moment vector
-    constant float& learning_rate    [[buffer(4)]],  // Learning rate
-    constant float& beta1            [[buffer(5)]],  // Exponential decay rate for first moment estimates
-    constant float& beta2            [[buffer(6)]],  // Second moment vector exponential decay rate
-    constant float& epsilon          [[buffer(7)]],  // Stability factor to prevent division by zero
-    constant uint& batch_size        [[buffer(8)]],  // Current batch size
-    constant uint& timestep          [[buffer(9)]],  // Timestep for bias correction
-    constant uint& param_count       [[buffer(10)]], // Total number of parameters
+    device float* gradients          [[buffer(1)]],   // Gradients accumulated across the batch
+    device float* m                  [[buffer(2)]],   // First moment vector
+    device float* v                  [[buffer(3)]],   // Second moment vector
+    constant float& learning_rate    [[buffer(4)]],   // Base learning rate
+    constant float& beta1            [[buffer(5)]],   // Exponential decay rate for first moment
+    constant float& beta2            [[buffer(6)]],   // Exponential decay rate for second moment
+    constant float& epsilon          [[buffer(7)]],   // Prevent division by zero
+    constant uint& batch_size        [[buffer(8)]],   // Current batch size
+    constant uint& timestep          [[buffer(9)]],   // Global step for bias correction
+    constant uint& param_count       [[buffer(10)]],  // Total number of parameters
     uint tid                         [[thread_position_in_grid]]
-) {
+)
+{
+    // Each thread handles one parameter index
     if (tid >= param_count) return;
 
-    // Compute average gradient across batch
-    float grad_avg = gradients[tid] / float(batch_size);
+    // 1) Average the gradient over the batch (assuming 'gradients' is the sum)
+    float grad_avg = gradients[tid] / (float)batch_size;
 
-    // Adam moment estimates
+    // 2) Update biased first moment estimate (m) and second moment estimate (v)
     m[tid] = beta1 * m[tid] + (1.0f - beta1) * grad_avg;
     v[tid] = beta2 * v[tid] + (1.0f - beta2) * grad_avg * grad_avg;
 
-    // Bias-corrected first and second moment estimates
-    float m_hat = m[tid] / (1.0f - pow(beta1, timestep));
-    float v_hat = v[tid] / (1.0f - pow(beta2, timestep));
+    // 3) Skip explicit bias correction; keep old m & v directly.
+    float m_hat = m[tid];
+    float v_hat = v[tid];
 
-    // Parameter update with stability clamp
-    float update = learning_rate * m_hat / (sqrt(v_hat) + epsilon);
-    update = clamp(update, -1e3f, 1e3f); // Aggressive clamp to prevent explosions
+    // 4) Compute the Adam update (no bias correction)
+    float update = learning_rate * (m_hat / (sqrt(v_hat) + epsilon));
 
+    // Optional clamp to prevent extreme updates
+    update = clamp(update, -1e3f, 1e3f);
+
+    // 5) Apply the update
     parameters[tid] -= update;
 
-    // Reset gradient accumulator for next batch
+    // 6) Reset gradient accumulator for next batch
     gradients[tid] = 0.0f;
 }
 

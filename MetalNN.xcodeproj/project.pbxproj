@@ -48,8 +48,10 @@
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			buildPhase = DFE032AC2D72E9A000B1B6ED /* CopyFiles */;
 			membershipExceptions = (
+				"architectures/advanced-ocr.yml",
 				"architectures/map-reduce.yml",
 				"architectures/multi-dense-layer.yml",
+				"architectures/ocr-with-dropout.yml",
 				architectures/ocr.yml,
 				architectures/rnn.yml,
 				"architectures/simple-ocr.yml",

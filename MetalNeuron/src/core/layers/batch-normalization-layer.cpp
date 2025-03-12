@@ -279,13 +279,14 @@ void BatchNormalizationLayer::loadParameters(std::istream& is) {
 }
 
 void BatchNormalizationLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+#ifdef F
     Logger::instance().printFloatBuffer(bufferDebug_, "F: Debug", 128);
     
 
     Logger::instance().printFloatBuffer(bufferBeta_, "Beta", 10);
     Logger::instance().printFloatBuffer(bufferGamma_, "Gamma", 10);
     
-#ifdef F
+
     Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Input][0], "[B: Batch Normalization Input]", 10);
     Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Output][0], "[B: Batch Normalization Output]", 10);
     Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[B: Batch Normalization Input Errors]", 10);
@@ -294,7 +295,7 @@ void BatchNormalizationLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueu
 }
 
 void BatchNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    Logger::instance().printFloatBuffer(bufferDebug_, "B: Debug", 4);
+    //Logger::instance().printFloatBuffer(bufferDebug_, "B: Debug", 4);
     bufferBeta_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
     //bufferGamma_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
     bufferRunningMean_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
