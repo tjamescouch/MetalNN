@@ -74,13 +74,13 @@ Logs are generated for easy plotting and visualization in Octave/MATLAB:
 
 - Training results: `multilayer_nn_training.m`
 
-**Sample results:**
+**Sample results (single frame):**
 
-- **Regression Output:**
-  <img width="559" alt="Regression Example" src="https://github.com/jamescouch/assets/regression_example.png" />
+- Regression output:
+<img width="579" alt="Screenshot 2025-03-02 at 3 50 40 PM" src="https://github.com/user-attachments/assets/8616c562-ceb4-4ea0-a454-7b8a6fd61904" />
 
-- **Classification (MNIST):**
-  <img width="559" alt="MNIST Classification Example" src="https://github.com/jamescouch/assets/mnist_example.png" />
+- Classification output:
+<img width="559" alt="Screenshot 2025-03-11 at 8 22 16 PM" src="https://github.com/user-attachments/assets/93455b84-bfca-40cf-834c-1be2d6e0a9a1" />
 
 ---
 
