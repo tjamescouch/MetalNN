@@ -231,7 +231,6 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
         (*it)->backward(cmdBuf, batchSize);
     }
     
-    
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);

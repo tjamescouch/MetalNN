@@ -13,7 +13,7 @@
 
 DenseLayer::DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activation, int batchSize)
 : inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(1), activation_(activation),
-bufferWeights_(nullptr), bufferBias_(nullptr), bufferDecay_(nullptr), bufferLearningRate_(nullptr), isTerminal_(false),
+bufferWeights_(nullptr), bufferBias_(nullptr), isTerminal_(false),
 forwardPipelineState_(nullptr), backwardPipelineState_(nullptr), learningRate_(0.001), batchSize_(batchSize)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
@@ -34,8 +34,6 @@ DenseLayer::~DenseLayer() {
     
     if (bufferWeights_) bufferWeights_->release();
     if (bufferBias_) bufferBias_->release();
-    if (bufferDecay_) bufferDecay_->release();
-    if (bufferLearningRate_) bufferLearningRate_->release();
     if (forwardPipelineState_) forwardPipelineState_->release();
     if (backwardPipelineState_) backwardPipelineState_->release();
 }
@@ -73,9 +71,7 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
 }
 
 
-void DenseLayer::buildBuffers(MTL::Device* device) {
-    const float decay = 1.0f;
-    
+void DenseLayer::buildBuffers(MTL::Device* device) {    
     size_t weightSize = inputDim_ * outputDim_ * sizeof(float);
     size_t biasSize = outputDim_ * sizeof(float);
     
@@ -92,14 +88,6 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     float* b = static_cast<float*>(bufferBias_->contents());
     WeightInitializer::initializeBias(b, outputDim_);
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
-    
-    bufferDecay_ = device->newBuffer(sizeof(float), MTL::ResourceStorageModeManaged);
-    memcpy(bufferDecay_->contents(), &decay, sizeof(float));
-    bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
-    
-    bufferLearningRate_ = device->newBuffer(sizeof(float), MTL::ResourceStorageModeManaged);
-    memcpy(bufferLearningRate_->contents(), &learningRate_, sizeof(float));
-    bufferLearningRate_->didModifyRange(NS::Range(0, bufferLearningRate_->length()));
     
     outputBuffers_[BufferType::Output].resize(sequenceLength_);
     inputBuffers_[BufferType::InputErrors].resize(sequenceLength_);
@@ -154,6 +142,8 @@ void DenseLayer::updateTargetBufferAt(const float* targetData, int timestep, int
 void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     uint activationRaw = static_cast<uint>(activation_);
     uint bs = (uint)batchSize_;
+    uint input_dim = (uint)inputDim_;
+    uint output_dim = (uint)outputDim_;
         
     for (int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
@@ -162,8 +152,8 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
         encoder->setBuffer(outputBuffers_[BufferType::Output][t], 0, 1);
         encoder->setBuffer(bufferWeights_, 0, 2);
         encoder->setBuffer(bufferBias_, 0, 3);
-        encoder->setBytes(&inputDim_, sizeof(int), 4);
-        encoder->setBytes(&outputDim_, sizeof(int), 5);
+        encoder->setBytes(&input_dim, sizeof(uint), 4);
+        encoder->setBytes(&output_dim, sizeof(uint), 5);
         encoder->setBytes(&activationRaw, sizeof(uint), 6);
         encoder->setBytes(&bs, sizeof(uint), 7);
         encoder->setBuffer(outputBuffers_[BufferType::Debug][0], 0, 8);
@@ -180,9 +170,14 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     }
 }
 
-void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {    
+void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
+    
     uint activationRaw = static_cast<uint>(activation_);
     uint bs = (uint)batchSize_;
+    decay_ *= decayRate_;
+    float decay = decay_;
+    uint input_dim = (uint)inputDim_;
+    uint output_dim = (uint)outputDim_;
 
     auto encoder = cmdBuf->computeCommandEncoder();
     encoder->setComputePipelineState(backwardPipelineState_);
@@ -194,14 +189,14 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     encoder->setBuffer(outputBuffers_[BufferType::Output][0], 0, 3);
     encoder->setBuffer(isTerminal_ ? inputBuffers_[BufferType::Targets][0] : inputBuffers_[BufferType::InputErrors][0], 0, 4);
     encoder->setBuffer(outputBuffers_[BufferType::Delta][0], 0, 5);
-    encoder->setBytes(&inputDim_, sizeof(uint), 6);
-    encoder->setBytes(&outputDim_, sizeof(uint), 7);
-    encoder->setBuffer(bufferDecay_, 0, 8);
+    encoder->setBytes(&input_dim, sizeof(uint), 6);
+    encoder->setBytes(&output_dim, sizeof(uint), 7);
+    encoder->setBytes(&decay, sizeof(float), 8);
     encoder->setBytes(&activationRaw, sizeof(uint), 9);
     encoder->setBuffer(outputBuffers_[BufferType::Debug][0], 0, 10);
     encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 11);
     encoder->setBytes(&bs, sizeof(uint), 12);
-    encoder->setBuffer(bufferLearningRate_, 0, 13);
+    encoder->setBytes(&learningRate_, sizeof(float), 13);
 
     uint gridSize = batchSize_ * outputDim_;
     uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
@@ -214,8 +209,6 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     inputBuffers_[BufferType::Input][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][0]->length()));
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
-    bufferDecay_->didModifyRange(NS::Range(0, bufferDecay_->length()));
-
 }
 
 void DenseLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
@@ -277,6 +270,8 @@ void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchS
 
 
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    //Logger::log << this->name_ << std::endl;
+    //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "Output errors");
     
     auto cmdBuf = _pCommandQueue->commandBuffer();
     auto encoder = cmdBuf->computeCommandEncoder();

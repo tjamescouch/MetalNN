@@ -1,8 +1,3 @@
-#ifndef common_metal
-#define common_metal
-
-#include <metal_stdlib>
-
 #define REDUCTION_SUM     0
 #define REDUCTION_MEAN    1
 #define REDUCTION_MAX     2
@@ -14,7 +9,15 @@
 #define ACTIVATION_RELU    1
 #define ACTIVATION_TANH    2
 #define ACTIVATION_SIGMOID 3
-#define ACTIVATION_GELU    4
+#define ACTIVATION_SOFTMAX 4
+#define ACTIVATION_GELU    5
+
+
+#ifndef common_metal
+#define common_metal
+
+#include <metal_stdlib>
+
 
 
 inline float gelu(float x) {
