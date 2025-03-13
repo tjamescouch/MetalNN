@@ -23,126 +23,122 @@ float activate_derivative(const float y, const uint act);
 
 
 
+#include <metal_stdlib>
+using namespace metal;
+
+// Forward pass kernel for Layer Normalization
 kernel void forward_layer_norm(
-    device const float*  input           [[buffer(0)]],
-    device float*        output          [[buffer(1)]],
-    device const float*  gamma           [[buffer(2)]],
-    device const float*  beta            [[buffer(3)]],
-    device float*        runningMean     [[buffer(4)]],
-    device float*        runningVariance [[buffer(5)]],
-    device float*        savedMean       [[buffer(6)]],
-    device float*        savedVariance   [[buffer(7)]],
-    constant float&      epsilon         [[buffer(8)]],
-    constant int&        featureDim      [[buffer(9)]],
-    constant bool&       isTraining      [[buffer(10)]],
-    constant uint&       batchSize       [[buffer(11)]],
-    device float*        debug           [[buffer(12)]],  // not used
-    uint                 gid             [[thread_position_in_grid]]
-)
-{
-    if ((int)gid >= featureDim) return;
+    device const float* input            [[buffer(0)]],    // [batchSize x featureDim]
+    device float* output                 [[buffer(1)]],
+    device const float* gamma            [[buffer(2)]],
+    device const float* beta             [[buffer(3)]],
+    device float* savedMean              [[buffer(4)]],
+    device float* savedVariance          [[buffer(5)]],
+    constant float& epsilon              [[buffer(6)]],
+    constant int& featureDim             [[buffer(7)]],
+    constant int& batchSize              [[buffer(8)]],
+    uint gid                             [[thread_position_in_grid]]
+) {
+    if ((int)gid >= batchSize) return;
 
-    // 1) Compute per-batch mean for this feature
-    float sum = 0.0f;
-    for (uint b = 0; b < batchSize; b++) {
-        sum += input[b * featureDim + gid];
+    // Compute mean per sample
+    float mean = 0.0f;
+    for (int f = 0; f < featureDim; f++) {
+        mean += input[gid * featureDim + f];
     }
-    float batchMean = sum / float(batchSize);
+    mean /= float(featureDim);
+    savedMean[gid] = mean;
 
-    // 2) Compute per-batch variance
-    float sqSum = 0.0f;
-    for (uint b = 0; b < batchSize; b++) {
-        float diff = input[b * featureDim + gid] - batchMean;
-        sqSum += diff * diff;
+    // Compute variance per sample (fixed here explicitly)
+    float variance = 0.0f;
+    for (int f = 0; f < featureDim; f++) {
+        float val = input[gid * featureDim + f] - mean;
+        variance += val * val;
     }
-    float batchVar = sqSum / float(batchSize);
+    variance /= float(featureDim);
+    savedVariance[gid] = variance;
 
-    // 3) Save these batch stats for backward pass, no matter what
-    savedMean[gid]     = batchMean;
-    savedVariance[gid] = batchVar;
+    float invStd = rsqrt(variance + epsilon);
 
-    // 4) Update running stats if training
-    if (isTraining) {
-        // Typically: running = momentum*running + (1 - momentum)*new
-        float momentum = 0.9f;
-        runningMean[gid]     = momentum * runningMean[gid]     + (1.0f - momentum) * batchMean;
-        runningVariance[gid] = momentum * runningVariance[gid] + (1.0f - momentum) * batchVar;
-    }
-
-    // 5) Decide which mean and variance to use
-    float usedMean     = isTraining ? batchMean  : runningMean[gid];
-    float usedVariance = isTraining ? batchVar   : runningVariance[gid];
-    float invStd       = rsqrt(usedVariance + epsilon);
-
-    // 6) Normalize each sample’s value
-    for (uint b = 0; b < batchSize; b++) {
-        float val  = input[b * featureDim + gid];
-        float norm = (val - usedMean) * invStd;
-        output[b * featureDim + gid] = gamma[gid] * norm + beta[gid];
+    // Normalize explicitly each feature for this sample
+    for (int f = 0; f < featureDim; f++) {
+        int idx = gid * featureDim + f;
+        float norm = (input[idx] - mean) * invStd;
+        output[idx] = norm * gamma[f] + beta[f];
     }
 }
 
 
-kernel void backward_batch_norm(
-    device const float*  input            [[buffer(0)]],
-    device const float*  inputErrors      [[buffer(1)]],
-    device float*        outputErrors     [[buffer(2)]],
-    device float*        gamma            [[buffer(3)]],
-    device float*        beta             [[buffer(4)]],
-    device const float*  savedMean        [[buffer(5)]],
-    device const float*  savedVariance    [[buffer(6)]],
-    device const float*  runningMean      [[buffer(7)]],
-    device const float*  runningVariance  [[buffer(8)]],
-    constant float&      epsilon          [[buffer(9)]],
-    constant int&        featureDim       [[buffer(10)]],
-    constant bool&       isTraining       [[buffer(11)]],
-    constant uint&       batchSize        [[buffer(12)]],
-    constant float&      learningRate     [[buffer(13)]],
-    device float*        debug            [[buffer(14)]],
-    uint                 gid              [[thread_position_in_grid]]
-)
-{
-    if ((int)gid >= featureDim) return;
+kernel void backward_layer_norm(
+    device const float*  input           [[buffer(0)]],   // [batchSize x featureDim]
+    device const float*  inputErrors     [[buffer(1)]],   // dY coming into LayerNorm (same shape)
+    device float*        outputErrors    [[buffer(2)]],   // dX going out of LayerNorm
+    device float*        gamma           [[buffer(3)]],   // Learnable parameter gamma
+    device float*        beta            [[buffer(4)]],   // Learnable parameter beta
+    device const float*  savedMean       [[buffer(5)]],   // Per-sample saved mean
+    device const float*  savedVariance   [[buffer(6)]],   // Per-sample saved variance
+    constant float&      epsilon         [[buffer(7)]],
+    constant int&        featureDim      [[buffer(8)]],
+    constant int&        batchSize       [[buffer(9)]],
+    constant float&      learningRate    [[buffer(10)]],
+    uint                 gid             [[thread_position_in_grid]]
+) {
+    if ((int)gid >= batchSize) return; // Threads explicitly indexed per sample
 
-    // 1) Decide which mean/variance to use:
-    float mean     = isTraining ? savedMean[gid]     : runningMean[gid];
-    float var      = isTraining ? savedVariance[gid] : runningVariance[gid];
-    float invStd   = rsqrt(var + epsilon);
+    float mean = savedMean[gid];
+    float variance = savedVariance[gid];
+    float invStd = rsqrt(variance + epsilon);
 
-    // 2) Accumulate sum(dY) and sum(dY*xhat) for this feature
-    float sum_dY      = 0.0f;
-    float sum_dY_xhat = 0.0f;
+    // Intermediate sums for gamma/beta gradients (per-sample)
+    float grad_gamma_local[1024]; // adjust if featureDim > 1024
+    float grad_beta_local[1024];  // adjust if featureDim > 1024
 
-    for (uint b = 0; b < batchSize; b++) {
-        float x    = input[b * featureDim + gid];
-        float xhat = (x - mean) * invStd;
-        float dY   = inputErrors[b * featureDim + gid];
-        sum_dY      += dY;
-        sum_dY_xhat += (dY * xhat);
+    // Initialize accumulators
+    for (int f = 0; f < featureDim; f++) {
+        grad_gamma_local[f] = 0.0f;
+        grad_beta_local[f] = 0.0f;
     }
 
-    // 3) Gradients for gamma/beta
-    float grad_gamma = sum_dY_xhat;
-    float grad_beta  = sum_dY;
+    // Compute gradients explicitly for gamma and beta per-sample
+    for (int f = 0; f < featureDim; f++) {
+        int idx = gid * featureDim + f;
 
-    grad_gamma /= float(batchSize);
-    grad_beta  /= float(batchSize);
+        float xhat = (input[idx] - mean) * invStd;
+        float dY = inputErrors[idx];
 
-    // Update gamma, beta in place
-    gamma[gid] -= learningRate * grad_gamma;
-    beta[gid]  -= learningRate * grad_beta;
+        grad_gamma_local[f] = dY * xhat;
+        grad_beta_local[f] = dY;
+    }
 
-    // 4) Now compute outputErrors: ∂L/∂(BN input)
-    //    Formula:
-    //     dX = (1/N) * gamma * invStd * [ N*dY - sum(dY) - xhat * sum(dY*xhat) ]
-    for (uint b = 0; b < batchSize; b++) {
-        float x    = input[b * featureDim + gid];
-        float xhat = (x - mean) * invStd;
-        float dY   = inputErrors[b * featureDim + gid];
+    // Reduce gradients explicitly and update gamma and beta
+    for (int f = 0; f < featureDim; f++) {
+        // Atomic updates (if multiple threads share gamma/beta across samples)
+        atomic_fetch_add_explicit((device atomic_float*)&gamma[f], -learningRate * grad_gamma_local[f] / float(batchSize), memory_order_relaxed);
+        atomic_fetch_add_explicit((device atomic_float*)&beta[f], -learningRate * grad_beta_local[f] / float(batchSize), memory_order_relaxed);
+    }
 
-        float dX = (gamma[gid] * invStd / float(batchSize)) *
-                   (float(batchSize) * dY - sum_dY - xhat * sum_dY_xhat);
+    // Compute input gradient explicitly (outputErrors)
+    float sum_dY = 0.0f;
+    float sum_dY_xhat = 0.0f;
 
-        outputErrors[b * featureDim + gid] = dX;
+    // Compute sum_dY and sum_dY_xhat explicitly
+    for (int f = 0; f < featureDim; f++) {
+        int idx = gid * featureDim + f;
+        float xhat = (input[idx] - mean) * invStd;
+        float dY = inputErrors[idx];
+        sum_dY += dY;
+        sum_dY_xhat += dY * xhat;
+    }
+
+    // Compute final output errors explicitly
+    for (int f = 0; f < featureDim; f++) {
+        int idx = gid * featureDim + f;
+        float xhat = (input[idx] - mean) * invStd;
+        float dY = inputErrors[idx];
+
+        float dX = (gamma[f] * invStd / float(featureDim)) *
+                   (float(featureDim) * dY - sum_dY - xhat * sum_dY_xhat);
+
+        outputErrors[idx] = dX;
     }
 }
