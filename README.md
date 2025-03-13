@@ -36,7 +36,7 @@ Here's a prioritized, explicit list of layers currently planned for development,
 
 ### Stage 1: Transformer Core Layers
 - [x] **LayerNorm**: Critical normalization for transformer-based models.
-- [ ] **ResidualConnection**: Enables skip connections for stable transformer training.
+- [x] **ResidualConnection**: Enables skip connections for stable transformer training.
 - [ ] **PositionalEncodingLayer**: Adds positional context explicitly needed by transformers.
 - [ ] **EmbeddingLayer**: Maps tokens into continuous embedding spaces.
 - [ ] **FeedForward** (Explicit Dense-based feed-forward layers): Clearly broken down into:
