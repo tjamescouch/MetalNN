@@ -42,6 +42,7 @@
 			buildPhase = DFE032AC2D72E9A000B1B6ED /* CopyFiles */;
 			membershipExceptions = (
 				"architectures/advanced-ocr.yml",
+				"architectures/layer-norm.yml",
 				"architectures/map-reduce.yml",
 				"architectures/multi-dense-layer.yml",
 				"architectures/ocr-complete.yml",
@@ -51,6 +52,7 @@
 				architectures/rnn.yml,
 				"architectures/simple-ocr.yml",
 				"architectures/single-dense-layer.yml",
+				architectures/transformer.yml,
 				datasets/mnist/LICENSE.txt,
 				"datasets/mnist/t10k-images-idx3-ubyte",
 				"datasets/mnist/t10k-labels-idx1-ubyte",

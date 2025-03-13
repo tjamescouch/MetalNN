@@ -46,9 +46,7 @@ public:
     void loadParameters(std::istream& is) override;
     
     void debugLog() override;
-    
-    int getSequenceLength() override { return sequenceLength_; };
-    
+        
     void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; }
     DenseLayer* setLearningRate(float learningRate) { learningRate_ = learningRate; return this; }
     DenseLayer* setInitializer(std::string initializer) { initializer_ = initializer; return this; }

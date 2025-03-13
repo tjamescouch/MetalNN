@@ -45,7 +45,6 @@ public:
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;
     
-    int getSequenceLength() override { return sequenceLength_; };
     void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; };
     
     void debugLog() override;

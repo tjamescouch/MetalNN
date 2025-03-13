@@ -8,7 +8,7 @@
 
 
 std::default_random_engine generator;
-std::uniform_int_distribution<int> distribution(0, 2*M_PI);
+std::uniform_int_distribution<int> distribution(0, 2*M_PI * 100);
 
 
 FunctionDataset::FunctionDataset(InputFunction inputFunc, TargetFunction targetFunc,

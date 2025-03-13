@@ -70,8 +70,6 @@ void Logger::flushRegressionAnalytics() {
         std::cerr << "Error opening log file: " << filename_ << std::endl;
         return;
     }
-
-    *logFileStream << "clf; hold on;" << std::endl;
     
 
     for (size_t sampleIdx = 0; sampleIdx < batchOutputs_.size(); ++sampleIdx) {
@@ -79,31 +77,31 @@ void Logger::flushRegressionAnalytics() {
         const auto& target = batchTargets_[sampleIdx];
         size_t outputCount = output.size();
         
-        *logFileStream << "ylim([-1 1], \"Manual\");" << std::endl;
-        *logFileStream << "x = 1:" << outputCount << ";" << std::endl;
-
-        // Log target array
-        *logFileStream << "target = [ ";
-        for (int i = 0; i < outputCount; ++i)
-            *logFileStream << target[i] << (i < outputCount - 1 ? ", " : "");
-        *logFileStream << " ];" << std::endl;
-
-        // Log output array
-        *logFileStream << "output = [ ";
-        for (int i = 0; i < outputCount; ++i)
-            *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "");
-        *logFileStream << " ];" << std::endl;
-
-        // Plot targets and predictions
-        *logFileStream << "scatter(x, target, 'filled', 'b', 'DisplayName', 'Target');" << std::endl;
-        *logFileStream << "scatter(x, output, 'filled', 'r', 'DisplayName', 'Prediction');" << std::endl;
-
-        *logFileStream << "legend('show');" << std::endl;
-        *logFileStream << "pause(0.01);" << std::endl;
         *logFileStream << "clf; hold on;" << std::endl;
+        *logFileStream << "ylim([-1 1], \"Manual\");" << std::endl;
+
+        // Target array
+        *logFileStream << "target = [";
+        for (size_t i = 0; i < outputCount; ++i)
+            *logFileStream << target[i] << (i < outputCount - 1 ? ", " : "");
+        *logFileStream << "];" << std::endl;
+
+        // Output array
+        *logFileStream << "output = [";
+        for (size_t i = 0; i < outputCount; ++i)
+            *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "");
+        *logFileStream << "];" << std::endl;
+
+        // Plot commands
+        *logFileStream << "scatter(1:" << outputCount << ", target, 'filled', 'b', 'DisplayName', 'Target');" << std::endl;
+        *logFileStream << "scatter(1:" << outputCount << ", output, 'filled', 'r', 'DisplayName', 'Prediction');" << std::endl;
+        *logFileStream << "legend('show');" << std::endl;
+        *logFileStream << "pause(0.01);" << std::endl; // Adjust for desired speed
     }
 
-    *logFileStream << "hold off;" << std::endl;
+    // Clear buffers after plotting
+    batchOutputs_.clear();
+    batchTargets_.clear();
 }
 
 void Logger::flushClassificationAnalytics() {

@@ -106,7 +106,6 @@ public:
     virtual void saveParameters(std::ostream& os) const = 0;
     virtual void loadParameters(std::istream& is) = 0;
     
-    virtual int getSequenceLength() = 0;
     virtual void setIsTerminal(bool isTerminal) = 0;
 };
 
