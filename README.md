@@ -23,7 +23,7 @@ MetalNN is a neural network framework built in Metal Shading Language and Metal 
 - **Logging:**  
   Logs and debug outputs directly displayed within the app window.
 
-<img width="639" alt="Screenshot 2025-03-12 at 8.22.16 PM" src="https://github.com/user/assets/log-window.png"/>
+<img width="639" alt="Screenshot 2025-03-12 at 5 03 59 AM" src="https://github.com/user-attachments/assets/b8e696fc-de86-457e-ae73-fb98c345df8b" />
 
 - **Visualization:**  
   Training logs outputted to `multilayer-kernels.log` and `multilayer-kernels-debug.log` for external analysis and debugging.
