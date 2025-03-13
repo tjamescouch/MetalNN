@@ -70,38 +70,38 @@ void Logger::flushRegressionAnalytics() {
         std::cerr << "Error opening log file: " << filename_ << std::endl;
         return;
     }
+    
 
-    size_t batchSize = batchOutputs_.size();
-
-    for (size_t sampleIdx = 0; sampleIdx < batchSize; ++sampleIdx) {
+    for (size_t sampleIdx = 0; sampleIdx < batchOutputs_.size(); ++sampleIdx) {
         const auto& output = batchOutputs_[sampleIdx];
         const auto& target = batchTargets_[sampleIdx];
         size_t outputCount = output.size();
-
+        
         *logFileStream << "clf; hold on;" << std::endl;
         *logFileStream << "ylim([-1 1], \"Manual\");" << std::endl;
-        *logFileStream << "x = 1:" << outputCount << ";" << std::endl;
 
-        // Log target vector
-        *logFileStream << "target = [ ";
+        // Target array
+        *logFileStream << "target = [";
         for (size_t i = 0; i < outputCount; ++i)
             *logFileStream << target[i] << (i < outputCount - 1 ? ", " : "");
-        *logFileStream << " ];" << std::endl;
+        *logFileStream << "];" << std::endl;
 
-        // Log output vector
-        *logFileStream << "output = [ ";
+        // Output array
+        *logFileStream << "output = [";
         for (size_t i = 0; i < outputCount; ++i)
             *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "");
-        *logFileStream << " ];" << std::endl;
+        *logFileStream << "];" << std::endl;
 
-        // Plot explicitly
-        *logFileStream << "scatter(x, target, 'filled', 'b', 'DisplayName', 'Target');" << std::endl;
-        *logFileStream << "scatter(x, output, 'filled', 'r', 'DisplayName', 'Prediction');" << std::endl;
-
+        // Plot commands
+        *logFileStream << "scatter(1:" << outputCount << ", target, 'filled', 'b', 'DisplayName', 'Target');" << std::endl;
+        *logFileStream << "scatter(1:" << outputCount << ", output, 'filled', 'r', 'DisplayName', 'Prediction');" << std::endl;
         *logFileStream << "legend('show');" << std::endl;
-        *logFileStream << "pause(0.01);" << std::endl;  // Original pause duration explicitly preserved
-        *logFileStream << "clf;" << std::endl;
+        *logFileStream << "pause(0.01);" << std::endl; // Adjust for desired speed
     }
+
+    // Clear buffers after plotting
+    batchOutputs_.clear();
+    batchTargets_.clear();
 }
 
 void Logger::flushClassificationAnalytics() {
