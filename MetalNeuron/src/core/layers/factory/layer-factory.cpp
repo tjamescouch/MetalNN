@@ -9,7 +9,6 @@
 #include "dense-layer.h"
 #include "dropout-layer.h"
 #include "batch-normalization-layer.h"
-#include "rnn-layer.h"
 #include "map-reduce-layer.h"
 #include "configuration-manager.h"
 
@@ -53,19 +52,6 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
         epsilon = epsilon > 0 ? epsilon : 1e-5f;
         layer = new BatchNormalizationLayer(inputSize, outputSize, batchSize, 1, learningRate, epsilon);
-    }
-    else if (layerConfig.type == "RNN") {
-        std::cout << "Creating RNN layer..." << std::endl;
-        int outputSize = layerConfig.params.at("output_size").get_value<int>();
-        auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
-        ActivationFunction activation = parseActivation(activationStr);
-        int timeSteps = layerConfig.time_steps;
-        
-        
-        auto learningRate = layerConfig.params["learning_rate"].get_value_or<float>(globaLearningRate);
-        learningRate = learningRate > 0 ? learningRate : globaLearningRate;
-        
-        layer = new RNNLayer(inputSize, outputSize, timeSteps, activation, learningRate);
     }
     else if (layerConfig.type == "MapReduce") {
         std::cout << "Creating MapReduce layer..." << std::endl;

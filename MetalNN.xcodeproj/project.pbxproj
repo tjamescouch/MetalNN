@@ -37,13 +37,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		DFE030402D70783700B1B6ED /* Exceptions for "MetalNeuron" folder in "Compile Sources" phase from "MetalNeuron" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			buildPhase = DF5F23FA2D6A711A00D915B2 /* Sources */;
-			membershipExceptions = (
-				"src/core/layers/rnn-layer.h",
-			);
-		};
 		DFE032AE2D72E9B900B1B6ED /* Exceptions for "MetalNeuron" folder in "Copy Files" phase from "MetalNeuron" target */ = {
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			buildPhase = DFE032AC2D72E9A000B1B6ED /* CopyFiles */;
@@ -71,7 +64,6 @@
 		DF5F23FF2D6A711A00D915B2 /* MetalNeuron */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				DFE030402D70783700B1B6ED /* Exceptions for "MetalNeuron" folder in "Compile Sources" phase from "MetalNeuron" target */,
 				DFE032AE2D72E9B900B1B6ED /* Exceptions for "MetalNeuron" folder in "Copy Files" phase from "MetalNeuron" target */,
 			);
 			path = MetalNeuron;

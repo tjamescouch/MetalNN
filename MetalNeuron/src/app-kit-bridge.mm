@@ -29,7 +29,7 @@ extern "C" void setupTextField(void* nsWindow) {
         [paragraphStyle setLineSpacing:0.5]; // Adds spacing between lines
 
         [globalTextView setTypingAttributes:@{
-            NSFontAttributeName: [NSFont fontWithName:@"Menlo" size:11],
+            NSFontAttributeName: [NSFont fontWithName:@"Menlo" size:10],
             NSParagraphStyleAttributeName: paragraphStyle,
             NSForegroundColorAttributeName: [NSColor textColor]
         }];

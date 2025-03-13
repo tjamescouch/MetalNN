@@ -8,7 +8,6 @@
 #include "logger.h"
 #include "layer.h"
 #include "input-layer.h"
-#include "rnn-layer.h"
 #include "dense-layer.h"
 #include "batch-normalization-layer.h"
 #include "dataset.h"
@@ -53,7 +52,6 @@ public:
 private:
     void buildComputePipeline();
     void buildBuffers();
-    void shiftBuffers();
     
     KeyboardController* _pKeyboardController;
     DataManager* _pDataManager;
