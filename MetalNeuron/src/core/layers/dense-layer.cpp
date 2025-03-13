@@ -180,7 +180,7 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     }
 }
 
-void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
+void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {    
     uint activationRaw = static_cast<uint>(activation_);
     uint bs = (uint)batchSize_;
 

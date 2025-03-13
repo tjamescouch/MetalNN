@@ -14,8 +14,34 @@
 #define ACTIVATION_RELU    1
 #define ACTIVATION_TANH    2
 #define ACTIVATION_SIGMOID 3
-#define ACTIVATION_SOFTMAX 4
+#define ACTIVATION_GELU    4
 
+
+inline float gelu(float x) {
+    const float kAlpha = 0.7978845608f;  // sqrt(2/pi)
+    
+    float gelu_result = 0.5f * x * (1.0f + metal::tanh(kAlpha * (x + 0.044715f * metal::pow(x, 3))));
+    
+    // Debugging explicitly (temporarily)
+    if (metal::abs(gelu_result) > 1e6) {
+        gelu_result = metal::clamp(gelu_result, -10.0f, 10.0f);  // explicitly clamp to catch extreme values
+    }
+    
+    return gelu_result;
+}
+
+inline float gelu_derivative(float x) {
+    const float kAlpha = 0.7978845608f; // sqrt(2/pi)
+    float x_cube = x * x * x;
+    float tanh_arg = kAlpha * (x + 0.044715f * x_cube);
+    float tanh_out = metal::tanh(tanh_arg);
+
+    float left = 0.5f * (1.0f + tanh_out);
+    float sech_sq = 1.0f - tanh_out * tanh_out;
+    float right = 0.5f * x * sech_sq * kAlpha * (1.0f + 0.134145f * x * x);
+
+    return left + right;
+}
 
 
 /**
@@ -30,6 +56,7 @@ inline float activate(const float x, const uint act) {
         case ACTIVATION_RELU:    return metal::max(0.0f, x);
         case ACTIVATION_TANH:    return metal::tanh(x);
         case ACTIVATION_SIGMOID: return 1.0f / (1.0f + metal::exp(-x));
+        case ACTIVATION_GELU:    return gelu(x);
         default:                 return 0.0f;  // Fallback
     }
 }
@@ -46,6 +73,7 @@ inline float activate_derivative(const float y, const uint act) {
         case ACTIVATION_RELU:    return (y > 0.0f) ? 1.0f : 0.0f;
         case ACTIVATION_TANH:    return 1.0f - (y * y);
         case ACTIVATION_SIGMOID: return y * (1.0f - y);
+        case ACTIVATION_GELU:    return gelu_derivative(y);
         default:                 return 0.0f;
     }
 }

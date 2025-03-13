@@ -42,6 +42,7 @@
 			buildPhase = DFE032AC2D72E9A000B1B6ED /* CopyFiles */;
 			membershipExceptions = (
 				"architectures/advanced-ocr.yml",
+				architectures/gelu.yml,
 				"architectures/layer-norm.yml",
 				"architectures/map-reduce.yml",
 				"architectures/multi-dense-layer.yml",

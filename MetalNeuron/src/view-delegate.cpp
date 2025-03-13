@@ -20,7 +20,8 @@
 //const char* modelFilename = "ocr-with-dropout.yml";
 //const char* modelFilename = "ocr-with-batch-normalization.yml";
 //const char* modelFilename = "ocr-complete.yml";
-const char* modelFilename = "residual-connection.yml";
+//const char* modelFilename = "residual-connection.yml";
+const char* modelFilename = "gelu.yml";
 //const char* modelFilename = "multi-dense-layer.yml";
 //const char* modelFilename = "single-dense-layer.yml";
 

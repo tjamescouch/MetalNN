@@ -15,6 +15,7 @@ using namespace metal;
 #define ACTIVATION_TANH    2
 #define ACTIVATION_SIGMOID 3
 #define ACTIVATION_SOFTMAX 4
+#define ACTIVATION_GELU    5
 
 
 float activate(const float x, const uint act);
