@@ -105,7 +105,7 @@ Contributions and ideas are always welcome! Open an issue or a pull request to d
 
 ---
 
-## Metadata ✨
+## About ✨
 
 - **Author:** James Couch
 - **Description:** MetalNN—A dynamic, scalable neural network framework built in Metal for macOS. Focused explicitly on Transformer-based architectures and modular distributed computing.
