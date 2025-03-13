@@ -21,7 +21,7 @@ public:
     void buildBuffers(MTL::Device* device) override;
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
 
-    void setResidualInput(MTL::Buffer* residualBuffer);
+    ResidualConnectionLayer* setResidualInput(MTL::Buffer* residualBuffer);
     bool supportsResidual() const { return true; }
 
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
@@ -55,10 +55,12 @@ private:
     bool isTerminal_;
 
     MTL::Buffer* residualInputBuffer_;
-    std::vector<MTL::Buffer*> inputBuffers_;
-    std::vector<MTL::Buffer*> outputBuffers_;
+    MTL::Buffer* residualOutputErrorBuffer_;
+    std::unordered_map<BufferType, MTL::Buffer*> inputBuffers_;
+    std::unordered_map<BufferType, MTL::Buffer*> outputBuffers_;
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
+    
 };
 
 #endif // RESIDUAL_CONNECTION_LAYER_H

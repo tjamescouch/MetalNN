@@ -180,8 +180,6 @@ void LayerNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize)
 
 void LayerNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize)
 {
-    bool isTraining = TrainingManager::instance().isTraining();
-    
     auto encoder = cmdBuf->computeCommandEncoder();
     encoder->setComputePipelineState(backwardPipelineState_);
     

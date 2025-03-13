@@ -2,7 +2,6 @@
 #define NEURAL_ENGINE_H
 #include <vector>
 #include <functional>
-#include <unordered_map>
 
 #include "model-config.h"
 #include "keyboard-controller.h"
@@ -13,6 +12,7 @@
 #include "batch-normalization-layer.h"
 #include "dataset.h"
 #include "data-manager.h"
+#include "layer-factory.h"
 
 
 namespace MTL {
@@ -58,6 +58,7 @@ private:
     DataManager* _pDataManager;
     
     InputLayer* _pInputLayer;
+    LayerFactory* _pLayerFactory;
     
     MTL::Device* _pDevice;
     MTL::CommandQueue* _pCommandQueue;
@@ -75,8 +76,6 @@ private:
     int input_dim;
     int output_dim;
     std::string filename;
-
-    std::unordered_map<std::string, Layer*> layerMap_;
 };
 
 #endif // NEURAL_ENGINE_H

@@ -18,7 +18,6 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
                                  MTL::Device* device,
                                  MTL::Library* library,
                                  bool isTerminal) {
-    static int layerIdCounter = 0;  // Incrementing ID starting from 0
 
     std::cout << "Getting global parameters..." << std::endl;
     auto config = ConfigurationManager::instance().getConfig();
@@ -31,7 +30,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
 
     // Provide a default sequential numeric ID if name not explicitly provided
     std::string layerName = layerConfig.params["name"].get_value_or<std::string>(
-        "layer_" + std::to_string(layerIdCounter++)
+        "layer_" + std::to_string(layerIdCounter_++)
     );
     layerConfig.params["name"] = layerName;
 
@@ -68,8 +67,10 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         layer = new LayerNormalizationLayer(inputSize, batchSize, learningRate, epsilon);
         
     } else if (layerConfig.type == "ResidualConnection") {
-        std::cout << "Creating layer normalization layer..." << std::endl;
-        layer = new ResidualConnectionLayer(inputSize, batchSize);
+        auto from = layerConfig.params.at("from_layer").get_value<std::string>();
+        std::cout << "Creating residual connectionn layer from " << from << "..." << std::endl;
+        layer = (new ResidualConnectionLayer(inputSize, batchSize))
+                    ->setResidualInput(layerMap_[from]->getOutputBufferAt(BufferType::Output, 0));
         
     } else if (layerConfig.type == "MapReduce") {
         std::cout << "Creating MapReduce layer..." << std::endl;
@@ -80,6 +81,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         throw std::invalid_argument("Unsupported layer type");
     }
 
+    layerMap_[layerName] = layer;
     layer->setIsTerminal(isTerminal);
     layer->setName(layerName);
     layer->buildPipeline(device, library);
