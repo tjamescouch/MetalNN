@@ -58,6 +58,7 @@
 				architectures/rnn.yml,
 				"architectures/simple-ocr.yml",
 				"architectures/single-dense-layer.yml",
+				"architectures/vector-to-sequence-to-vector.yml",
 				datasets/mnist/LICENSE.txt,
 				"datasets/mnist/t10k-images-idx3-ubyte",
 				"datasets/mnist/t10k-labels-idx1-ubyte",

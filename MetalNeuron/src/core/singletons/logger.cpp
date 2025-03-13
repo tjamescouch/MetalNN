@@ -262,6 +262,7 @@ Logger Logger::log; // Static instance initialization
 void Logger::flush() {
     std::string output = _stream.str();
     updateTextField(output.c_str());  // Your existing Objective-C bridge
+    std::cout << output.c_str();
     _stream.str(std::string()); // clear buffer after flush
     _stream.clear();
 }

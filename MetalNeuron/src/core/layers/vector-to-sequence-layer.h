@@ -1,21 +1,22 @@
 //
-//  dropout-layer.h
+//  vector-to-sequence-layer.h
 //  MetalNeuron
 //
 //  Created by James Couch on 2025-03-01.
 //
 
-#pragma once
+#ifndef VECTOR_TO_SEQUENCE_LAYER_H
+#define VECTOR_TO_SEQUENCE_LAYER_H
+
 
 #include "layer.h"
 #include <Metal/Metal.hpp>
-#include <random>
 
 
-class DropoutLayer : public Layer {
+class VectorToSequenceLayer : public Layer {
 public:
-    DropoutLayer(float rate, int inputDim, int featureDim, int batchSize, int sequenceLength);
-    ~DropoutLayer() override;
+    VectorToSequenceLayer(int inputDim, int featureDim, int batchSize, int sequenceLength);
+    ~VectorToSequenceLayer() override;
 
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
     void buildBuffers(MTL::Device* device) override;
@@ -48,10 +49,9 @@ public:
     int getSequenceLength() override { return sequenceLength_; };
     void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; };
     
-    void debugLog() override;
+    void debugLog() override {}
     
 private:
-    float rate_;
     int sequenceLength_;
     int inputDim_;
     int featureDim_;
@@ -64,14 +64,7 @@ private:
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
     
-    // New member for CPU-fed randomness
-    MTL::Buffer* bufferRandomMask_;
     MTL::Device* _pDevice;
-        
-    void generateRandomMask();
-    
-    std::random_device rd;
-    std::mt19937 gen;
-    std::uniform_real_distribution<float> dist;
 };
 
+#endif

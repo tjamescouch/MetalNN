@@ -9,6 +9,7 @@
 #include "dense-layer.h"
 #include "dropout-layer.h"
 #include "batch-normalization-layer.h"
+#include "vector-to-sequence-layer.h"
 #include "rnn-layer.h"
 #include "map-reduce-layer.h"
 #include "configuration-manager.h"
@@ -30,6 +31,8 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
     auto learningRate = layerConfig.params["learning_rate"].get_value_or<float>(globaLearningRate);
     learningRate = learningRate > 0 ? learningRate : globaLearningRate;
     
+    int timeSteps = layerConfig.time_steps;
+    
     Layer* layer = nullptr;
 
     if (layerConfig.type == "Dense") {
@@ -49,6 +52,10 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         float rate = layerConfig.params.at("rate").get_value_or<float>(0.3);
         layer = new DropoutLayer(rate, inputSize, outputSize, batchSize, 1);
     }
+    else if (layerConfig.type == "VectorToSequence") {
+        Logger::log << "Creating dropout layer..." << std::endl;
+        layer = new VectorToSequenceLayer(inputSize, outputSize, batchSize, 1);
+    }
     else if (layerConfig.type == "BatchNormalization") {
         Logger::log << "Creating batch normalization layer..." << std::endl;
         float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
@@ -60,9 +67,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         int outputSize = layerConfig.params.at("output_size").get_value<int>();
         auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
         ActivationFunction activation = parseActivation(activationStr);
-        int timeSteps = layerConfig.time_steps;
-        
-        
+       
         auto learningRate = layerConfig.params["learning_rate"].get_value_or<float>(globaLearningRate);
         learningRate = learningRate > 0 ? learningRate : globaLearningRate;
         
