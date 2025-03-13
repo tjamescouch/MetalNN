@@ -2,6 +2,7 @@
 #include <cassert>
 #include <fstream>
 #include <algorithm>
+#include <unordered_map>
 
 #include "neural-engine.h"
 #include "dropout-layer.h"
@@ -9,8 +10,6 @@
 #include "training-manager.h"
 #include "math-lib.h"
 #include "layer-factory.h"
-
-
 
 NeuralEngine::NeuralEngine(MTL::Device* pDevice, ModelConfig& config, DataManager* pDataManager)
 : _pDevice(pDevice->retain()),
@@ -104,7 +103,6 @@ NeuralEngine::~NeuralEngine() {
     if (_pDevice) _pDevice->release();
 }
 
-
 void NeuralEngine::createDynamicLayers(ModelConfig& config) {
     // Clear existing layers
     for (auto layer : dynamicLayers_) {
@@ -138,6 +136,10 @@ void NeuralEngine::connectDynamicLayers(ModelConfig& config) {
                                                  _pComputeLibrary,
                                                  i == config.layers.size() - 1);
         dynamicLayers_.push_back(layer);
+
+        // Explicitly add to layerMap for name-based retrieval
+        std::string layerName = layer->getName();
+        layerMap_[layerName] = layer;
     }
     dynamicLayers_.back()->setIsTerminal(true);
     

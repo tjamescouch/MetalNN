@@ -2,6 +2,7 @@
 #define NEURAL_ENGINE_H
 #include <vector>
 #include <functional>
+#include <unordered_map>
 
 #include "model-config.h"
 #include "keyboard-controller.h"
@@ -74,6 +75,8 @@ private:
     int input_dim;
     int output_dim;
     std::string filename;
+
+    std::unordered_map<std::string, Layer*> layerMap_;
 };
 
 #endif // NEURAL_ENGINE_H

@@ -10,6 +10,7 @@
 #include "dropout-layer.h"
 #include "batch-normalization-layer.h"
 #include "layer-normalization-layer.h"
+#include "residual-connection-layer.h"
 #include "map-reduce-layer.h"
 #include "configuration-manager.h"
 
@@ -65,6 +66,10 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
         epsilon = epsilon > 0 ? epsilon : 1e-5f;
         layer = new LayerNormalizationLayer(inputSize, batchSize, learningRate, epsilon);
+        
+    } else if (layerConfig.type == "ResidualConnection") {
+        std::cout << "Creating layer normalization layer..." << std::endl;
+        layer = new ResidualConnectionLayer(inputSize, batchSize);
         
     } else if (layerConfig.type == "MapReduce") {
         std::cout << "Creating MapReduce layer..." << std::endl;
