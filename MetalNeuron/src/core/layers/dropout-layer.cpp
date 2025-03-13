@@ -12,12 +12,9 @@
 #include "dropout-layer.h"
 #include "training-manager.h"
 
-std::random_device rd;
-std::mt19937 gen(rd());
-std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
-DropoutLayer::DropoutLayer(float rate, int inputDim, int outputDim, int batchSize, int sequenceLength)
-: rate_(rate),
+DropoutLayer::DropoutLayer(float rate, int inputDim, int outputDim, int batchSize, int sequenceLength) :
+rate_(rate),
 featureDim_(inputDim * batchSize),
 inputDim_(inputDim),
 batchSize_(batchSize),
@@ -25,6 +22,8 @@ sequenceLength_(sequenceLength),
 bufferRandomMask_(nullptr),
 forwardPipelineState_(nullptr),
 backwardPipelineState_(nullptr),
+gen(rd()),
+dist(0.f, 1.f),
 isTerminal_(false) {
     assert(inputDim_ == outputDim);
     
@@ -210,4 +209,7 @@ void DropoutLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batc
 }
 
 void DropoutLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+}
+
+void DropoutLayer::debugLog() {
 }

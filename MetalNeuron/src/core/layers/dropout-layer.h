@@ -9,6 +9,7 @@
 
 #include "layer.h"
 #include <Metal/Metal.hpp>
+#include <random>
 
 
 class DropoutLayer : public Layer {
@@ -47,29 +48,7 @@ public:
     int getSequenceLength() override { return sequenceLength_; };
     void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; };
     
-    void debugLog() override {
-#ifdef DEBUG_DROPOUT_LAYER
-        for (int t = 0; t < sequenceLength_; ++t) {
-            float* inputs = static_cast<float*>(inputBuffers_[BufferType::Input][t]->contents());
-            printf("[DropoutLayer Input Debug] timestep %d: ", t);
-            for(int i = 0; i < inputBuffers_[BufferType::Input][t]->length()/sizeof(float); ++i)
-                printf(" %f, ", inputs[i]);
-            printf("\n");
- 
-            float* outputs = static_cast<float*>(outputBuffers_[BufferType::Output][t]->contents());
-            printf("[DropoutLayer Output Debug] timestep %d: ", t);
-            for(int i = 0; i < outputBuffers_[BufferType::Output][t]->length()/sizeof(float); ++i)
-                printf(" %f, ", outputs[i]);
-            printf("\n");
-            
-            float* mask = static_cast<float*>( bufferRandomMask_->contents());
-            printf("[DropoutLayer Mask Debug] timestep %d: ", t);
-            for(int i = 0; i < bufferRandomMask_->length()/sizeof(float); ++i)
-                printf(" %f, ", mask[i]);
-            printf("\n");
-        }
-#endif
-    }
+    void debugLog() override;
     
 private:
     float rate_;
@@ -90,4 +69,9 @@ private:
     MTL::Device* _pDevice;
         
     void generateRandomMask();
+    
+    std::random_device rd;
+    std::mt19937 gen;
+    std::uniform_real_distribution<float> dist;
 };
+
