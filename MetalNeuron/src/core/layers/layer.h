@@ -95,9 +95,9 @@ public:
                                       int batchSize) = 0;
     
     virtual void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) = 0;
+                                           MTL::Buffer* zeroBuffer, int timestep) = 0;
     virtual void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) = 0;
+                                            MTL::Buffer* zeroBuffer, int timestep) = 0;
     
     virtual void debugLog() = 0;
     virtual void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) = 0;
@@ -107,6 +107,12 @@ public:
     virtual void loadParameters(std::istream& is) = 0;
     
     virtual void setIsTerminal(bool isTerminal) = 0;
+    
+protected:
+    std::string name_;
+    
+public:
+    void setName(const std::string& name) { name_ = name; }
 };
 
 #endif // LAYER_H
