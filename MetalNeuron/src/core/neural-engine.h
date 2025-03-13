@@ -12,6 +12,7 @@
 #include "batch-normalization-layer.h"
 #include "dataset.h"
 #include "data-manager.h"
+#include "layer-factory.h"
 
 
 namespace MTL {
@@ -57,6 +58,7 @@ private:
     DataManager* _pDataManager;
     
     InputLayer* _pInputLayer;
+    LayerFactory* _pLayerFactory;
     
     MTL::Device* _pDevice;
     MTL::CommandQueue* _pCommandQueue;

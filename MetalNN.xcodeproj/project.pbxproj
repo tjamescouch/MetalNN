@@ -49,6 +49,7 @@
 				"architectures/ocr-with-batch-normalization.yml",
 				"architectures/ocr-with-dropout.yml",
 				architectures/ocr.yml,
+				"architectures/residual-connection.yml",
 				architectures/rnn.yml,
 				"architectures/simple-ocr.yml",
 				"architectures/single-dense-layer.yml",

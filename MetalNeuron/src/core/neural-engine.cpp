@@ -2,6 +2,7 @@
 #include <cassert>
 #include <fstream>
 #include <algorithm>
+#include <unordered_map>
 
 #include "neural-engine.h"
 #include "dropout-layer.h"
@@ -10,14 +11,13 @@
 #include "math-lib.h"
 #include "layer-factory.h"
 
-
-
 NeuralEngine::NeuralEngine(MTL::Device* pDevice, ModelConfig& config, DataManager* pDataManager)
 : _pDevice(pDevice->retain()),
 areBuffersBuilt(false),
 currentlyComputing(false),
 _pDataManager(pDataManager),
 _pInputLayer(nullptr),
+_pLayerFactory(nullptr),
 input_dim(0),
 output_dim(0),
 epochs(0),
@@ -32,6 +32,8 @@ filename(config.filename)
     
     int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
     _pInputLayer = new InputLayer(input_dim, first_layer_time_steps, batch_size);
+    
+    _pLayerFactory = new LayerFactory();
     
     Logger::instance().setBatchSize(batch_size);
     Logger::instance().setIsRegression(config.dataset.type == "function");
@@ -99,11 +101,11 @@ NeuralEngine::~NeuralEngine() {
         delete layer;
     
     delete _pKeyboardController;
+    if(_pLayerFactory) delete _pLayerFactory;
     
     if (_pCommandQueue) _pCommandQueue->release();
     if (_pDevice) _pDevice->release();
 }
-
 
 void NeuralEngine::createDynamicLayers(ModelConfig& config) {
     // Clear existing layers
@@ -133,7 +135,7 @@ void NeuralEngine::connectDynamicLayers(ModelConfig& config) {
     size_t numLayers = config.layers.size();
     for (int i = 0; i < numLayers; i++) {
         auto layerConfig = config.layers[i];
-        Layer* layer = LayerFactory::createLayer(layerConfig,
+        Layer* layer = _pLayerFactory->createLayer(layerConfig,
                                                  _pDevice,
                                                  _pComputeLibrary,
                                                  i == config.layers.size() - 1);
