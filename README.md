@@ -1,88 +1,102 @@
-# MetalNN: Dynamic, GPU-Accelerated Neural Network Framework in Metal 🚀
+# MetalNN
 
-This project implements a dynamic, configurable Neural Network framework. Currently supports simple dense layers for regression and classification accelerated by GPU computing via Apple's Metal Shading Language. RNN and other layer types are under construction. It's built to flexibly support complex neural architectures and streamline iterative development.
+MetalNN is a neural network framework built in Metal Shading Language and Metal C++, designed for dynamic, flexible, and scalable model architectures. It allows rapid iteration, modular design, and is particularly optimized for macOS GPU hardware.
 
 ---
 
 ## Current Features ✅
 
 - **Dynamic Network Configuration:** 
-  - YAML-based model configuration allowing rapid iteration and easy adjustment of neural architectures.
-  
+  - YAML-based model configurations allowing rapid iteration and adjustment of neural architectures.
+
 - **Supported Layers:**
-  - RNN layers (`tanh` activation).
-  - Fully connected Dense layers (`linear`, `relu`, `softmax` activations).
-  - Dropout layers for regularization.
-
-- **Interactive Training & Inference:**
-  - Press `L` to run training (learning) iterations.
-  - Press `F` to run forward-pass inference.
-  - Press `S` to save model parameters to a binary file.
+  - Dense Layer
+  - Dropout Layer
+  - Batch Normalization Layer
+  
+- **Interactive Commands via Keyboard (real-time training):**
+  - Press `L` to run training (forward + backward pass).
+  - Press `F` to run inference forward pass.
+  - Press `S` to save parameters.
   - Press `O` to load parameters from a binary file.
- 
-- **Logging is displayed in Window:**
-<img width="639" alt="Screenshot 2025-03-12 at 5 03 59 AM" src="https://github.com/user-attachments/assets/b8e696fc-de86-457e-ae73-fb98c345df8b" />
 
-- **Logging & Visualization:**
-  - Generates a MATLAB-compatible file (`multilayer_nn_training.m`) for easy result visualization in Octave/MATLAB.
+- **Logging:**  
+  Logs and debug outputs directly displayed within the app window.
+
+<img width="639" alt="Screenshot 2025-03-12 at 8.22.16 PM" src="https://github.com/user/assets/log-window.png"/>
+
+- **Visualization:**  
+  Training logs outputted to `multilayer-kernels.log` and `multilayer-kernels-debug.log` for external analysis and debugging.
+
+---
+
+## 🚧 **Planned Layers (TODO)**
+
+Here's a prioritized, explicit list of layers currently planned for development, clearly ordered by dependency:
+
+### Stage 1: Transformer Core Layers
+- [ ] **LayerNorm**: Critical normalization for transformer-based models.
+- [ ] **ResidualConnection**: Enables skip connections for stable transformer training.
+- [ ] **PositionalEncodingLayer**: Adds positional context explicitly needed by transformers.
+- [ ] **EmbeddingLayer**: Maps tokens into continuous embedding spaces.
+- [ ] **FeedForward** (Explicit Dense-based feed-forward layers): Clearly broken down into:
+  - [ ] Dense (Expansion layer with GELU)
+  - [ ] Dropout
+  - [ ] Dense (Projection layer)
+- [ ] **MultiHeadAttentionLayer**: Implements attention mechanism for Transformers.
+- [ ] **TransformerBlock**: Composite block encapsulating attention, FFN, residuals, and normalization.
+
+### Stage 2: CNN Layers (Multi-modal support)
+- [ ] **ConvolutionLayer (CNN)**: For image-based feature extraction.
+- [ ] **Dropout**: For CNN regularization.
+- [ ] **PoolingLayer**: For spatial downsampling.
+- [ ] **FlattenLayer**: Bridges CNN to Dense layers.
+
+### Stage 3: Multimodal & Advanced Layers
+- [ ] **EmbeddingLayer** (multi-modal embeddings, e.g., text, images, audio).
+- [ ] **CrossAttentionLayer** (Multimodal Fusion): Allows explicit interaction between modalities.
 
 ---
 
 ## Quickstart 🛠️
 
 - Clone the repository.
-- Adjust the network architecture in `model-config.yaml`.
-- Run the project in Xcode and control training/inference via keyboard commands:
+- Modify `model-config.yml` for your chosen architecture.
+- Run the project in Xcode, then use keyboard commands:
   - **Training:** Press `L`
-  - **Forward Pass:** Press `F`
+  - **Inference:** Press `F`
+  - **Save model:** Press `S`
+  - **Load model:** Press `O`
 
-Visualization of results is possible by executing the output MATLAB script in Octave or MATLAB.
+### Visualizing Results:
 
-- Example regression output:
-<img width="579" alt="Screenshot 2025-03-02 at 3 50 40 PM" src="https://github.com/user-attachments/assets/8616c562-ceb4-4ea0-a454-7b8a6fd61904" />
+Logs are generated for easy plotting and visualization in Octave/MATLAB:
 
-- Example classification output:
-<img width="559" alt="Screenshot 2025-03-11 at 8 22 16 PM" src="https://github.com/user-attachments/assets/93455b84-bfca-40cf-834c-1be2d6e0a9a1" />
+- Training results: `multilayer_nn_training.m`
 
+**Sample results:**
+
+- **Regression Output:**
+  <img width="559" alt="Regression Example" src="https://github.com/jamescouch/assets/regression_example.png" />
+
+- **Classification (MNIST):**
+  <img width="559" alt="MNIST Classification Example" src="https://github.com/jamescouch/assets/mnist_example.png" />
 
 ---
 
-## Roadmap 🗺️
+## Medium-term Roadmap 🎯
 
-### Short-term Goals:
-- [x] Refine weight initialization and training parameters.
-- [x] Resolve amplitude scaling issues.
-- [x] Implement batch normalization layers to improve training stability.
-- [ ] Add automated tests and diagnostics for gradient checks and debugging.
-- [x] Implement dynamically selectable activation functions.
-- [x] Implement dropout regularization.
-- [x] Create sample model configuration with good results
-- [x] Allow for saving and restoring parameters
-- [ ] Fix convergence issues.
-    - [x] single-dense-layer.yml
-    - [x] multi-dense-layer.yml
-    - [x] simple-ocr.yml
-    - [x] ocr.yml
-    - [x] advanced-ocr.yml
-    - [ ] rnn.ym
-- [ ] Validate layer implementations
-    - [x] Dense Layer
-    - [x] Dropout Layer
-    - [ ] Batch Normalization Layer
-    - [ ] RNN Layer
-- [x] Implement classification using MNIST dataset
+- [ ] Automated diagnostics and gradient checks.
+- [ ] Validate new Transformer layers individually.
+- [ ] Begin implementing distributed training across multiple machines using gRPC.
+- [ ] Implement comprehensive unit tests and diagnostics for layer validation.
 
-### Medium-term Goals:
-- [ ] Expand support for additional layer types (e.g., GRU, LSTM, CNNs, Attention layers).
-- [x] Implement ADAM optimizer algorithm.
-- [ ] Implement distributed training capabilities, enabling local and distributed workloads (similar to SETI@Home model).
-- [ ] Enhance GPU memory management and computation scheduling for better performance.
+## Long-term Roadmap 🌟
 
-### Long-term Goals:
-- [ ] Build a Transfomer based language model
-- [ ] Develop a distributed training framework for community-driven computation sharing.
-- [ ] Provide pre-trained models and tools for easy deployment on macOS/iOS devices.
-- [ ] Integrate with Swift-based frameworks for easy end-user application development.
+- [ ] Build a complete multi-modal Transformer model (text, images, audio).
+- [ ] Provide community-accessible distributed training (similar to SETI@home).
+- [ ] Provide pre-trained Transformer models and deployment tooling for macOS/iOS devices.
+- [ ] Integration with Swift for easier app deployment and usage.
 
 ---
 
@@ -91,9 +105,10 @@ Contributions and ideas are always welcome! Open an issue or a pull request to d
 
 ---
 
-## Author 🖊️
+## Metadata ✨
 
-- **James Couch**
-- Passionate about Machine Learning, GPU computing, and distributed systems.
+- **Author:** James Couch
+- **Description:** MetalNN—A dynamic, scalable neural network framework built in Metal for macOS. Focused explicitly on Transformer-based architectures and modular distributed computing.
 
 Enjoy exploring MetalNN, and happy training! 🚀
+
