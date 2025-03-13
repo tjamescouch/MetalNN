@@ -411,19 +411,3 @@ void NeuralEngine::loadModel(const std::string& filepath) {
     file.close();
     Logger::log << "✅ Model parameters loaded from: " << filepath << std::endl;
 }
-
-void NeuralEngine::shiftBuffers() {
-    for (int t = 0; t < _pInputLayer->getSequenceLength() - 1; ++t) {
-        memcpy(
-               _pInputLayer->getOutputBufferAt(BufferType::Output, t)->contents(),
-               _pInputLayer->getOutputBufferAt(BufferType::Output, t + 1)->contents(),
-               input_dim * sizeof(float)
-               );
-        
-        memcpy(
-               _pDataManager->getCurrentDataset()->getTargetDataAt(t, 0),
-               _pDataManager->getCurrentDataset()->getTargetDataAt(t + 1, 0),
-               output_dim * sizeof(float)
-               );
-    }
-}
