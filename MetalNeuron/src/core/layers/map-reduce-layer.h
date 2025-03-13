@@ -21,7 +21,6 @@ public:
     void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
 
-    int getSequenceLength() override;
     
     void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
                                      MTL::Buffer* zeroBuffer, int timestep) override;

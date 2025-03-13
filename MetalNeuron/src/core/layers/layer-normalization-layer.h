@@ -9,6 +9,7 @@
 #include <Metal/Metal.hpp>
 #include <vector>
 #include "layer.h"
+#include "optimizer.h"
 
 class LayerNormalizationLayer : public Layer {
 public:
@@ -69,6 +70,9 @@ private:
 
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
+    
+    std::unique_ptr<Optimizer> optimizerGamma_;
+    std::unique_ptr<Optimizer> optimizerBeta_;
 
     void initializeParameters(MTL::Device* device);
 };

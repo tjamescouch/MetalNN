@@ -53,10 +53,6 @@ void MapReduceLayer::buildBuffers(MTL::Device* device) {
     }
 }
 
-int MapReduceLayer::getSequenceLength() {
-    return sequenceLength_;
-}
-
 
 void MapReduceLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
                                                MTL::Buffer* zeroBuffer, int timestep){

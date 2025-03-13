@@ -182,10 +182,8 @@ void NeuralEngine::buildBuffers() {
     std::memset(zeroBuffer_->contents(), 0, input_dim  * batch_size* sizeof(float));
     
     Dataset* currentDataset = _pDataManager->getCurrentDataset();
-    for (int t = 0; t < _pInputLayer->getSequenceLength(); ++t) {
-        float* inputData = currentDataset->getInputDataAt(t, 0);
-        _pInputLayer->updateBufferAt(inputData, t);
-    }
+    float* inputData = currentDataset->getInputDataAt(0, 0);
+    _pInputLayer->updateBufferAt(inputData, 0);
     
     areBuffersBuilt = true;
 }
@@ -270,7 +268,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
     
     _pDataManager->loadNextBatch(currentBatchSize);
     
-    int terminalSeqLen = dynamicLayers_.back()->getSequenceLength();
+    int terminalSeqLen = 1;
     
     for (int t = 0; t < terminalSeqLen; ++t) {
         float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(t, 0);
@@ -281,22 +279,22 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
     }
     
     computeForward(currentBatchSize, [=, this]() mutable {
-        for (int t = 0; t < dynamicLayers_.back()->getSequenceLength(); ++t) {
-            float* predictedData = static_cast<float*>(
-                                                       dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, t)->contents()
-                                                       );
-            
-            float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(t, 0);
-            
-            float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData);
-            
-            Logger::instance().logAnalytics(predictedData, output_dim * currentBatchSize, targetData, output_dim * currentBatchSize);
-            if (currentBatchSize > 0) {
-                Logger::instance().accumulateLoss(totalBatchLoss / currentBatchSize, 1);
-            }
-            assert(!isnan(totalBatchLoss)); 
+        int t = 0;
+        float* predictedData = static_cast<float*>(
+                                                   dynamicLayers_.back()->getOutputBufferAt(BufferType::Output, t)->contents()
+                                                   );
+        
+        float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(t, 0);
+        
+        float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData);
+        
+        Logger::instance().logAnalytics(predictedData, output_dim * currentBatchSize, targetData, output_dim * currentBatchSize);
+        if (currentBatchSize > 0) {
+            Logger::instance().accumulateLoss(totalBatchLoss / currentBatchSize, 1);
         }
-
+        assert(!isnan(totalBatchLoss));
+        
+        
         
         
         if (((totalSamples - currentBatchSize) % 500) == 0) {
@@ -327,7 +325,7 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
     
     _pDataManager->loadNextBatch(currentBatchSize);
     
-    int terminalSeqLen = dynamicLayers_.back()->getSequenceLength();
+    int terminalSeqLen = 1;
     for (int t = 0; t < terminalSeqLen; ++t) {
         float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(t, 0);
         float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(t, 0);

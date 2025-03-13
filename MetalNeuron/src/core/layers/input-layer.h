@@ -44,8 +44,6 @@ public:
     void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
     void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
     
-    int getSequenceLength() override;
-    
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;
     

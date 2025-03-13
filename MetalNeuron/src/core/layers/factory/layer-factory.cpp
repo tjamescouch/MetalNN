@@ -9,6 +9,7 @@
 #include "dense-layer.h"
 #include "dropout-layer.h"
 #include "batch-normalization-layer.h"
+#include "layer-normalization-layer.h"
 #include "map-reduce-layer.h"
 #include "configuration-manager.h"
 
@@ -52,6 +53,12 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
         epsilon = epsilon > 0 ? epsilon : 1e-5f;
         layer = new BatchNormalizationLayer(inputSize, outputSize, batchSize, 1, learningRate, epsilon);
+    }
+    else if (layerConfig.type == "LayerNormalization") {
+        std::cout << "Creating batch normalization layer..." << std::endl;
+        float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
+        epsilon = epsilon > 0 ? epsilon : 1e-5f;
+        layer = new LayerNormalizationLayer(inputSize, batchSize, learningRate, epsilon);
     }
     else if (layerConfig.type == "MapReduce") {
         std::cout << "Creating MapReduce layer..." << std::endl;

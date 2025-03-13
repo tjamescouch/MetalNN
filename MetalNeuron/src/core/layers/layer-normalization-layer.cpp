@@ -6,6 +6,7 @@
 //
 
 #include "input-layer.h"
+#include "adam-optimizer.h"
 #include "layer-normalization-layer.h"
 #include <cassert>
 #include <random>
@@ -14,6 +15,8 @@
 #include "training-manager.h"
 #include "math-lib.h"
 #include "logger.h"
+#include "model-config.h"
+#include "configuration-manager.h"
 
 LayerNormalizationLayer::LayerNormalizationLayer(int featureDim, int batchSize, float learningRate, float epsilon)
     : featureDim_(featureDim),
@@ -64,9 +67,8 @@ void LayerNormalizationLayer::initializeParameters(MTL::Device* device) {
     bufferGamma_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
     bufferBeta_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
 
-    // NEW: Buffers for storing exact batch stats during forward, for the backward pass
-    bufferSavedMean_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
-    bufferSavedVariance_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
+    bufferSavedMean_ = device->newBuffer(sizeof(float) * batchSize_, MTL::ResourceStorageModeManaged);
+    bufferSavedVariance_ = device->newBuffer(sizeof(float) * batchSize_, MTL::ResourceStorageModeManaged);
 
     // Initialize all to zeros or ones as appropriate:
     memcpy(bufferDebug_->contents(), debug.data(), bufferSize);
@@ -88,8 +90,7 @@ void LayerNormalizationLayer::initializeParameters(MTL::Device* device) {
 
 void LayerNormalizationLayer::buildBuffers(MTL::Device* device) {
     size_t bufferSize = batchSize_ * featureDim_ * sizeof(float);
-    
-    // Initialize gamma and beta parameters
+
     std::vector<float> gamma(featureDim_, 1.0f); // scale initialized to 1
     std::vector<float> beta(featureDim_, 0.0f);  // shift initialized to 0
 
@@ -106,7 +107,7 @@ void LayerNormalizationLayer::buildBuffers(MTL::Device* device) {
     bufferSavedMean_ = device->newBuffer(sizeof(float) * batchSize_, MTL::ResourceStorageModeManaged);
     bufferSavedVariance_ = device->newBuffer(sizeof(float) * batchSize_, MTL::ResourceStorageModeManaged);
 
-    // Debug buffer (optional, but recommended for debugging)
+    // Debug buffer (optional)
     bufferDebug_ = device->newBuffer(sizeof(float) * 256, MTL::ResourceStorageModeManaged);
 
     // Allocate input and output buffers explicitly (single timestep only)
@@ -114,28 +115,43 @@ void LayerNormalizationLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::Output].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
     inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
     outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
+
+    // Optimizer buffers for gamma and beta
+    optimizerGamma_->buildBuffers(device, featureDim_ * sizeof(float));
+    optimizerBeta_->buildBuffers(device, featureDim_ * sizeof(float));
 }
 
 void LayerNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     NS::Error* error = nullptr;
-    
-    auto forwardFunction = library->newFunction(NS::String::string("forward_layer_norm", NS::UTF8StringEncoding));
-    forwardPipelineState_ = device->newComputePipelineState(forwardFunction, &error);
-    if (!forwardPipelineState_) {
-        std::cerr << "Forward pipeline error (LayerNorm): "
-        << error->localizedDescription()->utf8String() << std::endl;
-    }
+
+    auto forwardFn = library->newFunction(NS::String::string("forward_layer_norm", NS::UTF8StringEncoding));
+    assert(forwardFn && "Forward function not found.");
+
+    auto backwardFn = library->newFunction(NS::String::string("backward_layer_norm", NS::UTF8StringEncoding));
+    assert(backwardFn && "Backward function not found.");
+
+    forwardPipelineState_ = device->newComputePipelineState(forwardFn, &error);
     assert(forwardPipelineState_);
-    forwardFunction->release();
-    
-    auto backwardFunction = library->newFunction(NS::String::string("backward_layer_norm", NS::UTF8StringEncoding));
-    backwardPipelineState_ = device->newComputePipelineState(backwardFunction, &error);
-    if (!backwardPipelineState_) {
-        std::cerr << "Backward pipeline error (LayerNorm): "
-        << error->localizedDescription()->utf8String() << std::endl;
-    }
+
+    backwardPipelineState_ = device->newComputePipelineState(backwardFn, &error);
     assert(backwardPipelineState_);
-    backwardFunction->release();
+
+    forwardFn->release();
+    backwardFn->release();
+
+    ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
+    auto parameters = pConfig->training.optimizer.parameters;
+
+    float lr      = pConfig->training.optimizer.learning_rate;
+    float beta1   = parameters["beta1"].get_value_or<float>(0.9f);
+    float beta2   = parameters["beta2"].get_value_or<float>(0.999f);
+    float epsilon = parameters["epsilon"].get_value_or<float>(1e-8);
+
+    optimizerGamma_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+    optimizerBeta_  = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+
+    optimizerGamma_->buildPipeline(device, library);
+    optimizerBeta_->buildPipeline(device, library);
 }
 
 void LayerNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize)
@@ -155,8 +171,8 @@ void LayerNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize)
     encoder->setBuffer(bufferDebug_, 0, 9);
 
     // Explicit thread indexing per sample rather than per feature
-    MTL::Size threadsPerGroup = MTL::Size(std::min(batchSize, 1024), 1, 1);
-    MTL::Size threadgroups = MTL::Size((batchSize + 1023) / 1024, 1, 1);
+    MTL::Size threadsPerGroup = MTL::Size(std::min(batchSize_, 1024), 1, 1);
+    MTL::Size threadgroups = MTL::Size((batchSize_ + 1023) / 1024, 1, 1);
     
     encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
     encoder->endEncoding();
@@ -258,7 +274,12 @@ void LayerNormalizationLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueu
 }
 
 void LayerNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    // Explicitly mark gamma and beta buffers as modified (no running statistics)
-    bufferGamma_->didModifyRange(NS::Range(0, sizeof(float) * featureDim_));
-    bufferBeta_->didModifyRange(NS::Range(0, sizeof(float) * featureDim_));
+    auto cmdBuf = _pCommandQueue->commandBuffer();
+    auto encoder = cmdBuf->computeCommandEncoder();
+
+    optimizerGamma_->encode(encoder, bufferGamma_, featureDim_, batchSize);
+    optimizerBeta_->encode(encoder, bufferBeta_, featureDim_, batchSize);
+
+    encoder->endEncoding();
+    cmdBuf->commit();
 }

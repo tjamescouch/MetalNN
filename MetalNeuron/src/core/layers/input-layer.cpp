@@ -86,10 +86,6 @@ MTL::Buffer* InputLayer::getInputBufferAt(BufferType, int) {
     return nullptr; // Input layer doesn't propagate error backwards
 }
 
-int InputLayer::getSequenceLength() {
-    return sequenceLength_;
-}
-
 void InputLayer::saveParameters(std::ostream& os) const {
     // No parameters to save
 }

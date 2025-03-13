@@ -44,9 +44,7 @@ public:
     void loadParameters(std::istream& is) override;
 
     void debugLog() override {/*TODO*/}
-    
-    int getSequenceLength() override { return sequenceLength_; };
-    
+        
     void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; };
     
 private:

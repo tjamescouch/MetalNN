@@ -68,77 +68,52 @@ kernel void forward_layer_norm(
     }
 }
 
-
+// Backward pass for Layer Normalization
 kernel void backward_layer_norm(
-    device const float*  input           [[buffer(0)]],   // [batchSize x featureDim]
-    device const float*  inputErrors     [[buffer(1)]],   // dY coming into LayerNorm (same shape)
-    device float*        outputErrors    [[buffer(2)]],   // dX going out of LayerNorm
-    device float*        gamma           [[buffer(3)]],   // Learnable parameter gamma
-    device float*        beta            [[buffer(4)]],   // Learnable parameter beta
-    device const float*  savedMean       [[buffer(5)]],   // Per-sample saved mean
-    device const float*  savedVariance   [[buffer(6)]],   // Per-sample saved variance
-    constant float&      epsilon         [[buffer(7)]],
-    constant int&        featureDim      [[buffer(8)]],
-    constant int&        batchSize       [[buffer(9)]],
-    constant float&      learningRate    [[buffer(10)]],
-    uint                 gid             [[thread_position_in_grid]]
+    device const float* input                [[buffer(0)]],   // [batchSize x featureDim]
+    device const float* inputErrors          [[buffer(1)]],   // incoming errors (dY)
+    device float* outputErrors               [[buffer(2)]],   // propagated errors (dX)
+    device float* gamma                      [[buffer(3)]],   // gamma parameter
+    device float* beta                       [[buffer(4)]],   // beta parameter
+    device const float* savedMean            [[buffer(5)]],   // mean per sample (forward pass)
+    device const float* savedVariance        [[buffer(6)]],   // variance per sample (forward pass)
+    constant float& epsilon                  [[buffer(7)]],
+    constant int& featureDim                 [[buffer(8)]],
+    constant int& batchSize                  [[buffer(9)]],
+    constant float& learningRate             [[buffer(10)]],
+    uint gid                                 [[thread_position_in_grid]]
 ) {
-    if ((int)gid >= batchSize) return; // Threads explicitly indexed per sample
+    if ((int)gid >= batchSize) return;
 
     float mean = savedMean[gid];
     float variance = savedVariance[gid];
     float invStd = rsqrt(variance + epsilon);
 
-    // Intermediate sums for gamma/beta gradients (per-sample)
-    float grad_gamma_local[1024]; // adjust if featureDim > 1024
-    float grad_beta_local[1024];  // adjust if featureDim > 1024
+    // Temporary accumulators
+    float sum_dy = 0.0f;
+    float sum_dy_xhat = 0.0f;
 
-    // Initialize accumulators
-    for (int f = 0; f < featureDim; f++) {
-        grad_gamma_local[f] = 0.0f;
-        grad_beta_local[f] = 0.0f;
-    }
-
-    // Compute gradients explicitly for gamma and beta per-sample
-    for (int f = 0; f < featureDim; f++) {
-        int idx = gid * featureDim + f;
-
-        float xhat = (input[idx] - mean) * invStd;
-        float dY = inputErrors[idx];
-
-        grad_gamma_local[f] = dY * xhat;
-        grad_beta_local[f] = dY;
-    }
-
-    // Reduce gradients explicitly and update gamma and beta
-    for (int f = 0; f < featureDim; f++) {
-        // Atomic updates (if multiple threads share gamma/beta across samples)
-        atomic_fetch_add_explicit((device atomic_float*)&gamma[f], -learningRate * grad_gamma_local[f] / float(batchSize), memory_order_relaxed);
-        atomic_fetch_add_explicit((device atomic_float*)&beta[f], -learningRate * grad_beta_local[f] / float(batchSize), memory_order_relaxed);
-    }
-
-    // Compute input gradient explicitly (outputErrors)
-    float sum_dY = 0.0f;
-    float sum_dY_xhat = 0.0f;
-
-    // Compute sum_dY and sum_dY_xhat explicitly
+    // Compute intermediate sums for gradients
     for (int f = 0; f < featureDim; f++) {
         int idx = gid * featureDim + f;
         float xhat = (input[idx] - mean) * invStd;
-        float dY = inputErrors[idx];
-        sum_dY += dY;
-        sum_dY_xhat += dY * xhat;
+        float dy = inputErrors[idx];
+        sum_dy += dy;
+        sum_dy_xhat += dy * xhat;
     }
 
-    // Compute final output errors explicitly
-    for (int f = 0; f < featureDim; f++) {
+    // Compute and propagate input gradients, update gamma and beta
+    for (int f = 0; f < featureDim; ++f) {
         int idx = gid * featureDim + f;
         float xhat = (input[idx] - mean) * invStd;
-        float dY = inputErrors[idx];
+        float dy = inputErrors[idx];
 
-        float dX = (gamma[f] * invStd / float(featureDim)) *
-                   (float(featureDim) * dY - sum_dY - xhat * sum_dY_xhat);
+        // Input gradient
+        outputErrors[idx] = (gamma[f] * invStd / featureDim) *
+                            (featureDim * dy - sum_dy - xhat * sum_dy_xhat);
 
-        outputErrors[idx] = dX;
+        // Atomically update gamma and beta parameters
+        atomic_fetch_add_explicit((device atomic_float*)&gamma[f], -learningRate * dy * xhat / batchSize, memory_order_relaxed);
+        atomic_fetch_add_explicit((device atomic_float*)&beta[f], -learningRate * dy / batchSize, memory_order_relaxed);
     }
 }
