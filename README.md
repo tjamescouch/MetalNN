@@ -35,7 +35,7 @@ MetalNN is a neural network framework built in Metal Shading Language and Metal 
 Here's a prioritized, explicit list of layers currently planned for development, clearly ordered by dependency:
 
 ### Stage 1: Transformer Core Layers
-- [ ] **LayerNorm**: Critical normalization for transformer-based models.
+- [x] **LayerNorm**: Critical normalization for transformer-based models.
 - [ ] **ResidualConnection**: Enables skip connections for stable transformer training.
 - [ ] **PositionalEncodingLayer**: Adds positional context explicitly needed by transformers.
 - [ ] **EmbeddingLayer**: Maps tokens into continuous embedding spaces.
