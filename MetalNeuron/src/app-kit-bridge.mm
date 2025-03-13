@@ -23,12 +23,19 @@ extern "C" void setupTextField(void* nsWindow) {
         globalTextView = [[NSTextView alloc] initWithFrame:[[scrollView contentView] bounds]];
         [globalTextView setEditable:NO];
         [globalTextView setSelectable:YES];
-        [globalTextView setFont:[NSFont fontWithName:@"Menlo" size:12]];
-        [globalTextView setTextColor:[NSColor systemRedColor]];
-        [globalTextView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
 
-        // Ensure text color adapts automatically for dark/light mode:
+        // Explicitly set text attributes:
+        NSMutableParagraphStyle* paragraphStyle = [[NSMutableParagraphStyle alloc] init];
+        [paragraphStyle setLineSpacing:0.5]; // Adds spacing between lines
+
+        [globalTextView setTypingAttributes:@{
+            NSFontAttributeName: [NSFont fontWithName:@"Menlo" size:11],
+            NSParagraphStyleAttributeName: paragraphStyle,
+            NSForegroundColorAttributeName: [NSColor textColor]
+        }];
+
         [globalTextView setBackgroundColor:[NSColor textBackgroundColor]];
+        [globalTextView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
 
         [scrollView setDocumentView:globalTextView];
         [window.contentView addSubview:scrollView];
@@ -36,20 +43,30 @@ extern "C" void setupTextField(void* nsWindow) {
 }
 
 extern "C" void updateTextField(const char* message) {
-    if (globalTextView && message) {
-        NSString* safeString = [NSString stringWithUTF8String:message];
+    if (globalTextView) {
+        const char* safeMsg = message ? message : "";
+        NSString* safeString = [NSString stringWithUTF8String:safeMsg];
+        if (!safeString) safeString = @"";
 
         dispatch_async(dispatch_get_main_queue(), ^{
+            NSMutableParagraphStyle* paragraphStyle = [[NSMutableParagraphStyle alloc] init];
+            [paragraphStyle setLineSpacing:0.5];
+
+            NSDictionary* attributes = @{
+                NSForegroundColorAttributeName : [NSColor textColor],
+                NSFontAttributeName : [NSFont fontWithName:@"Menlo" size:11],
+                NSParagraphStyleAttributeName : paragraphStyle
+            };
+
+            NSAttributedString* attributedMessage = [[NSAttributedString alloc]
+                initWithString:[safeString stringByAppendingString:@"\n"]
+                attributes:attributes];
+
             NSScrollView* scrollView = [globalTextView enclosingScrollView];
-            NSClipView* clipView = [scrollView contentView];
-            NSRect visibleRect = [clipView documentVisibleRect];
+            NSRect visibleRect = [scrollView contentView].documentVisibleRect;
             NSRect documentRect = [[scrollView documentView] bounds];
 
-            BOOL isAtBottom = NSMaxY(visibleRect) >= NSMaxY(documentRect) - NSHeight(visibleRect) * 0.05;
-
-            NSString* appendString = [safeString hasSuffix:@"\n"] ? safeString : [safeString stringByAppendingString:@"\n"];
-            NSDictionary* attributes = @{NSForegroundColorAttributeName : [NSColor textColor]};
-            NSAttributedString* attributedMessage = [[NSAttributedString alloc] initWithString:appendString attributes:attributes];
+            BOOL isAtBottom = NSMaxY(visibleRect) >= NSMaxY(documentRect) - 1.0;
 
             [[globalTextView textStorage] appendAttributedString:attributedMessage];
 
