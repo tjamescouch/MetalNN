@@ -186,25 +186,21 @@ void LayerNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize
     encoder->setComputePipelineState(backwardPipelineState_);
     
     // indices:
-    encoder->setBuffer(inputBuffers_[BufferType::Input][0],       0, 0); // input
-    encoder->setBuffer(inputBuffers_[BufferType::InputErrors][0], 0, 1); // inputErrors
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 2); // outputErrors
-    encoder->setBuffer(bufferGamma_, 0, 3);     // gamma
-    encoder->setBuffer(bufferBeta_, 0, 4);      // beta
+    encoder->setBuffer(inputBuffers_[BufferType::Input][0],       0, 0);
+    encoder->setBuffer(inputBuffers_[BufferType::InputErrors][0], 0, 1);
+    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 2);
+    encoder->setBuffer(bufferGamma_, 0, 3);
+    encoder->setBuffer(bufferBeta_, 0, 4);
 
     // NEW: savedMean=5, savedVariance=6
     encoder->setBuffer(bufferSavedMean_, 0, 5);
     encoder->setBuffer(bufferSavedVariance_, 0, 6);
 
-    // SHIFT the running stats: 7,8
-
     // SHIFT the rest:
-    encoder->setBytes(&epsilon_,       sizeof(float), 9);    // 9: epsilon
-    encoder->setBytes(&featureDim_,    sizeof(int),   10);   // 10: featureDim
-    encoder->setBytes(&isTraining,     sizeof(bool),  11);   // 11: isTraining
-    encoder->setBytes(&batchSize,      sizeof(uint),  12);   // 12: batchSize
-    encoder->setBytes(&learningRate_,  sizeof(float), 13);   // 13: learningRate
-    encoder->setBuffer(bufferDebug_,   0,             14);   // 14: debug
+    encoder->setBytes(&epsilon_,       sizeof(float), 7);
+    encoder->setBytes(&featureDim_,    sizeof(int),   8);
+    encoder->setBytes(&batchSize,      sizeof(uint),  9);
+    encoder->setBytes(&learningRate_,  sizeof(float), 10);
 
     MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
     MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);

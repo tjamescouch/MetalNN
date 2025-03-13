@@ -71,39 +71,37 @@ void Logger::flushRegressionAnalytics() {
         return;
     }
 
-    *logFileStream << "clf; hold on;" << std::endl;
-    
+    size_t batchSize = batchOutputs_.size();
 
-    for (size_t sampleIdx = 0; sampleIdx < batchOutputs_.size(); ++sampleIdx) {
+    for (size_t sampleIdx = 0; sampleIdx < batchSize; ++sampleIdx) {
         const auto& output = batchOutputs_[sampleIdx];
         const auto& target = batchTargets_[sampleIdx];
         size_t outputCount = output.size();
-        
+
+        *logFileStream << "clf; hold on;" << std::endl;
         *logFileStream << "ylim([-1 1], \"Manual\");" << std::endl;
         *logFileStream << "x = 1:" << outputCount << ";" << std::endl;
 
-        // Log target array
+        // Log target vector
         *logFileStream << "target = [ ";
-        for (int i = 0; i < outputCount; ++i)
+        for (size_t i = 0; i < outputCount; ++i)
             *logFileStream << target[i] << (i < outputCount - 1 ? ", " : "");
         *logFileStream << " ];" << std::endl;
 
-        // Log output array
+        // Log output vector
         *logFileStream << "output = [ ";
-        for (int i = 0; i < outputCount; ++i)
+        for (size_t i = 0; i < outputCount; ++i)
             *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "");
         *logFileStream << " ];" << std::endl;
 
-        // Plot targets and predictions
+        // Plot explicitly
         *logFileStream << "scatter(x, target, 'filled', 'b', 'DisplayName', 'Target');" << std::endl;
         *logFileStream << "scatter(x, output, 'filled', 'r', 'DisplayName', 'Prediction');" << std::endl;
 
         *logFileStream << "legend('show');" << std::endl;
-        *logFileStream << "pause(0.01);" << std::endl;
-        *logFileStream << "clf; hold on;" << std::endl;
+        *logFileStream << "pause(0.01);" << std::endl;  // Original pause duration explicitly preserved
+        *logFileStream << "clf;" << std::endl;
     }
-
-    *logFileStream << "hold off;" << std::endl;
 }
 
 void Logger::flushClassificationAnalytics() {
