@@ -13,12 +13,6 @@ MetalNN is a neural network framework built in Metal Shading Language and Metal 
   - Dense Layer
   - Dropout Layer
   - Batch Normalization Layer
-  
-- **Interactive Commands via Keyboard (real-time training):**
-  - Press `L` to run training (forward + backward pass).
-  - Press `F` to run inference forward pass.
-  - Press `S` to save parameters.
-  - Press `O` to load parameters from a binary file.
 
 - **Logging:**  
   Logs and debug outputs directly displayed within the app window.
@@ -39,10 +33,10 @@ Here's a prioritized, explicit list of layers currently planned for development,
 - [x] **ResidualConnection**: Enables skip connections for stable transformer training.
 - [ ] **PositionalEncodingLayer**: Adds positional context explicitly needed by transformers.
 - [ ] **EmbeddingLayer**: Maps tokens into continuous embedding spaces.
-- [ ] **FeedForward** (Explicit Dense-based feed-forward layers): Clearly broken down into:
-  - [ ] Dense (Expansion layer with GELU)
-  - [ ] Dropout
-  - [ ] Dense (Projection layer)
+- [x] **FeedForward** (Explicit Dense-based feed-forward layers): Clearly broken down into:
+  - [x] Dense (Expansion layer with GELU)
+  - [x] Dropout
+  - [x] Dense (Projection layer)
 - [ ] **MultiHeadAttentionLayer**: Implements attention mechanism for Transformers.
 - [ ] **TransformerBlock**: Composite block encapsulating attention, FFN, residuals, and normalization.
 
