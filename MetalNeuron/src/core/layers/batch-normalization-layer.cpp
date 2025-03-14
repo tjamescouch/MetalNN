@@ -121,6 +121,9 @@ void BatchNormalizationLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::Output].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
     inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
     outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
+    
+    optimizerBeta_->buildBuffers(device, outputDim_ * sizeof(float));
+    optimizerGamma_->buildBuffers(device, outputDim_ * sizeof(float));
 }
 
 void BatchNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -154,6 +157,9 @@ void BatchNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* l
 
     optimizerGamma_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
     optimizerBeta_  = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+    
+    optimizerGamma_->buildPipeline(device, library);
+    optimizerBeta_->buildPipeline(device, library);
 }
 
 void BatchNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize)
@@ -309,9 +315,19 @@ void BatchNormalizationLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueu
 }
 
 void BatchNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    auto cmdBuf = _pCommandQueue->commandBuffer();
+    auto encoder = cmdBuf->computeCommandEncoder();
+    
+    optimizerBeta_->encode(encoder, bufferBeta_, outputDim_, batchSize);
+    optimizerGamma_->encode(encoder, bufferGamma_, outputDim_, batchSize);
+
+    encoder->endEncoding();
+    cmdBuf->commit();
+    
     //Logger::instance().printFloatBuffer(bufferDebug_, "B: Debug", 4);
-    bufferBeta_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
+    //bufferBeta_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
     //bufferGamma_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
     bufferRunningMean_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
     bufferRunningVariance_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
 }
+

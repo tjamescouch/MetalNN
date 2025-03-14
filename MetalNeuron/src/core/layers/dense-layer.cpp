@@ -280,6 +280,7 @@ void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batch
     optimizerBiases_->encode(encoder, bufferBias_, outputDim_, batchSize);
 
     encoder->endEncoding();
+    cmdBuf->commit();
     
     memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
     outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));

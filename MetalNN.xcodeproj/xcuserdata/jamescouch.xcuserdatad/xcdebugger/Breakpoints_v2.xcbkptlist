@@ -30,8 +30,8 @@
             filePath = "MetalNeuron/src/core/layers/dense-layer.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "237"
-            endingLineNumber = "237"
+            startingLineNumber = "239"
+            endingLineNumber = "239"
             landmarkName = "DenseLayer::connectForwardConnections(previousLayer, inputLayer, zeroBuffer, timestep)"
             landmarkType = "7">
          </BreakpointContent>
