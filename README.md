@@ -13,6 +13,8 @@ MetalNN is a neural network framework built in Metal Shading Language and Metal 
   - Dense Layer
   - Dropout Layer
   - Batch Normalization Layer
+  - Layer Normalization Layer
+  - Residual Connection Layer
 
 - **Logging:**  
   Logs and debug outputs directly displayed within the app window.
