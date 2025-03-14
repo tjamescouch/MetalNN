@@ -116,7 +116,7 @@ void Logger::flushClassificationAnalytics() {
     
     if (numClasses == 0) {
         Logger::log << "Error: numClasses is zero, invalid logger state." << std::endl;
-        throw;
+        return;
     }
 
     for (size_t sampleIdx = 0; sampleIdx < batchOutputs_.size(); ++sampleIdx) {
