@@ -43,6 +43,11 @@ public:
     
     void initializeWithDataset(Dataset* dataset);
     
+    void runTraining();
+    void runInference();
+    void saveParameters();
+    void loadParameters();
+    
     void saveModel(const std::string& filepath);
     void loadModel(const std::string& filepath);
     

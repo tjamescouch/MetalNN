@@ -7,13 +7,16 @@
 
 #include "input-layer.h"
 #include "batch-normalization-layer.h"
+#include "adam-optimizer.h"
 #include <cassert>
 #include <random>
 #include <cstring>
 #include <iostream>
 #include "training-manager.h"
+#include "configuration-manager.h"
 #include "math-lib.h"
 #include "logger.h"
+#include "model-config.h"
 
 BatchNormalizationLayer::BatchNormalizationLayer(int inputDim, int outputDim, int batchSize, int _unused, float learningRate, float epsilon)
 : inputDim_(inputDim),
@@ -140,6 +143,17 @@ void BatchNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* l
     }
     assert(backwardPipelineState_);
     backwardFunction->release();
+    
+    ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
+    auto parameters = pConfig->training.optimizer.parameters;
+
+    float lr      = pConfig->training.optimizer.learning_rate;
+    float beta1   = parameters["beta1"].get_value_or<float>(0.9f);
+    float beta2   = parameters["beta2"].get_value_or<float>(0.999f);
+    float epsilon = parameters["epsilon"].get_value_or<float>(1e-8);
+
+    optimizerGamma_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+    optimizerBeta_  = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
 }
 
 void BatchNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize)

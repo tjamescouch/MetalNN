@@ -108,6 +108,15 @@ void AppDelegate::applicationDidFinishLaunching( NS::Notification* pNotification
     
     _pWindow->makeKeyAndOrderFront( nullptr );
     
+    setMenuActionHandlers(
+        [this] { this->getComputer()->runTraining(); },
+        [this] { this->getComputer()->runInference(); },
+        [this] { this->getComputer()->saveParameters(); },
+        [this] { this->getComputer()->loadParameters(); }
+    );
+
+    setupMenus();
+    
     setupTextField((void*)_pWindow);
     
     NS::Application* pApp = reinterpret_cast< NS::Application* >( pNotification->object() );

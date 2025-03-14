@@ -14,6 +14,14 @@ extern "C" {
 
 void setupTextField(void* nsWindow);
 void updateTextField(const char* message);
+void setupMenus();
+
+void setMenuActionHandlers(
+    std::function<void()> trainHandler,
+    std::function<void()> inferenceHandler,
+    std::function<void()> saveHandler,
+    std::function<void()> loadHandler
+);
 
 #ifdef __cplusplus
 }
