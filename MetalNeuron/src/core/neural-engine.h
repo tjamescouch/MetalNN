@@ -4,7 +4,6 @@
 #include <functional>
 
 #include "model-config.h"
-#include "keyboard-controller.h"
 #include "logger.h"
 #include "layer.h"
 #include "input-layer.h"
@@ -38,7 +37,6 @@ public:
     void connectDynamicLayers(ModelConfig& config);
     void createDynamicLayers(ModelConfig& config);
     
-    void keyPress(KeyPress* kp);
     void handleKeyStateChange();
     
     void initializeWithDataset(Dataset* dataset);
@@ -59,7 +57,6 @@ private:
     void buildComputePipeline();
     void buildBuffers();
     
-    KeyboardController* _pKeyboardController;
     DataManager* _pDataManager;
     
     InputLayer* _pInputLayer;

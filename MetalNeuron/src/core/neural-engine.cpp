@@ -39,28 +39,6 @@ filename(config.filename)
     Logger::instance().setBatchSize(batch_size);
     Logger::instance().setIsRegression(config.dataset.type == "function");
     
-    _pKeyboardController = new KeyboardController();
-    
-    _pKeyboardController->setForwardCallback([this, config]() {
-        this->runInference();
-    });
-    
-    _pKeyboardController->setLearnCallback([this, config]() {
-        this->runTraining();
-    });
-    
-    _pKeyboardController->setClearCallback([this]() {
-        Logger::instance().clear();
-    });
-    
-    _pKeyboardController->setSaveCallback([this]() {
-        this->saveParameters();
-    });
-    
-    _pKeyboardController->setLoadCallback([this]() {
-        this->loadParameters();
-    });
-    
     _semaphore = dispatch_semaphore_create(kMaxFramesInFlight);
     
     buildComputePipeline();
@@ -72,7 +50,6 @@ NeuralEngine::~NeuralEngine() {
     for (auto layer : dynamicLayers_)
         delete layer;
     
-    delete _pKeyboardController;
     if(_pLayerFactory) delete _pLayerFactory;
     
     if (_pCommandQueue) _pCommandQueue->release();
@@ -89,7 +66,7 @@ void NeuralEngine::runTraining() {
     // Define epoch callback shared_ptr for recursion
     auto epochCallback = std::make_shared<std::function<void()>>(); //FIXME this is too flowery and complicated for me
     
-    *epochCallback = [this, currentEpoch, epochCallback, &pConfig]() {
+    *epochCallback = [this, currentEpoch, epochCallback, pConfig]() {
         if (*currentEpoch >= epochs) {
             Logger::log << "✅ Training complete!" << std::endl;
             return;
@@ -396,14 +373,6 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
             computeBackwardBatches(totalSamples, batchesRemaining - 1, onComplete);
         });
     });
-}
-
-void NeuralEngine::keyPress(KeyPress* kp) {
-    _pKeyboardController->keyPress(kp);
-}
-
-void NeuralEngine::handleKeyStateChange() {
-    _pKeyboardController->handleKeyStateChange();
 }
 
 

@@ -6,7 +6,6 @@
 //  Created by James Couch on 2024-12-07.
 //
 #import "app-delegate.h"
-#import "input-handler-bridge.h"
 #include "app-kit-bridge.h"
 
 #pragma mark - AppDelegate
@@ -74,17 +73,7 @@ void AppDelegate::applicationWillFinishLaunching( NS::Notification* pNotificatio
 void AppDelegate::applicationDidFinishLaunching( NS::Notification* pNotification )
 {
     CGRect frame = (CGRect){ {10, 10}, {640, 640} };
-    
-    StartKeyboardMonitoring(static_cast<KeyboardEventCallback>(
-                                                               [this](KeyPress kp) {
-                                                                   printf("KEY: %lu\n", kp.code);
-                                                                   auto engine = this->getComputer();
-                                                                   if (engine) {
-                                                                       this->getComputer()->keyPress(&kp);
-                                                                       this->getComputer()->handleKeyStateChange();
-                                                                   }
-                                                               }
-                                                               ));
+
     
     _pWindow = NS::Window::alloc()->init(frame,
                                          NS::WindowStyleMaskClosable | NS::WindowStyleMaskTitled | NS::WindowStyleMaskResizable,
