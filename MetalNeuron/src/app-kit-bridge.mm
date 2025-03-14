@@ -137,6 +137,8 @@ extern "C" void setupTextField(void* nsWindow) {
 
         [scrollView setDocumentView:globalTextView];
         [window.contentView addSubview:scrollView];
+        
+        [window makeFirstResponder:globalTextView];
     });
 }
 
