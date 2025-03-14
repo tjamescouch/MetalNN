@@ -32,7 +32,7 @@ const char* modelFilename = "feed-forward.yml";
 ViewDelegate::ViewDelegate(MTL::Device* pDevice)
 : MTK::ViewDelegate()
 , _pDevice(pDevice)
-, _pComputer(nullptr)
+, _pNeuralEngine(nullptr)
 , _pDataManager(nullptr)
 {
     static ModelConfig config = ModelConfig::loadFromFile(getDefaultModelFilePath());
@@ -59,14 +59,14 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice)
     _pDataManager = new DataManager(dataset);
     
     // Instantiate NeuralEngine using the updated constructor with DataManager
-    _pComputer = new NeuralEngine(_pDevice, config, _pDataManager);
+    _pNeuralEngine = new NeuralEngine(_pDevice, config, _pDataManager);
 
     Logger::log << "✅ NeuralEngine loaded with model: " << config.name << std::endl;
 }
 
 ViewDelegate::~ViewDelegate()
 {
-    delete _pComputer;
+    delete _pNeuralEngine;
 }
 
 void ViewDelegate::drawInMTKView(MTK::View* pView)
@@ -80,9 +80,9 @@ void ViewDelegate::drawableSizeWillChange(MTK::View* pView, CGSize size)
     // Handle resize events if needed
 }
 
-NeuralEngine* ViewDelegate::getComputer()
+NeuralEngine* ViewDelegate::getNeuralEngine()
 {
-    return _pComputer;
+    return _pNeuralEngine;
 }
 
 std::string ViewDelegate::getDefaultModelFilePath() {

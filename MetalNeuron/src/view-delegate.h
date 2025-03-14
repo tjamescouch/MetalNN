@@ -23,12 +23,12 @@ public:
     void drawInMTKView(MTK::View* pView) override;
     void drawableSizeWillChange(MTK::View* pView, CGSize size) override;
 
-    NeuralEngine* getComputer();
+    NeuralEngine* getNeuralEngine();
     std::string getDefaultModelFilePath();
 
 private:
     MTL::Device* _pDevice;
-    NeuralEngine* _pComputer;
+    NeuralEngine* _pNeuralEngine;
     DataManager* _pDataManager;
 };
 
