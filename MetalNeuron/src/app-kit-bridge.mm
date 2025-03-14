@@ -4,9 +4,107 @@
 //
 //  Created by James Couch on 2025-03-12.
 //
-
+#import <functional>
 #import <Cocoa/Cocoa.h>
 #include "app-kit-bridge.h"
+
+static std::function<void()> trainNetworkHandler;
+static std::function<void()> runInferenceHandler;
+static std::function<void()> saveParamsHandler;
+static std::function<void()> loadParamsHandler;
+
+// Objective-C action handlers
+@interface AppMenuHandler : NSObject
+@end
+
+@implementation AppMenuHandler
+- (void)trainNetwork:(id)sender {
+    if (trainNetworkHandler) trainNetworkHandler();
+}
+
+- (void)runInference:(id)sender {
+    if (runInferenceHandler) runInferenceHandler();
+}
+
+- (void)saveParameters:(id)sender {
+    if (saveParamsHandler) saveParamsHandler();
+}
+
+- (void)loadParameters:(id)sender {
+    if (loadParamsHandler) loadParamsHandler();
+}
+
+- (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
+    return YES; // explicitly enables all menu items
+}
+
+@end
+
+void setMenuActionHandlers(
+    std::function<void()> trainHandler,
+    std::function<void()> inferenceHandler,
+    std::function<void()> saveHandler,
+    std::function<void()> loadHandler
+) {
+    trainNetworkHandler = trainHandler;
+    runInferenceHandler = inferenceHandler;
+    saveParamsHandler = saveHandler;
+    loadParamsHandler = loadHandler;
+}
+
+void setupMenus() {
+    NSMenu* mainMenu = [[NSMenu alloc] init];
+
+    // Application menu
+    NSMenuItem* appMenuItem = [[NSMenuItem alloc] init];
+    [mainMenu addItem:appMenuItem];
+
+    NSMenu* appMenu = [[NSMenu alloc] initWithTitle:@"App"];
+    NSString* appName = [[NSProcessInfo processInfo] processName];
+    NSString* quitTitle = [@"Quit " stringByAppendingString:appName];
+    NSMenuItem* quitMenuItem = [[NSMenuItem alloc] initWithTitle:quitTitle
+                                                          action:@selector(terminate:)
+                                                   keyEquivalent:@"q"];
+    [appMenu addItem:quitMenuItem];
+    [appMenuItem setSubmenu:appMenu];
+
+    // Custom Actions menu
+    NSMenuItem* actionsMenuItem = [[NSMenuItem alloc] init];
+    [mainMenu addItem:actionsMenuItem];
+
+    NSMenu* actionsMenu = [[NSMenu alloc] initWithTitle:@"Actions"];
+
+    // Make this static so it persists
+    static AppMenuHandler* handler = [[AppMenuHandler alloc] init];
+
+    NSMenuItem* trainMenuItem = [[NSMenuItem alloc] initWithTitle:@"Train Network"
+                                                           action:@selector(trainNetwork:)
+                                                    keyEquivalent:@"l"];
+    [trainMenuItem setTarget:handler];
+    [actionsMenu addItem:trainMenuItem];
+
+    NSMenuItem* forwardMenuItem = [[NSMenuItem alloc] initWithTitle:@"Run Inference"
+                                                             action:@selector(runInference:)
+                                                      keyEquivalent:@"f"];
+    [forwardMenuItem setTarget:handler];
+    [actionsMenu addItem:forwardMenuItem];
+
+    NSMenuItem* saveParamsMenuItem = [[NSMenuItem alloc] initWithTitle:@"Save Parameters"
+                                                                action:@selector(saveParameters:)
+                                                         keyEquivalent:@"s"];
+    [saveParamsMenuItem setTarget:handler];
+    [actionsMenu addItem:saveParamsMenuItem];
+
+    NSMenuItem* loadParamsMenuItem = [[NSMenuItem alloc] initWithTitle:@"Load Parameters"
+                                                                action:@selector(loadParameters:)
+                                                         keyEquivalent:@"o"];
+    [loadParamsMenuItem setTarget:handler];
+    [actionsMenu addItem:loadParamsMenuItem];
+
+    [actionsMenuItem setSubmenu:actionsMenu];
+
+    [NSApp setMainMenu:mainMenu];
+}
 
 static NSTextView* globalTextView = nil;
 
@@ -39,6 +137,8 @@ extern "C" void setupTextField(void* nsWindow) {
 
         [scrollView setDocumentView:globalTextView];
         [window.contentView addSubview:scrollView];
+        
+        [window makeFirstResponder:globalTextView];
     });
 }
 

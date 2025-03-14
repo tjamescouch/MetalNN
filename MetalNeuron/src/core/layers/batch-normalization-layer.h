@@ -9,6 +9,7 @@
 #include <Metal/Metal.hpp>
 #include <vector>
 #include "layer.h"
+#include "optimizer.h"
 
 class BatchNormalizationLayer : public Layer {
 public:
@@ -61,6 +62,9 @@ private:
     MTL::Buffer* bufferGamma_; // Scale
     MTL::Buffer* bufferBeta_;  // Shift
     MTL::Buffer* bufferDebug_;
+    
+    std::unique_ptr<Optimizer> optimizerGamma_;
+    std::unique_ptr<Optimizer> optimizerBeta_;
 
     // Running averages for inference
     MTL::Buffer* bufferRunningMean_;

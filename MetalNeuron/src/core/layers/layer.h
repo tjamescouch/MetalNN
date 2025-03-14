@@ -26,7 +26,8 @@ enum class ActivationFunction {
     ReLU,
     Tanh,
     Sigmoid,
-    Softmax
+    Softmax,
+    GELU
 };
 
 inline ActivationFunction parseActivation(const std::string& activation) {
@@ -35,6 +36,7 @@ inline ActivationFunction parseActivation(const std::string& activation) {
     if (activation == "tanh") return ActivationFunction::Tanh;
     if (activation == "sigmoid") return ActivationFunction::Sigmoid;
     if (activation == "softmax") return ActivationFunction::Softmax;
+    if (activation == "gelu") return ActivationFunction::GELU;
     throw std::invalid_argument("Unknown activation: " + activation);
 }
 

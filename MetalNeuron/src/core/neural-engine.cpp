@@ -10,6 +10,7 @@
 #include "training-manager.h"
 #include "math-lib.h"
 #include "layer-factory.h"
+#include "configuration-manager.h"
 
 NeuralEngine::NeuralEngine(MTL::Device* pDevice, ModelConfig& config, DataManager* pDataManager)
 : _pDevice(pDevice->retain()),
@@ -38,57 +39,6 @@ filename(config.filename)
     Logger::instance().setBatchSize(batch_size);
     Logger::instance().setIsRegression(config.dataset.type == "function");
     
-    _pKeyboardController = new KeyboardController();
-    
-    _pKeyboardController->setForwardCallback([this, config]() {
-        Logger::instance().clear();
-        TrainingManager::instance().setTraining(false);
-        
-        computeForwardBatches(_pDataManager->getCurrentDataset()->numSamples(), ceil((float)_pDataManager->getCurrentDataset()->numSamples() / config.training.batch_size), [this]() {
-            Logger::log << "✅ Forward pass complete!" << std::endl;
-        });
-    });
-    
-    _pKeyboardController->setLearnCallback([this, config]() {
-        Logger::instance().clear();
-        TrainingManager::instance().setTraining(true);
-        
-        auto currentEpoch = std::make_shared<int>(0);
-        
-        // Define epoch callback shared_ptr for recursion
-        auto epochCallback = std::make_shared<std::function<void()>>(); //FIXME this is too flowery and complicated for me
-        
-        *epochCallback = [this, currentEpoch, epochCallback, config]() {
-            if (*currentEpoch >= epochs) {
-                Logger::log << "✅ Training complete!" << std::endl;
-                return;
-            }
-            
-            Logger::log << "🔄 Starting epoch: " << (*currentEpoch + 1) << " / " << epochs << std::endl;
-            
-            // Run batches for the current epoch, and then call next epoch on completion
-            computeBackwardBatches(_pDataManager->getCurrentDataset()->numSamples(), ceil((float)_pDataManager->getCurrentDataset()->numSamples() / config.training.batch_size), [this, currentEpoch, epochCallback]() {
-                (*currentEpoch)++;
-                (*epochCallback)();
-            });
-        };
-        
-        // Start the epoch processing
-        (*epochCallback)();
-    });
-    
-    _pKeyboardController->setClearCallback([this]() {
-        Logger::instance().clear();
-    });
-    
-    _pKeyboardController->setSaveCallback([this]() {
-        saveModel(filename + ".bin");
-    });
-    
-    _pKeyboardController->setLoadCallback([this]() {
-        loadModel(filename + ".bin");
-    });
-    
     _semaphore = dispatch_semaphore_create(kMaxFramesInFlight);
     
     buildComputePipeline();
@@ -100,11 +50,57 @@ NeuralEngine::~NeuralEngine() {
     for (auto layer : dynamicLayers_)
         delete layer;
     
-    delete _pKeyboardController;
     if(_pLayerFactory) delete _pLayerFactory;
     
     if (_pCommandQueue) _pCommandQueue->release();
     if (_pDevice) _pDevice->release();
+}
+
+void NeuralEngine::runTraining() {
+    Logger::instance().clear();
+    TrainingManager::instance().setTraining(true);
+    auto pConfig = ConfigurationManager::instance().getConfig();
+    
+    auto currentEpoch = std::make_shared<int>(0);
+    
+    // Define epoch callback shared_ptr for recursion
+    auto epochCallback = std::make_shared<std::function<void()>>(); //FIXME this is too flowery and complicated for me
+    
+    *epochCallback = [this, currentEpoch, epochCallback, pConfig]() {
+        if (*currentEpoch >= epochs) {
+            Logger::log << "✅ Training complete!" << std::endl;
+            return;
+        }
+        
+        Logger::log << "🔄 Starting epoch: " << (*currentEpoch + 1) << " / " << epochs << std::endl;
+        
+        // Run batches for the current epoch, and then call next epoch on completion
+        computeBackwardBatches(_pDataManager->getCurrentDataset()->numSamples(), ceil((float)_pDataManager->getCurrentDataset()->numSamples() / pConfig->training.batch_size), [this, currentEpoch, epochCallback]() {
+            (*currentEpoch)++;
+            (*epochCallback)();
+        });
+    };
+    
+    // Start the epoch processing
+    (*epochCallback)();
+}
+
+void NeuralEngine::runInference() {
+    Logger::instance().clear();
+    TrainingManager::instance().setTraining(false);
+    auto pConfig = ConfigurationManager::instance().getConfig();
+    
+    computeForwardBatches(_pDataManager->getCurrentDataset()->numSamples(), ceil((float)_pDataManager->getCurrentDataset()->numSamples() / pConfig->training.batch_size), [this]() {
+        Logger::log << "✅ Forward pass complete!" << std::endl;
+    });
+}
+
+void NeuralEngine::saveParameters() {
+    this->saveModel(filename + ".bin");
+}
+
+void NeuralEngine::loadParameters() {
+    loadModel(filename + ".bin");
 }
 
 void NeuralEngine::createDynamicLayers(ModelConfig& config) {
@@ -230,7 +226,6 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
     for (auto it = dynamicLayers_.rbegin(); it != dynamicLayers_.rend(); ++it) {
         (*it)->backward(cmdBuf, batchSize);
     }
-    
     
     cmdBuf->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
         currentlyComputing = false;
@@ -380,14 +375,6 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
     });
 }
 
-void NeuralEngine::keyPress(KeyPress* kp) {
-    _pKeyboardController->keyPress(kp);
-}
-
-void NeuralEngine::handleKeyStateChange() {
-    _pKeyboardController->handleKeyStateChange();
-}
-
 
 void NeuralEngine::initializeWithDataset(Dataset* dataset) {
     _pDataManager = new DataManager(dataset);
@@ -422,3 +409,4 @@ void NeuralEngine::loadModel(const std::string& filepath) {
     file.close();
     Logger::log << "✅ Model parameters loaded from: " << filepath << std::endl;
 }
+

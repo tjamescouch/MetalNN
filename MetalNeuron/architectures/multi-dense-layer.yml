@@ -4,10 +4,10 @@ layers:
   - type: Dense
     input_size: 256
     output_size: 256
-    activation: tanh
+    activation: relu
+    initializer: he
     
   - type: BatchNormalization
-    learning_rate: 0.00001
     input_size: 256
     output_size: 256
 
@@ -15,6 +15,7 @@ layers:
     input_size: 256
     output_size: 256
     activation: linear
+    initializer: he
 
 training:
   optimizer:

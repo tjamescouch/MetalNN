@@ -93,12 +93,23 @@ void ResidualConnectionLayer::updateTargetBufferAt(const float* targetData, int 
     assert(false && "ResidualConnectionLayer cannot be used as a terminal layer with targets.");
 }
 
-void ResidualConnectionLayer::connectForwardConnections(Layer* previousLayer, Layer*, MTL::Buffer*, int) {
-    inputBuffers_[BufferType::Input] = previousLayer->getOutputBufferAt(BufferType::Output, 0);
+void ResidualConnectionLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
+                                     MTL::Buffer* zeroBuffer, int timestep) {
+    setInputBufferAt(BufferType::Input, timestep,
+                     previousLayer
+                     ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     );
 }
 
-void ResidualConnectionLayer::connectBackwardConnections(Layer* previousLayer, Layer*, MTL::Buffer* zeroBuffer, int) {
-    previousLayer->setOutputBufferAt(BufferType::OutputErrors, 0, inputBuffers_[BufferType::InputErrors]);
+void ResidualConnectionLayer::connectBackwardConnections(Layer* prevLayer,
+                                   Layer* inputLayer,
+                                   MTL::Buffer* zeroBuffer,
+                                   int timestep)
+{
+    if (prevLayer) {
+        prevLayer->setInputBufferAt(BufferType::InputErrors, timestep, getOutputBufferAt(BufferType::OutputErrors, timestep));
+    }
 }
 
 void ResidualConnectionLayer::debugLog() {}

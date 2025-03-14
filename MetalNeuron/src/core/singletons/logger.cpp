@@ -110,36 +110,43 @@ void Logger::flushClassificationAnalytics() {
         return;
     }
 
+
+    size_t numClasses = batchOutputs_[0].size();
     
+    
+    if (numClasses == 0) {
+        Logger::log << "Error: numClasses is zero, invalid logger state." << std::endl;
+        throw;
+    }
+
     for (size_t sampleIdx = 0; sampleIdx < batchOutputs_.size(); ++sampleIdx) {
         const auto& output = batchOutputs_[sampleIdx];
         const auto& target = batchTargets_[sampleIdx];
-        size_t outputCount = output.size() / batchSize_; //FIXME - just logging the first sample per batch for now
+        
+        size_t offset = 0; // explicitly first sample
 
         *logFileStream << "clf; hold on;" << std::endl;
         *logFileStream << "xlabel('Class (Digit)'); ylabel('Probability');" << std::endl;
         *logFileStream << "ylim([0, 1]);" << std::endl;
+        *logFileStream << "x = 0:" << (numClasses - 1) << ";" << std::endl;
 
-        *logFileStream << "x = 0:" << (outputCount - 1) << ";" << std::endl;
-
-        // Target vector
+        // Target vector explicitly using offset
         *logFileStream << "target = [";
-        for (int i = 0; i < outputCount; ++i) {
-            *logFileStream << target[i] << (i < outputCount - 1 ? ", " : "") << " ";
+        for (int i = 0; i < numClasses; ++i) {
+            *logFileStream << target[offset + i] << (i < numClasses - 1 ? ", " : "") << " ";
         }
         *logFileStream << "];" << std::endl;
 
-        // Predicted probabilities
+        // Output probabilities explicitly using offset
         *logFileStream << "output = [";
-        for (int i = 0; i < outputCount; ++i) {
-            *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "") << " ";
+        for (int i = 0; i < numClasses; ++i) {
+            *logFileStream << output[offset + i] << (i < numClasses - 1 ? ", " : "") << " ";
         }
         *logFileStream << "];" << std::endl;
 
-        // Plot as bar plots
+        // Plot commands remain unchanged
         *logFileStream << "bar(x - 0.15, target, 0.3, 'FaceColor', 'b', 'DisplayName', 'Target');" << std::endl;
         *logFileStream << "bar(x + 0.15, output, 0.3, 'FaceColor', 'r', 'DisplayName', 'Prediction');" << std::endl;
-
         *logFileStream << "legend('show');" << std::endl;
         *logFileStream << "pause(0.05);" << std::endl;
     }

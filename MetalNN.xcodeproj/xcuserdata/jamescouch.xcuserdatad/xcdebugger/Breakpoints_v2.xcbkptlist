@@ -30,8 +30,8 @@
             filePath = "MetalNeuron/src/core/layers/dense-layer.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "244"
-            endingLineNumber = "244"
+            startingLineNumber = "237"
+            endingLineNumber = "237"
             landmarkName = "DenseLayer::connectForwardConnections(previousLayer, inputLayer, zeroBuffer, timestep)"
             landmarkType = "7">
          </BreakpointContent>
@@ -46,8 +46,8 @@
             filePath = "MetalNeuron/src/core/layers/dense-layer.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "139"
-            endingLineNumber = "139"
+            startingLineNumber = "127"
+            endingLineNumber = "127"
             landmarkName = "DenseLayer::setInputBufferAt(type, timestep, buffer)"
             landmarkType = "7">
          </BreakpointContent>
@@ -209,6 +209,54 @@
             startingLineNumber = "52"
             endingLineNumber = "52"
             landmarkName = "ResidualConnectionLayer::forward(commandBuffer, batchSize)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "64C09326-223B-4C46-A811-CB2D59A6EB6A"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "MetalNeuron/src/core/neural-engine.cpp"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "69"
+            endingLineNumber = "69"
+            landmarkName = "NeuralEngine::runTraining()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "0F3E8979-F206-4523-9E07-B6DC980FE2B8"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "MetalNeuron/src/view-delegate.cpp"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "40"
+            endingLineNumber = "40"
+            landmarkName = "ViewDelegate::ViewDelegate(pDevice)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "CE58147E-3148-40A3-A11D-E1F49339D569"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "MetalNeuron/src/view-delegate.cpp"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "39"
+            endingLineNumber = "39"
+            landmarkName = "ViewDelegate::ViewDelegate(pDevice)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

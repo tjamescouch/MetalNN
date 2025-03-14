@@ -4,19 +4,6 @@
 
 using namespace metal;
 
-#define REDUCTION_SUM     0
-#define REDUCTION_MEAN    1
-#define REDUCTION_MAX     2
-#define REDUCTION_MIN     3
-#define REDUCTION_SOFTMAX 4
-
-
-#define ACTIVATION_LINEAR  0
-#define ACTIVATION_RELU    1
-#define ACTIVATION_TANH    2
-#define ACTIVATION_SIGMOID 3
-#define ACTIVATION_SOFTMAX 4
-
 
 kernel void adam_kernel(
     device float* parameters         [[buffer(0)]],   // Parameters (weights or biases)

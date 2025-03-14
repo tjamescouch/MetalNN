@@ -18,9 +18,10 @@
 //const char* modelFilename = "ocr.yml";
 //const char* modelFilename = "simple-ocr.yml";
 //const char* modelFilename = "ocr-with-dropout.yml";
-//const char* modelFilename = "ocr-with-batch-normalization.yml";
+const char* modelFilename = "ocr-with-batch-normalization.yml";
 //const char* modelFilename = "ocr-complete.yml";
-const char* modelFilename = "residual-connection.yml";
+//const char* modelFilename = "residual-connection.yml";
+//const char* modelFilename = "gelu.yml";
 //const char* modelFilename = "multi-dense-layer.yml";
 //const char* modelFilename = "single-dense-layer.yml";
 
@@ -33,7 +34,7 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice)
 , _pComputer(nullptr)
 , _pDataManager(nullptr)
 {
-    ModelConfig config = ModelConfig::loadFromFile(getDefaultModelFilePath());
+    static ModelConfig config = ModelConfig::loadFromFile(getDefaultModelFilePath());
     config.filename = modelFilename;
     
     ConfigurationManager::instance().setConfig(&config);
