@@ -34,9 +34,8 @@ static std::function<void()> loadParamsHandler;
     if (loadParamsHandler) loadParamsHandler();
 }
 
-// This method ensures all menu items remain enabled
-- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
-    return YES;
+- (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
+    return YES; // explicitly enables all menu items
 }
 
 @end
