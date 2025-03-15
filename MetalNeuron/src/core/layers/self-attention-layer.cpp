@@ -176,7 +176,7 @@ void SelfAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSi
     uint bs = (uint)batchSize;
 
     // Binding buffers (must match exactly kernel buffer indices)
-    encoder->setBuffer(inputBuffers_[BufferType::Input], 0, 1);                  // Inputs from forward pass
+    encoder->setBuffer(inputBuffers_[BufferType::Input], 0, 0);                  // Inputs from forward pass
     encoder->setBuffer(weightsQ_, 0, 1);                                         // Q weights
     encoder->setBuffer(weightsK_, 0, 2);                                         // K weights
     encoder->setBuffer(weightsV_, 0, 3);                                         // V weights
@@ -205,13 +205,13 @@ void SelfAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSi
     const int gridSize = batchSize * seqLength_ * inputDim_;
     MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
     MTL::Size threadgroupSize = MTL::Size(std::min(gridSize, 512), 1, 1);
+    encoder->dispatchThreads(threadsPerGrid, threadgroupSize);
     
     optimizerWeightsQ_->encode(encoder, bufferQ_, inputDim_ * modelDim_, batchSize);
     optimizerWeightsK_->encode(encoder, bufferK_, inputDim_ * modelDim_, batchSize);
     optimizerWeightsV_->encode(encoder, bufferV_, inputDim_ * modelDim_, batchSize);
     optimizerOutputProjection_->encode(encoder, outputProjection_, inputDim_ * modelDim_, batchSize);
-
-    encoder->dispatchThreads(threadsPerGrid, threadgroupSize);
+    
     encoder->endEncoding();
 }
 
@@ -248,17 +248,18 @@ void SelfAttentionLayer::connectBackwardConnections(Layer* prevLayer,
 
 void SelfAttentionLayer::debugLog() {}
 void SelfAttentionLayer::onForwardComplete(MTL::CommandQueue*, int) {
-    Logger::log.printFloatBuffer(inputBuffers_[BufferType::InputErrors], "[Self-Attention Input Errors]", 10);
+    //Logger::log.printFloatBuffer(inputBuffers_[BufferType::InputErrors], "[Self-Attention Input Errors]", 10);
     //Logger::log.printFloatBuffer(inputBuffers_[BufferType::Input], "[Forward Self-Attention Input (full)]", seqLength_ * inputDim_);
     //Logger::log.printFloatBuffer(outputBuffers_[BufferType::Output], "[Forward Self-Attention Output]", 2);
     
 }
 
 void SelfAttentionLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    /*
     Logger::log << "input errors @" << inputBuffers_[BufferType::InputErrors] << std::endl;
     Logger::log.printFloatBuffer(inputBuffers_[BufferType::InputErrors], "[B Self-Attention Input Errors]", 10);
     Logger::log.printFloatBuffer(outputBuffers_[BufferType::OutputErrors], "[B Self-Attention Output Errors]", 10);
-    /*
+    
     Logger::log.printFloatBuffer(optimizerWeightsQ_->gradientBuffer(), "[Gradient Weights Q]", 10);
     Logger::log.printFloatBuffer(optimizerWeightsK_->gradientBuffer(), "[Gradient Weights K]", 10);
     Logger::log.printFloatBuffer(optimizerWeightsV_->gradientBuffer(), "[Gradient Weights V]", 10);
