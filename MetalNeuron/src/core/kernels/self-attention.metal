@@ -4,6 +4,11 @@
 
 using namespace metal;
 
+// Choose maximum dimensions so you don't overflow thread stack memory.
+// You must ensure at runtime: seqLength <= MAX_SEQ_LENGTH && modelDim <= MAX_MODEL_DIM.
+#define MAX_SEQ_LENGTH 1024
+#define MAX_MODEL_DIM 1024
+
 kernel void forward_self_attention(
     device const float* input                [[buffer(0)]],  // [batchSize, seqLength, inputDim]
     device const float* weightsQ             [[buffer(1)]],  // [inputDim, modelDim]
@@ -15,6 +20,7 @@ kernel void forward_self_attention(
     device float* bufferK                    [[buffer(6)]],  // [batchSize, seqLength, modelDim]
     device float* bufferV                    [[buffer(7)]],  // [batchSize, seqLength, modelDim]
 
+
     device float* output                     [[buffer(8)]],  // [batchSize, seqLength, inputDim]
 
     constant uint& batchSize                 [[buffer(9)]],
@@ -24,155 +30,122 @@ kernel void forward_self_attention(
 
     uint gid                                 [[thread_position_in_grid]])
 {
-    uint totalElements = batchSize * seqLength * inputDim;
-    if (gid >= totalElements) return;
+    if (gid >= batchSize * seqLength) return;
 
-    uint batchIdx = gid / (seqLength * inputDim);
-    uint seqIdx   = (gid / inputDim) % seqLength;
-    uint inputIdx = gid % inputDim;
+    uint batchIdx = gid / seqLength;
+    uint seqIdx = gid % seqLength;
 
-    float scale = sqrt(float(modelDim));
+    // Offset calculations
+    uint input_offset = (batchSize * seqIdx + batchIdx) * inputDim;
+    uint buffer_offset = (batchSize * seqIdx + batchIdx) * modelDim;
+    uint output_offset = input_offset;
 
-    // Step 1: Compute and store Q, K, V vectors for all positions (if not already computed)
-    for (uint d = 0; d < modelDim; ++d) {
-        float Q = 0.0f, K = 0.0f, V = 0.0f;
+    // Step 1: Compute Q, K, V vectors
+    for (uint m = 0; m < modelDim; ++m) {
+        float q_sum = 0.0f;
+        float k_sum = 0.0f;
+        float v_sum = 0.0f;
+
         for (uint i = 0; i < inputDim; ++i) {
-            float inputVal = input[batchIdx * seqLength * inputDim + seqIdx * inputDim + i];
-            Q += inputVal * weightsQ[i * modelDim + d];
-            K += inputVal * weightsK[i * modelDim + d];
-            V += inputVal * weightsV[i * modelDim + d];
+            float in_val = input[input_offset + i];
+            q_sum += in_val * weightsQ[i * modelDim + m];
+            k_sum += in_val * weightsK[i * modelDim + m];
+            v_sum += in_val * weightsV[i * modelDim + m];
         }
-        bufferQ[batchIdx * seqLength * modelDim + seqIdx * modelDim + d] = Q;
-        bufferK[batchIdx * seqLength * modelDim + seqIdx * modelDim + d] = K;
-        bufferV[batchIdx * seqLength * modelDim + seqIdx * modelDim + d] = V;
+        bufferQ[buffer_offset + m] = q_sum;
+        bufferK[buffer_offset + m] = k_sum;
+        bufferV[buffer_offset + m] = v_sum;
+    }
+
+    threadgroup float attention_scores[512]; // Adjust size if necessary
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    // Step 2: Compute Attention Scores (Scaled Dot-Product)
+    float scale = rsqrt(float(modelDim));
+
+    for (uint seqIdx2 = 0; seqIdx2 < seqLength; ++seqIdx2) {
+        float attn_score = 0.0f;
+        for (uint m = 0; m < modelDim; ++m) {
+            float q_val = bufferQ[(batchIdx * seqLength + seqIdx) * modelDim + m];
+            float k_val = bufferK[(batchIdx * seqLength + seqIdx2) * modelDim + m];
+            attn_score += q_val * k_val;
+        }
+        attn_score *= scale;
+        attention_scores[seqIdx2] = attn_score;
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    // Step 2: Compute attention scores (proper dot product across modelDim)
-    float attentionSum = 0.0f;
-    float normalizationFactor = 0.0f;
+    // Step 3: Softmax on attention scores
+    float max_score = attention_scores[0];
+    for (uint i = 1; i < seqLength; ++i)
+        max_score = max(max_score, attention_scores[i]);
 
-    for (uint j = 0; j < seqLength; ++j) {
-        // Compute dot product Q(seqIdx) • K(j)
-        float score = 0.0f;
-        for (uint d = 0; d < modelDim; ++d) {
-            float q_val = bufferQ[batchIdx * seqLength * modelDim + seqIdx * modelDim + d];
-            float k_val = bufferK[batchIdx * seqLength * modelDim + j * modelDim + d];
-            score += q_val * k_val;
-        }
-
-        score /= scale;
-        float attentionWeight = exp(score);
-        normalizationFactor += attentionWeight;
-
-        // Weighted sum of V(j) for current input dimension (inputIdx)
-        float v_sum = 0.0f;
-        for (uint d = 0; d < modelDim; ++d) {
-            float v_val = bufferV[batchIdx * seqLength * modelDim + j * modelDim + d];
-            float weightO = weightsO[d * inputDim + inputIdx];
-            v_sum += v_val * weightO;
-        }
-        attentionSum += attentionWeight * v_sum;
+    float sum_exp = 0.0f;
+    for (uint seqIdx2 = 0; seqIdx2 < seqLength; ++seqIdx2) {
+        attention_scores[seqIdx2] = exp(attention_scores[seqIdx2] - max_score);
+        sum_exp += attention_scores[seqIdx2];
     }
 
-    // Step 3: Normalize (softmax)
-    attentionSum /= normalizationFactor;
+    for (uint seqIdx2 = 0; seqIdx2 < seqLength; ++seqIdx2) {
+        attention_scores[seqIdx2] /= sum_exp;
+    }
 
-    // Step 4: Write explicitly to output buffer
-    output[batchIdx * seqLength * inputDim + seqIdx * inputDim + inputIdx] = attentionSum;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    // Step 4: Weighted sum of V vectors
+    float context[MAX_MODEL_DIM]; // allocate context array on stack
+    for (uint m = 0; m < modelDim; ++m) {
+        float context_sum = 0.0f;
+        for (uint seqIdx2 = 0; seqIdx2 < seqLength; ++seqIdx2) {
+            float attn = attention_scores[seqIdx2];
+            float v_val = bufferV[(batchIdx * seqLength + seqIdx2) * modelDim + m];
+            context_sum += attn * v_val;
+        }
+        context[m] = context_sum;
+    }
+
+    // Step 4b: Write context back to original space using weightsO
+    for (uint i = 0; i < inputDim; ++i) {
+        float out_sum = 0.0f;
+        for (uint m = 0; m < modelDim; ++m) {
+            out_sum += context[m] * weightsO[m * inputDim + i];
+        }
+        output[output_offset + i] = out_sum;
+    }
 }
 
+
+
 kernel void backward_self_attention(
-    device const float* input                        [[buffer(0)]],  // [batchSize, seqLength, inputDim]
-    device const float* weightsQ                     [[buffer(1)]],  // [inputDim, modelDim]
-    device const float* weightsK                     [[buffer(2)]],
-    device const float* weightsV                     [[buffer(3)]],
-    device const float* weightsO                     [[buffer(4)]],
+    // Forward inputs
+    device const float* input               [[buffer(0)]],  // [batchSize, seqLength, inputDim]
+    device const float* weightsQ            [[buffer(1)]],  // [inputDim, modelDim]
+    device const float* weightsK            [[buffer(2)]],  // [inputDim, modelDim]
+    device const float* weightsV            [[buffer(3)]],  // [inputDim, modelDim]
+    device const float* weightsO            [[buffer(4)]],  // [modelDim, inputDim]
 
-    device const float* bufferQ                      [[buffer(5)]],  // intermediate Q from forward pass
-    device const float* bufferK                      [[buffer(6)]],  // intermediate K buffer
-    device const float* bufferV                      [[buffer(7)]],  // intermediate V buffer from forward
+    // Saved forward pass results
+    device const float* bufferQ             [[buffer(5)]],  // [batchSize, seqLength, modelDim]
+    device const float* bufferK             [[buffer(6)]],  // [batchSize, seqLength, modelDim]
+    device const float* bufferV             [[buffer(7)]],  // [batchSize, seqLength, modelDim]
 
-    device atomic_float* outputErrors                [[buffer(8)]],  // errors leaving this layer (to previous)
-    device const float* inputErrors                  [[buffer(9)]],  // errors from next layer
+    // Gradients we want to fill/accumulate
+    device atomic_float* inputErrors        [[buffer(8)]],  // same shape as input
+    device const float*  outputErrors       [[buffer(9)]],  // [batchSize, seqLength, inputDim]
 
-    device atomic_float* gradWeightsQ                [[buffer(10)]],
-    device atomic_float* gradWeightsK                [[buffer(11)]],
-    device atomic_float* gradWeightsV                [[buffer(12)]],
-    device atomic_float* gradWeightsO                [[buffer(13)]],
+    device atomic_float* gradWeightsQ       [[buffer(10)]], // same shape as weightsQ
+    device atomic_float* gradWeightsK       [[buffer(11)]],
+    device atomic_float* gradWeightsV       [[buffer(12)]],
+    device atomic_float* gradWeightsO       [[buffer(13)]],
 
-    constant uint& batchSize                         [[buffer(14)]],
-    constant uint& seqLength                         [[buffer(15)]],
-    constant uint& inputDim                          [[buffer(16)]],
-    constant uint& modelDim                          [[buffer(17)]],
+    constant uint& batchSize                [[buffer(14)]],
+    constant uint& seqLength                [[buffer(15)]],
+    constant uint& inputDim                 [[buffer(16)]],
+    constant uint& modelDim                 [[buffer(17)]],
 
-    uint gid                                  [[thread_position_in_grid]]
-)
+    uint gid                                [[thread_position_in_grid]])
 {
-    uint totalElements = batchSize * seqLength * modelDim;
-    if (gid >= totalElements) return;
-
-    uint batchIdx = gid / (seqLength * modelDim);
-    uint seqIdx   = (gid / modelDim) % seqLength;
-    uint dimIdx   = gid % modelDim;
-
-    float scale = sqrt((float)modelDim);
-
-    // Load the gradient flowing into this layer from the next layer
-    float dOutput = inputErrors[batchIdx * seqLength * modelDim + seqIdx * modelDim + dimIdx];
-
-    // Accumulate gradient for output projection weights (O) and propagate errors backward
-    for (uint i = 0; i < inputDim; ++i) {
-        float inputVal = input[batchIdx * seqLength * inputDim + seqIdx * inputDim + i];
-        float gradO = dOutput * inputVal;
-
-        atomic_fetch_add_explicit(&gradWeightsO[dimIdx * inputDim + i], gradO, memory_order_relaxed);
-
-        // propagate error backward to the previous layer explicitly
-        float propagatedError = dOutput * weightsO[dimIdx * inputDim + i];
-        atomic_fetch_add_explicit(
-            &outputErrors[batchIdx * seqLength * inputDim + seqIdx * inputDim + i],
-            propagatedError,
-            memory_order_relaxed
-        );
-    }
-
-    // Gradients for Q, K, V weights (simplified gradient accumulation)
-    for (uint i = 0; i < inputDim; ++i) {
-        float gradQ = 0.0f;
-        float gradK = 0.0f;
-        float gradV = 0.0f;
-
-        float q_current_dim = bufferQ[batchIdx * seqLength * modelDim + seqIdx * modelDim + dimIdx];
-
-        for (uint j = 0; j < seqLength; ++j) {
-            float score = 0.0f;
-
-            // Compute attention scores (Q • K)
-            for (uint d = 0; d < modelDim; ++d) {
-                float q_element = bufferQ[batchIdx * seqLength * modelDim + seqIdx * modelDim + d];
-                float k_element = bufferK[batchIdx * seqLength * modelDim + j * modelDim + d];
-                score += q_element * k_element;
-            }
-
-            score /= scale;
-            float attentionWeight = exp(score);  // Simplified (softmax normalization pending)
-
-            float k_current_dim = bufferK[batchIdx * seqLength * modelDim + j * modelDim + dimIdx];
-            float v_current_dim = bufferV[batchIdx * seqLength * modelDim + j * modelDim + dimIdx];
-
-            float dAttention = attentionWeight * dOutput;
-
-            // Accumulate gradients explicitly using properly defined variables
-            gradQ += dAttention * k_current_dim / scale;
-            gradK += dAttention * q_current_dim / scale;
-            gradV += dAttention * v_current_dim;
-        }
-
-        // Explicitly accumulate gradients atomically after loop
-        atomic_fetch_add_explicit(&gradWeightsQ[dimIdx], gradQ, memory_order_relaxed);
-        atomic_fetch_add_explicit(&gradWeightsK[dimIdx], gradK, memory_order_relaxed);
-        atomic_fetch_add_explicit(&gradWeightsV[dimIdx], gradV, memory_order_relaxed);
-    }
+    //TODO
 }
