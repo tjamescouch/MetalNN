@@ -58,11 +58,7 @@ Here's a prioritized, explicit list of layers currently planned for development,
 
 - Clone the repository.
 - Modify `model-config.yml` for your chosen architecture.
-- Run the project in Xcode, then use keyboard commands:
-  - **Training:** Press `L`
-  - **Inference:** Press `F`
-  - **Save model:** Press `S`
-  - **Load model:** Press `O`
+- Run the project in Xcode, then use the "Actions" menu to train, inference and load/save parameters.
 
 ### Visualizing Results:
 
