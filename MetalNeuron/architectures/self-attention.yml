@@ -5,7 +5,7 @@ layers:
     input_size: 256
     output_size: 256
     sequence_length: 10
-
+    initializer: xavier
 
   - type: Dense
     input_size: 256

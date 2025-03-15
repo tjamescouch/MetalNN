@@ -58,8 +58,6 @@ private:
     bool isTerminal_;
     float learningRate_;
     int batchSize_;
-    static int layerCounter;
-    int layerIndex = -1;
     float decayRate_ = 1.0f;
     float decay_ = 1.0f;
     

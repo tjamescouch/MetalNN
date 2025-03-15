@@ -39,6 +39,7 @@ training:
     parameters:
       beta1: 0.9
       beta2: 0.999
+      epsilon: 1e-8
 
   epochs: 5
   batch_size: 2

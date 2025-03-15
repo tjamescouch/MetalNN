@@ -196,6 +196,7 @@ void BatchNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize)
 void BatchNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize)
 {
     bool isTraining = TrainingManager::instance().isTraining();
+    uint bs = (uint) batchSize;
     
     auto encoder = cmdBuf->computeCommandEncoder();
     encoder->setComputePipelineState(backwardPipelineState_);
@@ -219,9 +220,14 @@ void BatchNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize
     encoder->setBytes(&epsilon_,       sizeof(float), 9);    // 9: epsilon
     encoder->setBytes(&outputDim_,     sizeof(int),   10);   // 10: featureDim
     encoder->setBytes(&isTraining,     sizeof(bool),  11);   // 11: isTraining
-    encoder->setBytes(&batchSize,      sizeof(uint),  12);   // 12: batchSize
-    encoder->setBytes(&learningRate_,  sizeof(float), 13);   // 13: learningRate
-    encoder->setBuffer(bufferDebug_,   0,             14);   // 14: debug
+    encoder->setBytes(&bs,             sizeof(uint),  12);   // 12: batchSize
+    encoder->setBuffer(bufferDebug_,   0,             13);   // 14: debug
+    
+    encoder->setBuffer(optimizerBeta_->gradientBuffer(), 0, 14);
+    encoder->setBuffer(optimizerGamma_->gradientBuffer(), 0, 15);
+    
+    optimizerBeta_->encode(encoder, bufferBeta_, outputDim_, batchSize);
+    optimizerGamma_->encode(encoder, bufferGamma_, outputDim_, batchSize);
 
     MTL::Size threadsPerGroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
     MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
@@ -299,35 +305,15 @@ void BatchNormalizationLayer::loadParameters(std::istream& is) {
 }
 
 void BatchNormalizationLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-#ifdef F
-    Logger::instance().printFloatBuffer(bufferDebug_, "F: Debug", 128);
-    
 
-    Logger::instance().printFloatBuffer(bufferBeta_, "Beta", 10);
-    Logger::instance().printFloatBuffer(bufferGamma_, "Gamma", 10);
-    
-
-    Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Input][0], "[B: Batch Normalization Input]", 10);
-    Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Output][0], "[B: Batch Normalization Output]", 10);
-    Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[B: Batch Normalization Input Errors]", 10);
-    Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "[B: Batch Normalization Output Errors]", 10);
-#endif
 }
 
 void BatchNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    auto cmdBuf = _pCommandQueue->commandBuffer();
-    auto encoder = cmdBuf->computeCommandEncoder();
     
-    optimizerBeta_->encode(encoder, bufferBeta_, outputDim_, batchSize);
-    optimizerGamma_->encode(encoder, bufferGamma_, outputDim_, batchSize);
-
-    encoder->endEncoding();
-    cmdBuf->commit();
-    
-    //Logger::instance().printFloatBuffer(bufferDebug_, "B: Debug", 4);
-    //bufferBeta_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
-    //bufferGamma_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
     bufferRunningMean_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
     bufferRunningVariance_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
+    
+    memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
+    outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
 }
 

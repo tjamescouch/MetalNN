@@ -42,6 +42,8 @@ public:
     
     void updateTargetBufferAt(const float*, int) override {}
     void updateTargetBufferAt(const float*, int, int) override {}
+    
+    SelfAttentionLayer* setInitializer(std::string initializer) { initializer_ = initializer; return this; }
 
 private:
     uint inputDim_;
@@ -49,6 +51,8 @@ private:
     uint seqLength_;
     uint batchSize_;
     bool isTerminal_ = false;
+    
+    std::string initializer_;
 
     MTL::Device* device_;
 

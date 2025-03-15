@@ -58,7 +58,9 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
     } else if (layerConfig.type == "SelfAttention") {
         std::cout << "Creating self attention layer..." << std::endl;
         float sequence_length = layerConfig.params.at("sequence_length").get_value_or<float>(0.3);
-        layer = new SelfAttentionLayer(inputSize, outputSize, sequence_length);
+        auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
+        
+        layer = (new SelfAttentionLayer(inputSize, outputSize, sequence_length))->setInitializer(initializer);
         
     } else if (layerConfig.type == "BatchNormalization") {
         std::cout << "Creating batch normalization layer..." << std::endl;

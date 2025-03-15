@@ -21,8 +21,6 @@ forwardPipelineState_(nullptr), backwardPipelineState_(nullptr), learningRate_(0
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::OutputErrors].resize(sequenceLength_, nullptr);
     inputBuffers_[BufferType::Targets].resize(sequenceLength_, nullptr);
-    
-    layerIndex = ++layerCounter;
 }
 
 DenseLayer::~DenseLayer() {
@@ -62,6 +60,8 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     float beta1   = parameters["beta1"].get_value_or<float>(0.9f);
     float beta2   = parameters["beta2"].get_value_or<float>(0.999f);
     float epsilon = parameters["epsilon"].get_value_or<float>(1e-8);
+    
+    Logger::log << "epsilon " << epsilon << std::endl;
         
     optimizerWeights_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
     optimizerBiases_  = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
@@ -175,7 +175,6 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     uint activationRaw = static_cast<uint>(activation_);
     uint bs = (uint)batchSize_;
     decay_ *= decayRate_;
-    float decay = decay_;
     uint input_dim = (uint)inputDim_;
     uint output_dim = (uint)outputDim_;
 
@@ -273,9 +272,6 @@ void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchS
 
 
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    //Logger::log << this->name_ << std::endl;
-    //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "Output errors");
-    
     memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
     outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
 }
@@ -283,5 +279,3 @@ void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batch
 void DenseLayer::debugLog() {
 
 }
-
-int DenseLayer::layerCounter = 0;

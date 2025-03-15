@@ -10,6 +10,7 @@
 #include "configuration-manager.h"
 #include "model-config.h"
 #include "adam-optimizer.h"
+#include "weight-initializer.h"
 
 SelfAttentionLayer::SelfAttentionLayer(uint inputDim, uint modelDim, uint seqLength)
     : inputDim_(inputDim),
@@ -100,10 +101,27 @@ void SelfAttentionLayer::buildBuffers(MTL::Device* device) {
     weightsK_ = device->newBuffer(weightsBufferSize, MTL::ResourceStorageModeManaged);
     weightsV_ = device->newBuffer(weightsBufferSize, MTL::ResourceStorageModeManaged);
     outputProjection_ = device->newBuffer(weightsBufferSize, MTL::ResourceStorageModeManaged);
+    
+    float* q = static_cast<float*>(weightsQ_->contents());
+    float* k = static_cast<float*>(weightsK_->contents());
+    float* v = static_cast<float*>(weightsV_->contents());
+    float* o = static_cast<float*>(outputProjection_->contents());
+    if (initializer_ == "he") {
+        WeightInitializer::initializeHe(q, inputDim_, modelDim_);
+        WeightInitializer::initializeHe(k, inputDim_, modelDim_);
+        WeightInitializer::initializeHe(v, inputDim_, modelDim_);
+        WeightInitializer::initializeHe(o, inputDim_, modelDim_);
+    } else {
+        WeightInitializer::initializeXavier(q, inputDim_, modelDim_);
+        WeightInitializer::initializeXavier(k, inputDim_, modelDim_);
+        WeightInitializer::initializeXavier(v, inputDim_, modelDim_);
+        WeightInitializer::initializeXavier(o, inputDim_, modelDim_);
+    }
+    weightsQ_->didModifyRange(NS::Range(0, weightsQ_->length()));
+    weightsK_->didModifyRange(NS::Range(0, weightsK_->length()));
+    weightsV_->didModifyRange(NS::Range(0, weightsV_->length()));
+    outputProjection_->didModifyRange(NS::Range(0, outputProjection_->length()));
 
-    // Input and output buffers (no timestep logic)
-    inputBuffers_[BufferType::Input] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
-    inputBuffers_[BufferType::InputErrors] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
 
     outputBuffers_[BufferType::Output] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::OutputErrors] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
@@ -150,39 +168,44 @@ void SelfAttentionLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSiz
     encoder->endEncoding();
 }
 
+
+
 void SelfAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSize) {
     auto encoder = commandBuffer->computeCommandEncoder();
     encoder->setComputePipelineState(backwardPipelineState_);
     uint bs = (uint)batchSize;
 
     // Binding buffers (must match exactly kernel buffer indices)
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors], 0, 0);          // Errors coming from next layer
     encoder->setBuffer(inputBuffers_[BufferType::Input], 0, 1);                  // Inputs from forward pass
-    encoder->setBuffer(weightsQ_, 0, 2);                                         // Q weights
-    encoder->setBuffer(weightsK_, 0, 3);                                         // K weights
-    encoder->setBuffer(weightsV_, 0, 4);                                         // V weights
-    encoder->setBuffer(outputProjection_, 0, 5);                                 // Output projection weights
+    encoder->setBuffer(weightsQ_, 0, 1);                                         // Q weights
+    encoder->setBuffer(weightsK_, 0, 2);                                         // K weights
+    encoder->setBuffer(weightsV_, 0, 3);                                         // V weights
+    encoder->setBuffer(outputProjection_, 0, 4);                                 // Output projection weights
+    
+    encoder->setBuffer(bufferQ_, 0, 5);
+    encoder->setBuffer(bufferK_, 0, 6);
+    encoder->setBuffer(bufferV_, 0, 7);
 
-    encoder->setBuffer(inputBuffers_[BufferType::InputErrors], 0, 6);            // Errors passed backward to previous layer
+    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors], 0, 8);          // Errors leaving the layer
+    encoder->setBuffer(inputBuffers_[BufferType::InputErrors], 0, 9);            // Errors entering the layer
 
-    encoder->setBuffer(optimizerWeightsQ_->gradientBuffer(), 0, 7);              // Gradients for weightsQ
-    encoder->setBuffer(optimizerWeightsK_->gradientBuffer(), 0, 8);              // Gradients for weightsK
-    encoder->setBuffer(optimizerWeightsV_->gradientBuffer(), 0, 9);              // Gradients for weightsV
-    encoder->setBuffer(optimizerOutputProjection_->gradientBuffer(), 0, 10);     // Gradients for outputProjection
+
+    encoder->setBuffer(optimizerWeightsQ_->gradientBuffer(), 0, 10);              // Gradients for weightsQ
+    encoder->setBuffer(optimizerWeightsK_->gradientBuffer(), 0, 11);              // Gradients for weightsK
+    encoder->setBuffer(optimizerWeightsV_->gradientBuffer(), 0, 12);              // Gradients for weightsV
+    encoder->setBuffer(optimizerOutputProjection_->gradientBuffer(), 0, 13);     // Gradients for outputProjection
 
     // Constant arguments (dimensions)
-    encoder->setBytes(&bs, sizeof(uint), 11);
-    encoder->setBytes(&seqLength_, sizeof(uint), 12);
-    encoder->setBytes(&inputDim_, sizeof(uint), 13);
-    encoder->setBytes(&modelDim_, sizeof(uint), 14);
+    encoder->setBytes(&bs, sizeof(uint), 14);
+    encoder->setBytes(&seqLength_, sizeof(uint), 15);
+    encoder->setBytes(&inputDim_, sizeof(uint), 16);
+    encoder->setBytes(&modelDim_, sizeof(uint), 17);
 
     // Thread dispatch configuration: one thread per element
     const int gridSize = batchSize * seqLength_ * inputDim_;
     MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
     MTL::Size threadgroupSize = MTL::Size(std::min(gridSize, 512), 1, 1);
     
-    
-
     optimizerWeightsQ_->encode(encoder, bufferQ_, inputDim_ * modelDim_, batchSize);
     optimizerWeightsK_->encode(encoder, bufferK_, inputDim_ * modelDim_, batchSize);
     optimizerWeightsV_->encode(encoder, bufferV_, inputDim_ * modelDim_, batchSize);
@@ -197,6 +220,7 @@ void SelfAttentionLayer::setInputBufferAt(BufferType type, int timestep, MTL::Bu
 }
 
 MTL::Buffer* SelfAttentionLayer::getOutputBufferAt(BufferType type, int) { return outputBuffers_[type]; }
+
 void SelfAttentionLayer::setOutputBufferAt(BufferType type, int, MTL::Buffer* buffer) {
     outputBuffers_[type] = buffer;
 }
@@ -224,24 +248,16 @@ void SelfAttentionLayer::connectBackwardConnections(Layer* prevLayer,
 
 void SelfAttentionLayer::debugLog() {}
 void SelfAttentionLayer::onForwardComplete(MTL::CommandQueue*, int) {
-    Logger::log.printFloatBuffer(inputBuffers_[BufferType::Input], "[Forward Self-Attention Input]", 20);
-    Logger::log.printFloatBuffer(outputBuffers_[BufferType::Output], "[Forward Self-Attention Output]", 20);
+    Logger::log.printFloatBuffer(inputBuffers_[BufferType::InputErrors], "[Self-Attention Input Errors]", 10);
+    //Logger::log.printFloatBuffer(inputBuffers_[BufferType::Input], "[Forward Self-Attention Input (full)]", seqLength_ * inputDim_);
+    //Logger::log.printFloatBuffer(outputBuffers_[BufferType::Output], "[Forward Self-Attention Output]", 2);
+    
 }
 
 void SelfAttentionLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    /*
-     ??? Does this work?
-    auto cmdBuf = _pCommandQueue->commandBuffer();
-    auto encoder = cmdBuf->computeCommandEncoder();
-
-    optimizerWeightsQ_->encode(encoder, bufferQ_, inputDim_ * modelDim_, batchSize);
-    optimizerWeightsK_->encode(encoder, bufferK_, inputDim_ * modelDim_, batchSize);
-    optimizerWeightsV_->encode(encoder, bufferV_, inputDim_ * modelDim_, batchSize);
-    optimizerOutputProjection_->encode(encoder, outputProjection_, inputDim_ * modelDim_, batchSize);
-
-    encoder->endEncoding();
-    cmdBuf->commit();*/
-    
+    Logger::log << "input errors @" << inputBuffers_[BufferType::InputErrors] << std::endl;
+    Logger::log.printFloatBuffer(inputBuffers_[BufferType::InputErrors], "[B Self-Attention Input Errors]", 10);
+    Logger::log.printFloatBuffer(outputBuffers_[BufferType::OutputErrors], "[B Self-Attention Output Errors]", 10);
     /*
     Logger::log.printFloatBuffer(optimizerWeightsQ_->gradientBuffer(), "[Gradient Weights Q]", 10);
     Logger::log.printFloatBuffer(optimizerWeightsK_->gradientBuffer(), "[Gradient Weights K]", 10);
