@@ -10,7 +10,7 @@ layers:
   - type: BatchNormalization
     input_size: 256
     output_size: 256
-    #learning_rate: 0.001
+    learning_rate: 5e-6
 
   - type: Dense
     input_size: 256
@@ -28,7 +28,7 @@ training:
       epsilon: 1e-8
 
   epochs: 2
-  batch_size: 2
+  batch_size: 20
 
 dataset:
   type: "function"
