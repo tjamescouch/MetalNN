@@ -197,6 +197,8 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 11);
     encoder->setBytes(&bs, sizeof(uint), 12);
     encoder->setBytes(&learningRate_, sizeof(float), 13);
+    encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 14);
+    encoder->setBuffer(optimizerBiases_->gradientBuffer(), 0, 15);
 
     uint gridSize = batchSize_ * outputDim_;
     uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
@@ -204,6 +206,10 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     MTL::Size threadgroupSize(threadsPerThreadgroup, 1, 1);
     MTL::Size threadgroups((gridSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
     encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
+    
+    optimizerWeights_->encode(encoder, bufferWeights_, inputDim_ * outputDim_, bs);
+    optimizerBiases_->encode(encoder, bufferBias_, outputDim_, bs);
+    
     encoder->endEncoding();
 
     inputBuffers_[BufferType::Input][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][0]->length()));
@@ -272,15 +278,6 @@ void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchS
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
     //Logger::log << this->name_ << std::endl;
     //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "Output errors");
-    
-    auto cmdBuf = _pCommandQueue->commandBuffer();
-    auto encoder = cmdBuf->computeCommandEncoder();
-
-    optimizerWeights_->encode(encoder, bufferWeights_, inputDim_ * outputDim_, batchSize);
-    optimizerBiases_->encode(encoder, bufferBias_, outputDim_, batchSize);
-
-    encoder->endEncoding();
-    cmdBuf->commit();
     
     memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
     outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));

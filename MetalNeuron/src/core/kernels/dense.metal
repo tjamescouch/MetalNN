@@ -115,7 +115,9 @@ kernel void learn_non_terminal_dense_layer(
     device float*       debug            [[buffer(10)]],
     device float*       prevLayerErrors  [[buffer(11)]], // final error to the previous layer's activations
     constant uint&      batch_size       [[buffer(12)]],
-    constant float& learning_rate    [[buffer(13)]],
+    constant float&     learning_rate    [[buffer(13)]],
+    device atomic_float* gradientsW      [[buffer(14)]],
+    device atomic_float* gradientsB      [[buffer(15)]],
     uint tid                               [[thread_position_in_threadgroup]],
     uint gid                               [[thread_position_in_grid]]
 )
@@ -148,37 +150,25 @@ kernel void learn_non_terminal_dense_layer(
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    // For each input in [0..input_dim-1], update weight and accumulate error
     for (uint i = 0; i < input_dim; i++) {
-        float grad = sample_h[i] * delta;  // partial dW
-
-        // clamp grad
-        //grad = clamp(grad, -threshold, threshold);
-
-
+        float grad = sample_h[i] * delta;  // computed gradient (partial dW)
         debug[i * output_dim + neuron_id] = grad;
 
-        // We want to read the old weight, THEN do an atomic add
-        device atomic_float* wAddr = (device atomic_float*)&W[i * output_dim + neuron_id];
+        // Write explicitly to gradients buffer instead of modifying W
+        uint gradWIdx = i * output_dim + neuron_id;
+        atomic_fetch_add_explicit(&gradientsW[gradWIdx], grad, memory_order_relaxed);
 
-        float oldWeight = atomic_load_explicit(wAddr, memory_order_relaxed);
+        // Use existing weights (unchanged) to propagate errors backward
+        float weightVal = W[i * output_dim + neuron_id];
+        float prevErrTerm = weightVal * delta;
 
-        // Atomic update the weight
-        // W -= learning_rate * grad * decay
-        float wUpdate = -learning_rate * grad * decay;
-        atomic_fetch_add_explicit(wAddr, wUpdate, memory_order_relaxed);
-
-        // For the error to pass back to previous layer: oldWeight * delta
-        // Use oldWeight from before we updated it.
-        float prevErrTerm = oldWeight * delta;
         atomic_fetch_add_explicit((device atomic_float*)&sample_prevError[i],
                                   prevErrTerm, memory_order_relaxed);
     }
 
-    // Update bias
-    device atomic_float* bAddr = (device atomic_float*)&b[neuron_id];
-    float biasUpdate = -learning_rate * delta * decay;
-    atomic_fetch_add_explicit(bAddr, biasUpdate, memory_order_relaxed);
+    // Update bias gradient explicitly (no direct bias updates)
+    device atomic_float* pGradientsB = (device atomic_float*)&gradientsB[neuron_id];
+    atomic_fetch_add_explicit(pGradientsB, delta, memory_order_relaxed);
 }
 
 

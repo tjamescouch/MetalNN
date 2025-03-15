@@ -1,74 +1,81 @@
-#pragma once
+#ifndef SELF_ATTENTION_LAYER_H
+#define SELF_ATTENTION_LAYER_H
+
 #include "layer.h"
 #include "optimizer.h"
-#include <vector>
+#include <Metal/Metal.hpp>
+#include <memory>
 
 class SelfAttentionLayer : public Layer {
 public:
-    SelfAttentionLayer(MTL::Device* device, int inputDim, int seqLength, int modelDim);
+    SelfAttentionLayer(uint inputDim, uint modelDim, uint seqLength);
     ~SelfAttentionLayer();
 
-    void buildPipeline(MTL::Device* device, MTL::Library* library) override;
     void buildBuffers(MTL::Device* device) override;
-    void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
-    void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
+    void buildPipeline(MTL::Device* device, MTL::Library* library) override;
 
-    void updateTargetBufferAt(const float*, int) override {}
-    void updateTargetBufferAt(const float*, int, int) override {}
-    
-    
+    void forward(MTL::CommandBuffer* commandBuffer, int batchSize) override;
+    void backward(MTL::CommandBuffer* commandBuffer, int batchSize) override;
+
+    void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
+                                   MTL::Buffer* zeroBuffer, int timestep) override;
+    void connectBackwardConnections(Layer* prevLayer, Layer* inputLayer,
+                                    MTL::Buffer* zeroBuffer, int timestep) override;
+
     void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
     MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;
 
     void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
     MTL::Buffer* getInputBufferAt(BufferType type, int timestep) override;
-    void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                         MTL::Buffer* zeroBuffer, int timestep) override;
-    void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) override;
+
+    void setIsTerminal(bool isTerminal) override;
+
+    void debugLog() override;
+    void onForwardComplete(MTL::CommandQueue*, int) override;
+    void onBackwardComplete(MTL::CommandQueue*, int) override;
+
+    void saveParameters(std::ostream&) const override;
+    void loadParameters(std::istream&) override;
     
     int inputSize() const override { return inputDim_; }
     int outputSize() const override { return modelDim_; }
     
-    void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
-    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
-    
-    void saveParameters(std::ostream& os) const override;
-    void loadParameters(std::istream& is) override;
-    
-    void setIsTerminal(bool isTerminal) override;
-    
-    void debugLog() override;
-    
-   
+    void updateTargetBufferAt(const float*, int) override {}
+    void updateTargetBufferAt(const float*, int, int) override {}
 
 private:
-    void initializeWeights();
-    
+    uint inputDim_;
+    uint modelDim_;
+    uint seqLength_;
+    uint batchSize_;
+    bool isTerminal_ = false;
+
     MTL::Device* device_;
-    int inputDim_;
-    int seqLength_;
-    int modelDim_;
-    bool isTerminal_;
 
-    // Buffers
-    MTL::Buffer* bufferQ_;
-    MTL::Buffer* bufferK_;
-    MTL::Buffer* bufferV_;
-    
-    MTL::Buffer* weightsQ_;
-    MTL::Buffer* weightsK_;
-    MTL::Buffer* weightsV_;
-    MTL::Buffer* outputProjection_;
+    // Buffers for activations (queries, keys, values)
+    MTL::Buffer* bufferQ_ = nullptr;
+    MTL::Buffer* bufferK_ = nullptr;
+    MTL::Buffer* bufferV_ = nullptr;
 
+    // Input and Output Buffers
+    std::unordered_map<BufferType, MTL::Buffer*> inputBuffers_;
+    std::unordered_map<BufferType, MTL::Buffer*> outputBuffers_;
+
+    // Weight buffers
+    MTL::Buffer* weightsQ_ = nullptr;
+    MTL::Buffer* weightsK_ = nullptr;
+    MTL::Buffer* weightsV_ = nullptr;
+    MTL::Buffer* outputProjection_ = nullptr;
+
+    // Optimizers (Adam) - these handle internal gradient buffers
     std::unique_ptr<Optimizer> optimizerWeightsQ_;
     std::unique_ptr<Optimizer> optimizerWeightsK_;
     std::unique_ptr<Optimizer> optimizerWeightsV_;
     std::unique_ptr<Optimizer> optimizerOutputProjection_;
 
-    MTL::ComputePipelineState* forwardPipelineState_;
-    MTL::ComputePipelineState* backwardPipelineState_;
-    
-    std::unordered_map<BufferType, MTL::Buffer*> inputBuffers_;
-    std::unordered_map<BufferType, MTL::Buffer*> outputBuffers_;
+    // Pipeline States
+    MTL::ComputePipelineState* forwardPipelineState_ = nullptr;
+    MTL::ComputePipelineState* backwardPipelineState_ = nullptr;
 };
+
+#endif // SELF_ATTENTION_LAYER_H

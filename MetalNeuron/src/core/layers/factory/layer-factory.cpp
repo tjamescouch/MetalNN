@@ -11,6 +11,7 @@
 #include "batch-normalization-layer.h"
 #include "layer-normalization-layer.h"
 #include "residual-connection-layer.h"
+#include "self-attention-layer.h"
 #include "map-reduce-layer.h"
 #include "configuration-manager.h"
 
@@ -53,6 +54,11 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         std::cout << "Creating dropout layer..." << std::endl;
         float rate = layerConfig.params.at("rate").get_value_or<float>(0.3);
         layer = new DropoutLayer(rate, inputSize, outputSize, batchSize, 1);
+        
+    } else if (layerConfig.type == "SelfAttention") {
+        std::cout << "Creating self attention layer..." << std::endl;
+        float sequence_length = layerConfig.params.at("sequence_length").get_value_or<float>(0.3);
+        layer = new SelfAttentionLayer(inputSize, outputSize, sequence_length);
         
     } else if (layerConfig.type == "BatchNormalization") {
         std::cout << "Creating batch normalization layer..." << std::endl;

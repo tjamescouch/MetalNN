@@ -11,15 +11,26 @@
 #include "model-config.h"
 #include "adam-optimizer.h"
 
-SelfAttentionLayer::SelfAttentionLayer(MTL::Device* device, int inputDim, int seqLength, int modelDim)
-    : device_(device), inputDim_(inputDim), seqLength_(seqLength), modelDim_(modelDim),
-      isTerminal_(false),
-      bufferQ_(nullptr), bufferK_(nullptr), bufferV_(nullptr),
-      weightsQ_(nullptr), weightsK_(nullptr), weightsV_(nullptr),
+SelfAttentionLayer::SelfAttentionLayer(uint inputDim, uint modelDim, uint seqLength)
+    : inputDim_(inputDim),
+      modelDim_(modelDim),
+      seqLength_(seqLength),
+      batchSize_(0),
+      device_(nullptr),
+      bufferQ_(nullptr),
+      bufferK_(nullptr),
+      bufferV_(nullptr),
+      weightsQ_(nullptr),
+      weightsK_(nullptr),
+      weightsV_(nullptr),
       outputProjection_(nullptr),
-      forwardPipelineState_(nullptr), backwardPipelineState_(nullptr),
-      optimizerWeightsQ_(nullptr), optimizerWeightsK_(nullptr),
-      optimizerWeightsV_(nullptr), optimizerOutputProjection_(nullptr) {}
+      optimizerWeightsQ_(nullptr),
+      optimizerWeightsK_(nullptr),
+      optimizerWeightsV_(nullptr),
+      optimizerOutputProjection_(nullptr),
+      forwardPipelineState_(nullptr),
+      backwardPipelineState_(nullptr) {
+}
 
 SelfAttentionLayer::~SelfAttentionLayer() {
     if (bufferQ_) bufferQ_->release();
@@ -96,33 +107,44 @@ void SelfAttentionLayer::buildBuffers(MTL::Device* device) {
 
     outputBuffers_[BufferType::Output] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::OutputErrors] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
+    
+    optimizerWeightsQ_->buildBuffers(device, weightsBufferSize);
+    optimizerWeightsK_->buildBuffers(device, weightsBufferSize);
+    optimizerWeightsV_->buildBuffers(device, weightsBufferSize);
+    optimizerOutputProjection_->buildBuffers(device, weightsBufferSize);
 }
-
 
 void SelfAttentionLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSize) {
     auto encoder = commandBuffer->computeCommandEncoder();
     encoder->setComputePipelineState(forwardPipelineState_);
+    
+    uint bs = (uint)batchSize;
 
-    // Binding buffers
+    // Binding input and weight buffers
     encoder->setBuffer(inputBuffers_[BufferType::Input], 0, 0);
     encoder->setBuffer(weightsQ_, 0, 1);
     encoder->setBuffer(weightsK_, 0, 2);
     encoder->setBuffer(weightsV_, 0, 3);
     encoder->setBuffer(outputProjection_, 0, 4);
-    encoder->setBuffer(outputBuffers_[BufferType::Output], 0, 5);
-    encoder->setBuffer(bufferQ_, 0, 6);
-    encoder->setBuffer(bufferK_, 0, 7);
-    encoder->setBuffer(bufferV_, 0, 8);
 
-    // Constant arguments (dimensions)
-    encoder->setBytes(&batchSize, sizeof(int), 9);
-    encoder->setBytes(&seqLength_, sizeof(int), 10);
-    encoder->setBytes(&inputDim_, sizeof(int), 11);
-    encoder->setBytes(&modelDim_, sizeof(int), 12);
+    // Binding buffers for intermediate Q, K, V projections
+    encoder->setBuffer(bufferQ_, 0, 5);
+    encoder->setBuffer(bufferK_, 0, 6);
+    encoder->setBuffer(bufferV_, 0, 7);
 
+    // Binding the final output buffer
+    encoder->setBuffer(outputBuffers_[BufferType::Output], 0, 8);
+
+    // Constant parameters (dimensions)
+    encoder->setBytes(&bs, sizeof(uint), 9);
+    encoder->setBytes(&seqLength_, sizeof(uint), 10);
+    encoder->setBytes(&inputDim_, sizeof(uint), 11);
+    encoder->setBytes(&modelDim_, sizeof(uint), 12);
+
+    // Thread dispatch configuration
     const int gridSize = batchSize * seqLength_ * modelDim_;
-    const MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
-    const MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 512), 1, 1);
+    MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
+    MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 512), 1, 1);
 
     encoder->dispatchThreads(threadsPerGrid, threadsPerGroup);
     encoder->endEncoding();
@@ -131,31 +153,42 @@ void SelfAttentionLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSiz
 void SelfAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSize) {
     auto encoder = commandBuffer->computeCommandEncoder();
     encoder->setComputePipelineState(backwardPipelineState_);
+    uint bs = (uint)batchSize;
 
-    // Binding buffers
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors], 0, 0);
-    encoder->setBuffer(inputBuffers_[BufferType::Input], 0, 1);
-    encoder->setBuffer(weightsQ_, 0, 2);
-    encoder->setBuffer(weightsK_, 0, 3);
-    encoder->setBuffer(weightsV_, 0, 4);
-    encoder->setBuffer(outputProjection_, 0, 5);
-    encoder->setBuffer(inputBuffers_[BufferType::InputErrors], 0, 6);
-    encoder->setBuffer(optimizerWeightsQ_->gradientBuffer(), 0, 7);
-    encoder->setBuffer(optimizerWeightsK_->gradientBuffer(), 0, 8);
-    encoder->setBuffer(optimizerWeightsV_->gradientBuffer(), 0, 9);
-    encoder->setBuffer(optimizerOutputProjection_->gradientBuffer(), 0, 10);
+    // Binding buffers (must match exactly kernel buffer indices)
+    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors], 0, 0);          // Errors coming from next layer
+    encoder->setBuffer(inputBuffers_[BufferType::Input], 0, 1);                  // Inputs from forward pass
+    encoder->setBuffer(weightsQ_, 0, 2);                                         // Q weights
+    encoder->setBuffer(weightsK_, 0, 3);                                         // K weights
+    encoder->setBuffer(weightsV_, 0, 4);                                         // V weights
+    encoder->setBuffer(outputProjection_, 0, 5);                                 // Output projection weights
+
+    encoder->setBuffer(inputBuffers_[BufferType::InputErrors], 0, 6);            // Errors passed backward to previous layer
+
+    encoder->setBuffer(optimizerWeightsQ_->gradientBuffer(), 0, 7);              // Gradients for weightsQ
+    encoder->setBuffer(optimizerWeightsK_->gradientBuffer(), 0, 8);              // Gradients for weightsK
+    encoder->setBuffer(optimizerWeightsV_->gradientBuffer(), 0, 9);              // Gradients for weightsV
+    encoder->setBuffer(optimizerOutputProjection_->gradientBuffer(), 0, 10);     // Gradients for outputProjection
 
     // Constant arguments (dimensions)
-    encoder->setBytes(&batchSize, sizeof(int), 11);
-    encoder->setBytes(&seqLength_, sizeof(int), 12);
-    encoder->setBytes(&inputDim_, sizeof(int), 13);
-    encoder->setBytes(&modelDim_, sizeof(int), 14);
+    encoder->setBytes(&bs, sizeof(uint), 11);
+    encoder->setBytes(&seqLength_, sizeof(uint), 12);
+    encoder->setBytes(&inputDim_, sizeof(uint), 13);
+    encoder->setBytes(&modelDim_, sizeof(uint), 14);
 
+    // Thread dispatch configuration: one thread per element
     const int gridSize = batchSize * seqLength_ * inputDim_;
-    const MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
-    const MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 512), 1, 1);
+    MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
+    MTL::Size threadgroupSize = MTL::Size(std::min(gridSize, 512), 1, 1);
+    
+    
 
-    encoder->dispatchThreads(threadsPerGrid, threadsPerGroup);
+    optimizerWeightsQ_->encode(encoder, bufferQ_, inputDim_ * modelDim_, batchSize);
+    optimizerWeightsK_->encode(encoder, bufferK_, inputDim_ * modelDim_, batchSize);
+    optimizerWeightsV_->encode(encoder, bufferV_, inputDim_ * modelDim_, batchSize);
+    optimizerOutputProjection_->encode(encoder, outputProjection_, inputDim_ * modelDim_, batchSize);
+
+    encoder->dispatchThreads(threadsPerGrid, threadgroupSize);
     encoder->endEncoding();
 }
 
@@ -190,8 +223,32 @@ void SelfAttentionLayer::connectBackwardConnections(Layer* prevLayer,
 }
 
 void SelfAttentionLayer::debugLog() {}
-void SelfAttentionLayer::onForwardComplete(MTL::CommandQueue*, int) {}
-void SelfAttentionLayer::onBackwardComplete(MTL::CommandQueue*, int) {}
+void SelfAttentionLayer::onForwardComplete(MTL::CommandQueue*, int) {
+    Logger::log.printFloatBuffer(inputBuffers_[BufferType::Input], "[Forward Self-Attention Input]", 20);
+    Logger::log.printFloatBuffer(outputBuffers_[BufferType::Output], "[Forward Self-Attention Output]", 20);
+}
+
+void SelfAttentionLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    /*
+     ??? Does this work?
+    auto cmdBuf = _pCommandQueue->commandBuffer();
+    auto encoder = cmdBuf->computeCommandEncoder();
+
+    optimizerWeightsQ_->encode(encoder, bufferQ_, inputDim_ * modelDim_, batchSize);
+    optimizerWeightsK_->encode(encoder, bufferK_, inputDim_ * modelDim_, batchSize);
+    optimizerWeightsV_->encode(encoder, bufferV_, inputDim_ * modelDim_, batchSize);
+    optimizerOutputProjection_->encode(encoder, outputProjection_, inputDim_ * modelDim_, batchSize);
+
+    encoder->endEncoding();
+    cmdBuf->commit();*/
+    
+    /*
+    Logger::log.printFloatBuffer(optimizerWeightsQ_->gradientBuffer(), "[Gradient Weights Q]", 10);
+    Logger::log.printFloatBuffer(optimizerWeightsK_->gradientBuffer(), "[Gradient Weights K]", 10);
+    Logger::log.printFloatBuffer(optimizerWeightsV_->gradientBuffer(), "[Gradient Weights V]", 10);
+    Logger::log.printFloatBuffer(optimizerOutputProjection_->gradientBuffer(), "[Gradient Output Projection]", 10);
+     */
+}
 
 void SelfAttentionLayer::saveParameters(std::ostream&) const {}
 void SelfAttentionLayer::loadParameters(std::istream&) {}
