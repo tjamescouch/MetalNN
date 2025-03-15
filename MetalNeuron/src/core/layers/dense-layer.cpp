@@ -21,8 +21,6 @@ forwardPipelineState_(nullptr), backwardPipelineState_(nullptr), learningRate_(0
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::OutputErrors].resize(sequenceLength_, nullptr);
     inputBuffers_[BufferType::Targets].resize(sequenceLength_, nullptr);
-    
-    layerIndex = ++layerCounter;
 }
 
 DenseLayer::~DenseLayer() {
@@ -56,15 +54,10 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     backwardFunc->release();
     
     ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
-    auto parameters = pConfig->training.optimizer.parameters;
-
-    float lr      = pConfig->training.optimizer.learning_rate;
-    float beta1   = parameters["beta1"].get_value_or<float>(0.9f);
-    float beta2   = parameters["beta2"].get_value_or<float>(0.999f);
-    float epsilon = parameters["epsilon"].get_value_or<float>(1e-8);
+    auto optimizerConfig = pConfig->training.optimizer;
         
-    optimizerWeights_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
-    optimizerBiases_  = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+    optimizerWeights_ = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    optimizerBiases_  = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
     
     optimizerWeights_->buildPipeline(device, library);
     optimizerBiases_->buildPipeline(device, library);
@@ -175,7 +168,6 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     uint activationRaw = static_cast<uint>(activation_);
     uint bs = (uint)batchSize_;
     decay_ *= decayRate_;
-    float decay = decay_;
     uint input_dim = (uint)inputDim_;
     uint output_dim = (uint)outputDim_;
 
@@ -191,12 +183,11 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     encoder->setBuffer(outputBuffers_[BufferType::Delta][0], 0, 5);
     encoder->setBytes(&input_dim, sizeof(uint), 6);
     encoder->setBytes(&output_dim, sizeof(uint), 7);
-    encoder->setBytes(&decay, sizeof(float), 8);
-    encoder->setBytes(&activationRaw, sizeof(uint), 9);
-    encoder->setBuffer(outputBuffers_[BufferType::Debug][0], 0, 10);
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 11);
-    encoder->setBytes(&bs, sizeof(uint), 12);
-    encoder->setBytes(&learningRate_, sizeof(float), 13);
+    encoder->setBytes(&activationRaw, sizeof(uint), 8);
+    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 9);
+    encoder->setBytes(&bs, sizeof(uint), 10);
+    encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 11);
+    encoder->setBuffer(optimizerBiases_->gradientBuffer(), 0, 12);
 
     uint gridSize = batchSize_ * outputDim_;
     uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
@@ -204,6 +195,10 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     MTL::Size threadgroupSize(threadsPerThreadgroup, 1, 1);
     MTL::Size threadgroups((gridSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
     encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
+    
+    optimizerWeights_->encode(encoder, bufferWeights_, inputDim_ * outputDim_, bs);
+    optimizerBiases_->encode(encoder, bufferBias_, outputDim_, bs);
+    
     encoder->endEncoding();
 
     inputBuffers_[BufferType::Input][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][0]->length()));
@@ -270,17 +265,6 @@ void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchS
 
 
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    //Logger::log << this->name_ << std::endl;
-    //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "Output errors");
-    
-    auto cmdBuf = _pCommandQueue->commandBuffer();
-    auto encoder = cmdBuf->computeCommandEncoder();
-
-    optimizerWeights_->encode(encoder, bufferWeights_, inputDim_ * outputDim_, batchSize);
-    optimizerBiases_->encode(encoder, bufferBias_, outputDim_, batchSize);
-
-    encoder->endEncoding();
-    
     memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
     outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
 }
@@ -288,5 +272,3 @@ void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batch
 void DenseLayer::debugLog() {
 
 }
-
-int DenseLayer::layerCounter = 0;

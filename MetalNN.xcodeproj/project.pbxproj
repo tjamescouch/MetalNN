@@ -53,6 +53,7 @@
 				architectures/ocr.yml,
 				"architectures/residual-connection.yml",
 				architectures/rnn.yml,
+				"architectures/self-attention.yml",
 				"architectures/simple-ocr.yml",
 				"architectures/single-dense-layer.yml",
 				architectures/transformer.yml,

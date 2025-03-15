@@ -17,12 +17,16 @@ struct LayerConfig {
     std::string type;
     std::map<std::string, fkyaml::node> params;
     int time_steps = -1;
+    float learning_rate;
 };
 
 // Optimizer configuration
 struct OptimizerConfig {
     std::string type;
     float learning_rate;
+    float beta1;
+    float beta2;
+    float epsilon;
     std::map<std::string, fkyaml::node> parameters;
 };
 

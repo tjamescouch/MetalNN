@@ -140,15 +140,10 @@ void LayerNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* l
     backwardFn->release();
 
     ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
-    auto parameters = pConfig->training.optimizer.parameters;
+    auto optimizerConfig = pConfig->training.optimizer;
 
-    float lr      = pConfig->training.optimizer.learning_rate;
-    float beta1   = parameters["beta1"].get_value_or<float>(0.9f);
-    float beta2   = parameters["beta2"].get_value_or<float>(0.999f);
-    float epsilon = parameters["epsilon"].get_value_or<float>(1e-8);
-
-    optimizerGamma_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
-    optimizerBeta_  = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+    optimizerGamma_ = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    optimizerBeta_  = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
 
     optimizerGamma_->buildPipeline(device, library);
     optimizerBeta_->buildPipeline(device, library);
@@ -199,6 +194,12 @@ void LayerNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize
     encoder->setBytes(&featureDim_,    sizeof(int),   8);
     encoder->setBytes(&batchSize,      sizeof(uint),  9);
     encoder->setBytes(&learningRate_,  sizeof(float), 10);
+    
+    encoder->setBuffer(optimizerBeta_->gradientBuffer(), 0, 11);
+    encoder->setBuffer(optimizerGamma_->gradientBuffer(), 0, 12);
+    
+    optimizerGamma_->encode(encoder, bufferGamma_, featureDim_, batchSize);
+    optimizerBeta_->encode(encoder, bufferBeta_, featureDim_, batchSize);
 
     MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
     MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
@@ -237,8 +238,7 @@ MTL::Buffer* LayerNormalizationLayer::getInputBufferAt(BufferType type, int time
     return inputBuffers_[type][timestep];
 }
 
-void LayerNormalizationLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                                  MTL::Buffer* zeroBuffer, int timestep) {
+void LayerNormalizationLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer, MTL::Buffer* zeroBuffer, int timestep) {
     setInputBufferAt(BufferType::Input, timestep,
                      previousLayer
                      ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
@@ -246,8 +246,7 @@ void LayerNormalizationLayer::connectForwardConnections(Layer* previousLayer, La
                      );
 }
 
-void LayerNormalizationLayer::connectBackwardConnections(Layer* prevLayer, Layer* inputLayer,
-                                                  MTL::Buffer* zeroBuffer, int timestep) {
+void LayerNormalizationLayer::connectBackwardConnections(Layer* prevLayer, Layer* inputLayer, MTL::Buffer* zeroBuffer, int timestep) {
     prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
 }
 
@@ -268,12 +267,5 @@ void LayerNormalizationLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueu
 }
 
 void LayerNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    auto cmdBuf = _pCommandQueue->commandBuffer();
-    auto encoder = cmdBuf->computeCommandEncoder();
 
-    optimizerGamma_->encode(encoder, bufferGamma_, featureDim_, batchSize);
-    optimizerBeta_->encode(encoder, bufferBeta_, featureDim_, batchSize);
-
-    encoder->endEncoding();
-    cmdBuf->commit();
 }

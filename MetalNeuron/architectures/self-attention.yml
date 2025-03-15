@@ -1,22 +1,17 @@
-name: "Multi Layer Dense NN"
+name: "Self Attention Test"
 
 layers:
-  - type: Dense
+  - type: SelfAttention
     input_size: 256
     output_size: 256
-    activation: relu
-    initializer: he
-
-  - type: BatchNormalization
-    input_size: 256
-    output_size: 256
-    #learning_rate: 0.001
+    sequence_length: 10
+    initializer: xavier
 
   - type: Dense
     input_size: 256
     output_size: 256
     activation: linear
-    initializer: he
+    initializer: xavier
 
 training:
   optimizer:
@@ -27,12 +22,12 @@ training:
       beta2: 0.999
       epsilon: 1e-8
 
-  epochs: 2
-  batch_size: 2
+  epochs: 10
+  batch_size: 4
 
 dataset:
   type: "function"
 
 metadata:
   author: "James Couch"
-  description: "Multi Layer Dense NN"
+  description: "Self-Attention basic test"

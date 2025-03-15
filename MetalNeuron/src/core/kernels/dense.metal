@@ -110,12 +110,11 @@ kernel void learn_non_terminal_dense_layer(
     device float*       outputError      [[buffer(5)]],  // errors fed BACK to previous (delta)
     constant uint&      input_dim        [[buffer(6)]],
     constant uint&      output_dim       [[buffer(7)]],
-    constant float&     decay            [[buffer(8)]],  // e.g., momentum or weight decay factor
-    constant uint&      activation       [[buffer(9)]],
-    device float*       debug            [[buffer(10)]],
-    device float*       prevLayerErrors  [[buffer(11)]], // final error to the previous layer's activations
-    constant uint&      batch_size       [[buffer(12)]],
-    constant float& learning_rate    [[buffer(13)]],
+    constant uint&      activation       [[buffer(8)]],
+    device float*       prevLayerErrors  [[buffer(9)]], // final error to the previous layer's activations
+    constant uint&      batch_size       [[buffer(10)]],
+    device atomic_float* gradientsW      [[buffer(11)]],
+    device atomic_float* gradientsB      [[buffer(12)]],
     uint tid                               [[thread_position_in_threadgroup]],
     uint gid                               [[thread_position_in_grid]]
 )
@@ -148,113 +147,83 @@ kernel void learn_non_terminal_dense_layer(
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    // For each input in [0..input_dim-1], update weight and accumulate error
     for (uint i = 0; i < input_dim; i++) {
-        float grad = sample_h[i] * delta;  // partial dW
+        float grad = sample_h[i] * delta;  // computed gradient (partial dW)
 
-        // clamp grad
-        //grad = clamp(grad, -threshold, threshold);
+        // Write explicitly to gradients buffer instead of modifying W
+        uint gradWIdx = i * output_dim + neuron_id;
+        atomic_fetch_add_explicit(&gradientsW[gradWIdx], grad, memory_order_relaxed);
 
+        // Use existing weights (unchanged) to propagate errors backward
+        float weightVal = W[i * output_dim + neuron_id];
+        float prevErrTerm = weightVal * delta;
 
-        debug[i * output_dim + neuron_id] = grad;
-
-        // We want to read the old weight, THEN do an atomic add
-        device atomic_float* wAddr = (device atomic_float*)&W[i * output_dim + neuron_id];
-
-        float oldWeight = atomic_load_explicit(wAddr, memory_order_relaxed);
-
-        // Atomic update the weight
-        // W -= learning_rate * grad * decay
-        float wUpdate = -learning_rate * grad * decay;
-        atomic_fetch_add_explicit(wAddr, wUpdate, memory_order_relaxed);
-
-        // For the error to pass back to previous layer: oldWeight * delta
-        // Use oldWeight from before we updated it.
-        float prevErrTerm = oldWeight * delta;
         atomic_fetch_add_explicit((device atomic_float*)&sample_prevError[i],
                                   prevErrTerm, memory_order_relaxed);
     }
 
-    // Update bias
-    device atomic_float* bAddr = (device atomic_float*)&b[neuron_id];
-    float biasUpdate = -learning_rate * delta * decay;
-    atomic_fetch_add_explicit(bAddr, biasUpdate, memory_order_relaxed);
+    // Update bias gradient explicitly (no direct bias updates)
+    device atomic_float* pGradientsB = (device atomic_float*)&gradientsB[neuron_id];
+    atomic_fetch_add_explicit(pGradientsB, delta, memory_order_relaxed);
 }
 
 
 
 kernel void learn_terminal_dense_layer(
     device const float* h                [[buffer(0)]],  // final layer input activations
-    device float*       W                [[buffer(1)]],  // weights
-    device float*       b                [[buffer(2)]],  // biases
+    device const float* W                [[buffer(1)]],  // weights (no direct updates)
+    device const float* b                [[buffer(2)]],  // biases (no direct updates)
     device const float* y_hat            [[buffer(3)]],  // predicted outputs
     device const float* y                [[buffer(4)]],  // targets
     device float*       error            [[buffer(5)]],  // partial error (this final layer's delta)
     constant uint&      input_dim        [[buffer(6)]],
     constant uint&      output_dim       [[buffer(7)]],
-    constant float&     decay            [[buffer(8)]],
-    constant uint&      activation       [[buffer(9)]],
-    device float*       debug            [[buffer(10)]],
-    device float*       prevLayerErrors  [[buffer(11)]], // error to previous layer
-    constant uint&      batch_size       [[buffer(12)]],
-    constant float&     learning_rate    [[buffer(13)]],
-    uint tid                               [[thread_position_in_threadgroup]],
-    uint gid                               [[thread_position_in_grid]]
+    constant uint&      activation       [[buffer(8)]],
+    device float*       prevLayerErrors  [[buffer(9)]], // error to previous layer
+    constant uint&      batch_size       [[buffer(10)]],
+    device atomic_float* gradientsW      [[buffer(11)]], // weights gradients buffer
+    device atomic_float* gradientsB      [[buffer(12)]], // bias gradients buffer
+    uint tid                             [[thread_position_in_threadgroup]],
+    uint gid                             [[thread_position_in_grid]]
 )
 {
-    // Identify sample + neuron
     uint sample_id = gid / output_dim;
     uint neuron_id = gid % output_dim;
 
     if (sample_id >= batch_size || neuron_id >= output_dim) return;
 
-    // Pointers to this sample's data
     const device float* sample_h     = h     + (sample_id * input_dim);
     const device float* sample_y_hat = y_hat + (sample_id * output_dim);
     const device float* sample_y     = y     + (sample_id * output_dim);
     device float*       sample_error = error + (sample_id * output_dim);
     device float*       sample_prevE = prevLayerErrors + (sample_id * input_dim);
 
-    // For terminal layer, raw_error is typically (y_hat - y).
-    // We'll clamp, then multiply by derivative if not softmax.
     float raw_error = sample_y_hat[neuron_id] - sample_y[neuron_id];
-    debug[gid] = raw_error;
 
     float delta;
     if (activation == ACTIVATION_SOFTMAX) {
-        // In typical frameworks, for cross-entropy + softmax => delta = (y_hat - y).
         delta = raw_error;
     } else {
-        // Multiply by derivative of the activation
         float dAct = activate_derivative(sample_y_hat[neuron_id], activation);
         delta = raw_error * dAct;
     }
 
-    // clamp
     delta = clamp(delta, -threshold, threshold);
-    // Save in error buffer
     sample_error[neuron_id] = delta;
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    // Weight + bias update
     for (uint i = 0; i < input_dim; i++) {
         float grad = sample_h[i] * delta;
         grad = clamp(grad, -threshold, threshold);
 
-        device atomic_float* wAddr = (device atomic_float*)&W[i * output_dim + neuron_id];
-        float oldWeight = atomic_load_explicit(wAddr, memory_order_relaxed);
+        uint gradWIdx = i * output_dim + neuron_id;
+        atomic_fetch_add_explicit(&gradientsW[gradWIdx], grad, memory_order_relaxed);
 
-        float wUpdate = -learning_rate * grad * decay;
-        atomic_fetch_add_explicit(wAddr, wUpdate, memory_order_relaxed);
-
-        // error to feed back
-        float prevErrTerm = oldWeight * delta;
+        float weightVal = W[i * output_dim + neuron_id];
+        float prevErrTerm = weightVal * delta;
         atomic_fetch_add_explicit((device atomic_float*)&sample_prevE[i], prevErrTerm, memory_order_relaxed);
     }
 
-    // Bias
-    device atomic_float* bAddr = (device atomic_float*)&b[neuron_id];
-    float biasUpdate = -learning_rate * delta * decay;
-    atomic_fetch_add_explicit(bAddr, biasUpdate, memory_order_relaxed);
+    atomic_fetch_add_explicit(&gradientsB[neuron_id], delta, memory_order_relaxed);
 }

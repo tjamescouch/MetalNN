@@ -49,12 +49,12 @@ public:
     void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; };
     
 private:
-    int inputDim_;
-    int outputDim_;
+    uint inputDim_;
+    uint outputDim_;
     int sequenceLength_;
     float epsilon_;
     bool isTerminal_;
-    int batchSize_;
+    uint batchSize_;
     size_t bufferSize_;
     float learningRate_;
 

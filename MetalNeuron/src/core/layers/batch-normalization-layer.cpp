@@ -121,6 +121,9 @@ void BatchNormalizationLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::Output].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
     inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
     outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
+    
+    optimizerBeta_->buildBuffers(device, outputDim_ * sizeof(float));
+    optimizerGamma_->buildBuffers(device, outputDim_ * sizeof(float));
 }
 
 void BatchNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -145,18 +148,16 @@ void BatchNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* l
     backwardFunction->release();
     
     ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
-    auto parameters = pConfig->training.optimizer.parameters;
+    auto optimizerConfig = pConfig->training.optimizer;
 
-    float lr      = pConfig->training.optimizer.learning_rate;
-    float beta1   = parameters["beta1"].get_value_or<float>(0.9f);
-    float beta2   = parameters["beta2"].get_value_or<float>(0.999f);
-    float epsilon = parameters["epsilon"].get_value_or<float>(1e-8);
-
-    optimizerGamma_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
-    optimizerBeta_  = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+    optimizerGamma_ = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    optimizerBeta_  = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    
+    optimizerGamma_->buildPipeline(device, library);
+    optimizerBeta_->buildPipeline(device, library);
 }
 
-void BatchNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize)
+void BatchNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int)
 {
     bool isTraining = TrainingManager::instance().isTraining();
     
@@ -178,16 +179,16 @@ void BatchNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize)
     encoder->setBytes(&epsilon_, sizeof(float), 8);
     encoder->setBytes(&outputDim_, sizeof(int), 9);
     encoder->setBytes(&isTraining, sizeof(bool), 10);
-    encoder->setBytes(&batchSize, sizeof(uint), 11);
+    encoder->setBytes(&batchSize_, sizeof(uint), 11);
     encoder->setBuffer(bufferDebug_, 0, 12);
 
-    MTL::Size threadsPerGroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
+    MTL::Size threadsPerGroup = MTL::Size(mathlib::min<uint>(outputDim_, 1024), 1, 1);
     MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
     encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
     encoder->endEncoding();
 }
 
-void BatchNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize)
+void BatchNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int)
 {
     bool isTraining = TrainingManager::instance().isTraining();
     
@@ -211,13 +212,18 @@ void BatchNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize
 
     // SHIFT the rest:
     encoder->setBytes(&epsilon_,       sizeof(float), 9);    // 9: epsilon
-    encoder->setBytes(&outputDim_,     sizeof(int),   10);   // 10: featureDim
+    encoder->setBytes(&outputDim_,     sizeof(uint),   10);   // 10: featureDim
     encoder->setBytes(&isTraining,     sizeof(bool),  11);   // 11: isTraining
-    encoder->setBytes(&batchSize,      sizeof(uint),  12);   // 12: batchSize
-    encoder->setBytes(&learningRate_,  sizeof(float), 13);   // 13: learningRate
-    encoder->setBuffer(bufferDebug_,   0,             14);   // 14: debug
+    encoder->setBytes(&batchSize_,             sizeof(uint),  12);   // 12: batchSize
+    encoder->setBuffer(bufferDebug_,   0,             13);   // 14: debug
+    
+    encoder->setBuffer(optimizerBeta_->gradientBuffer(), 0, 14);
+    encoder->setBuffer(optimizerGamma_->gradientBuffer(), 0, 15);
+    
+    optimizerBeta_->encode(encoder, bufferBeta_, outputDim_, batchSize_);
+    optimizerGamma_->encode(encoder, bufferGamma_, outputDim_, batchSize_);
 
-    MTL::Size threadsPerGroup = MTL::Size(std::min(outputDim_, 1024), 1, 1);
+    MTL::Size threadsPerGroup = MTL::Size(mathlib::min<uint>(outputDim_, 1024), 1, 1);
     MTL::Size threadgroups = MTL::Size((outputDim_ + 1023) / 1024, 1, 1);
     encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
     encoder->endEncoding();
@@ -293,25 +299,15 @@ void BatchNormalizationLayer::loadParameters(std::istream& is) {
 }
 
 void BatchNormalizationLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-#ifdef F
-    Logger::instance().printFloatBuffer(bufferDebug_, "F: Debug", 128);
-    
 
-    Logger::instance().printFloatBuffer(bufferBeta_, "Beta", 10);
-    Logger::instance().printFloatBuffer(bufferGamma_, "Gamma", 10);
-    
-
-    Logger::instance().printFloatBuffer(inputBuffers_[BufferType::Input][0], "[B: Batch Normalization Input]", 10);
-    Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Output][0], "[B: Batch Normalization Output]", 10);
-    Logger::instance().printFloatBuffer(inputBuffers_[BufferType::InputErrors][0], "[B: Batch Normalization Input Errors]", 10);
-    Logger::instance().printFloatBuffer(outputBuffers_[BufferType::OutputErrors][0], "[B: Batch Normalization Output Errors]", 10);
-#endif
 }
 
 void BatchNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    //Logger::instance().printFloatBuffer(bufferDebug_, "B: Debug", 4);
-    bufferBeta_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
-    //bufferGamma_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
+    
     bufferRunningMean_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
     bufferRunningVariance_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
+    
+    memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
+    outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
 }
+
