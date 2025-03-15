@@ -310,11 +310,5 @@ void BatchNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQue
     
     memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
     outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
-    
-    memset(optimizerGamma_->gradientBuffer()->contents(), 0, outputDim_ * sizeof(float));
-    optimizerGamma_->gradientBuffer()->didModifyRange(NS::Range(0, optimizerGamma_->gradientBuffer()->length()));
-    
-    memset(optimizerBeta_->gradientBuffer()->contents(), 0, outputDim_ * sizeof(float));
-    optimizerBeta_->gradientBuffer()->didModifyRange(NS::Range(0, optimizerBeta_->gradientBuffer()->length()));
 }
 

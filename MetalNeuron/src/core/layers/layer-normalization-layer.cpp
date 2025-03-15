@@ -194,6 +194,12 @@ void LayerNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize
     encoder->setBytes(&featureDim_,    sizeof(int),   8);
     encoder->setBytes(&batchSize,      sizeof(uint),  9);
     encoder->setBytes(&learningRate_,  sizeof(float), 10);
+    
+    encoder->setBuffer(optimizerBeta_->gradientBuffer(), 0, 11);
+    encoder->setBuffer(optimizerGamma_->gradientBuffer(), 0, 12);
+    
+    optimizerGamma_->encode(encoder, bufferGamma_, featureDim_, batchSize);
+    optimizerBeta_->encode(encoder, bufferBeta_, featureDim_, batchSize);
 
     MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
     MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
@@ -261,12 +267,5 @@ void LayerNormalizationLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueu
 }
 
 void LayerNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    auto cmdBuf = _pCommandQueue->commandBuffer();
-    auto encoder = cmdBuf->computeCommandEncoder();
 
-    optimizerGamma_->encode(encoder, bufferGamma_, featureDim_, batchSize);
-    optimizerBeta_->encode(encoder, bufferBeta_, featureDim_, batchSize);
-
-    encoder->endEncoding();
-    cmdBuf->commit();
 }

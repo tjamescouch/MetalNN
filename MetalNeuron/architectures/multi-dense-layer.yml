@@ -6,10 +6,11 @@ layers:
     output_size: 256
     activation: relu
     initializer: he
-    
-  - type: BatchNormalization
+
+  - type: LayerNormalization
     input_size: 256
     output_size: 256
+    #learning_rate: 0.001
 
   - type: Dense
     input_size: 256

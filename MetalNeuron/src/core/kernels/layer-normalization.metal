@@ -55,6 +55,66 @@ kernel void forward_layer_norm(
     }
 }
 
+kernel void backward_layer_norm(
+    device const float* input                [[buffer(0)]],   // [batchSize x featureDim]
+    device const float* inputErrors          [[buffer(1)]],   // incoming errors (dY)
+    device float* outputErrors               [[buffer(2)]],   // propagated errors (dX)
+    device float* gamma                      [[buffer(3)]],   // gamma parameter
+    device float* beta                       [[buffer(4)]],   // beta parameter
+    device const float* savedMean            [[buffer(5)]],   // mean per sample (forward pass)
+    device const float* savedVariance        [[buffer(6)]],   // variance per sample (forward pass)
+    constant float& epsilon                  [[buffer(7)]],
+    constant uint& featureDim                 [[buffer(8)]],
+    constant uint& batchSize                  [[buffer(9)]],
+    constant float& learningRate             [[buffer(10)]],
+    device atomic_float* gradientsBeta       [[buffer(14)]],
+    device atomic_float* gradientsGamma      [[buffer(15)]],
+    uint gid                               [[thread_position_in_grid]]
+) {
+    if (gid >= batchSize) return;
+
+    float mean = savedMean[gid];
+    float variance = savedVariance[gid];
+    float invStd = rsqrt(variance + 1e-5f);
+
+    // Accumulate gradients for gamma and beta
+    for (uint featureIdx = 0; featureIdx < featureDim; ++featureIdx) {
+        uint idx = gid * featureDim + featureIdx;
+
+        float xhat = (input[idx] - mean) * invStd;
+        float dy = inputErrors[idx];
+
+        // Accumulate gamma and beta gradients
+        atomic_fetch_add_explicit(&gradientsGamma[featureIdx], dy * xhat, memory_order_relaxed);
+        atomic_fetch_add_explicit(&gradientsBeta[featureIdx], dy, memory_order_relaxed);
+    }
+
+    // Compute gradients for input activations
+    float sumDyGammaXhat = 0.0f;
+    float sumDyGamma = 0.0f;
+
+    for (uint featureIdx = 0; featureIdx < featureDim; ++featureIdx) {
+        uint idx = gid * featureDim + featureIdx;
+        float xhat = (input[idx] - savedMean[gid]) * invStd;
+        float dy = inputErrors[idx];
+
+        sumDyGammaXhat += dy * gamma[featureIdx] * xhat;
+        sumDyGamma += dy * gamma[featureIdx];
+    }
+
+    for (uint featureIdx = 0; featureIdx < featureDim; ++featureIdx) {
+        uint idx = gid * featureDim + featureIdx;
+
+        float dy = outputErrors[idx];
+        float xhat = (input[idx] - savedMean[gid]) * invStd;
+
+        outputErrors[idx] = (gamma[featureIdx] * invStd / featureDim) *
+                           (featureDim * dy - sumDyGamma - xhat * sumDyGammaXhat);
+    }
+}
+
+
+/*
 // Backward pass for Layer Normalization
 kernel void backward_layer_norm(
     device const float* input                [[buffer(0)]],   // [batchSize x featureDim]
@@ -68,6 +128,8 @@ kernel void backward_layer_norm(
     constant int& featureDim                 [[buffer(8)]],
     constant int& batchSize                  [[buffer(9)]],
     constant float& learningRate             [[buffer(10)]],
+    device atomic_float* gradientsBeta       [[buffer(14)]],
+    device atomic_float* gradientsGamma      [[buffer(15)]],
     uint gid                                 [[thread_position_in_grid]]
 ) {
     if ((int)gid >= batchSize) return;
@@ -103,4 +165,4 @@ kernel void backward_layer_norm(
         atomic_fetch_add_explicit((device atomic_float*)&gamma[f], -learningRate * dy * xhat / batchSize, memory_order_relaxed);
         atomic_fetch_add_explicit((device atomic_float*)&beta[f], -learningRate * dy / batchSize, memory_order_relaxed);
     }
-}
+}*/
