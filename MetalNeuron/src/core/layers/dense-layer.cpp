@@ -191,14 +191,11 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     encoder->setBuffer(outputBuffers_[BufferType::Delta][0], 0, 5);
     encoder->setBytes(&input_dim, sizeof(uint), 6);
     encoder->setBytes(&output_dim, sizeof(uint), 7);
-    encoder->setBytes(&decay, sizeof(float), 8);
-    encoder->setBytes(&activationRaw, sizeof(uint), 9);
-    encoder->setBuffer(outputBuffers_[BufferType::Debug][0], 0, 10);
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 11);
-    encoder->setBytes(&bs, sizeof(uint), 12);
-    encoder->setBytes(&learningRate_, sizeof(float), 13);
-    encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 14);
-    encoder->setBuffer(optimizerBiases_->gradientBuffer(), 0, 15);
+    encoder->setBytes(&activationRaw, sizeof(uint), 8);
+    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 9);
+    encoder->setBytes(&bs, sizeof(uint), 10);
+    encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 11);
+    encoder->setBuffer(optimizerBiases_->gradientBuffer(), 0, 12);
 
     uint gridSize = batchSize_ * outputDim_;
     uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);

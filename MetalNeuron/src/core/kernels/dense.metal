@@ -110,14 +110,11 @@ kernel void learn_non_terminal_dense_layer(
     device float*       outputError      [[buffer(5)]],  // errors fed BACK to previous (delta)
     constant uint&      input_dim        [[buffer(6)]],
     constant uint&      output_dim       [[buffer(7)]],
-    constant float&     decay            [[buffer(8)]],  // e.g., momentum or weight decay factor
-    constant uint&      activation       [[buffer(9)]],
-    device float*       debug            [[buffer(10)]],
-    device float*       prevLayerErrors  [[buffer(11)]], // final error to the previous layer's activations
-    constant uint&      batch_size       [[buffer(12)]],
-    constant float&     learning_rate    [[buffer(13)]],
-    device atomic_float* gradientsW      [[buffer(14)]],
-    device atomic_float* gradientsB      [[buffer(15)]],
+    constant uint&      activation       [[buffer(8)]],
+    device float*       prevLayerErrors  [[buffer(9)]], // final error to the previous layer's activations
+    constant uint&      batch_size       [[buffer(10)]],
+    device atomic_float* gradientsW      [[buffer(11)]],
+    device atomic_float* gradientsB      [[buffer(12)]],
     uint tid                               [[thread_position_in_threadgroup]],
     uint gid                               [[thread_position_in_grid]]
 )
@@ -152,7 +149,6 @@ kernel void learn_non_terminal_dense_layer(
 
     for (uint i = 0; i < input_dim; i++) {
         float grad = sample_h[i] * delta;  // computed gradient (partial dW)
-        debug[i * output_dim + neuron_id] = grad;
 
         // Write explicitly to gradients buffer instead of modifying W
         uint gradWIdx = i * output_dim + neuron_id;
@@ -182,14 +178,11 @@ kernel void learn_terminal_dense_layer(
     device float*       error            [[buffer(5)]],  // partial error (this final layer's delta)
     constant uint&      input_dim        [[buffer(6)]],
     constant uint&      output_dim       [[buffer(7)]],
-    constant float&     decay            [[buffer(8)]],
-    constant uint&      activation       [[buffer(9)]],
-    device float*       debug            [[buffer(10)]],
-    device float*       prevLayerErrors  [[buffer(11)]], // error to previous layer
-    constant uint&      batch_size       [[buffer(12)]],
-    constant float&     learning_rate    [[buffer(13)]],
-    device atomic_float* gradientsW      [[buffer(14)]], // weights gradients buffer
-    device atomic_float* gradientsB      [[buffer(15)]], // bias gradients buffer
+    constant uint&      activation       [[buffer(8)]],
+    device float*       prevLayerErrors  [[buffer(9)]], // error to previous layer
+    constant uint&      batch_size       [[buffer(10)]],
+    device atomic_float* gradientsW      [[buffer(11)]], // weights gradients buffer
+    device atomic_float* gradientsB      [[buffer(12)]], // bias gradients buffer
     uint tid                             [[thread_position_in_threadgroup]],
     uint gid                             [[thread_position_in_grid]]
 )
@@ -206,7 +199,6 @@ kernel void learn_terminal_dense_layer(
     device float*       sample_prevE = prevLayerErrors + (sample_id * input_dim);
 
     float raw_error = sample_y_hat[neuron_id] - sample_y[neuron_id];
-    debug[gid] = raw_error;
 
     float delta;
     if (activation == ACTIVATION_SOFTMAX) {
