@@ -175,8 +175,8 @@ kernel void learn_non_terminal_dense_layer(
 
 kernel void learn_terminal_dense_layer(
     device const float* h                [[buffer(0)]],  // final layer input activations
-    device float*       W                [[buffer(1)]],  // weights
-    device float*       b                [[buffer(2)]],  // biases
+    device const float* W                [[buffer(1)]],  // weights (no direct updates)
+    device const float* b                [[buffer(2)]],  // biases (no direct updates)
     device const float* y_hat            [[buffer(3)]],  // predicted outputs
     device const float* y                [[buffer(4)]],  // targets
     device float*       error            [[buffer(5)]],  // partial error (this final layer's delta)
@@ -188,63 +188,50 @@ kernel void learn_terminal_dense_layer(
     device float*       prevLayerErrors  [[buffer(11)]], // error to previous layer
     constant uint&      batch_size       [[buffer(12)]],
     constant float&     learning_rate    [[buffer(13)]],
-    uint tid                               [[thread_position_in_threadgroup]],
-    uint gid                               [[thread_position_in_grid]]
+    device atomic_float* gradientsW      [[buffer(14)]], // weights gradients buffer
+    device atomic_float* gradientsB      [[buffer(15)]], // bias gradients buffer
+    uint tid                             [[thread_position_in_threadgroup]],
+    uint gid                             [[thread_position_in_grid]]
 )
 {
-    // Identify sample + neuron
     uint sample_id = gid / output_dim;
     uint neuron_id = gid % output_dim;
 
     if (sample_id >= batch_size || neuron_id >= output_dim) return;
 
-    // Pointers to this sample's data
     const device float* sample_h     = h     + (sample_id * input_dim);
     const device float* sample_y_hat = y_hat + (sample_id * output_dim);
     const device float* sample_y     = y     + (sample_id * output_dim);
     device float*       sample_error = error + (sample_id * output_dim);
     device float*       sample_prevE = prevLayerErrors + (sample_id * input_dim);
 
-    // For terminal layer, raw_error is typically (y_hat - y).
-    // We'll clamp, then multiply by derivative if not softmax.
     float raw_error = sample_y_hat[neuron_id] - sample_y[neuron_id];
     debug[gid] = raw_error;
 
     float delta;
     if (activation == ACTIVATION_SOFTMAX) {
-        // In typical frameworks, for cross-entropy + softmax => delta = (y_hat - y).
         delta = raw_error;
     } else {
-        // Multiply by derivative of the activation
         float dAct = activate_derivative(sample_y_hat[neuron_id], activation);
         delta = raw_error * dAct;
     }
 
-    // clamp
     delta = clamp(delta, -threshold, threshold);
-    // Save in error buffer
     sample_error[neuron_id] = delta;
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    // Weight + bias update
     for (uint i = 0; i < input_dim; i++) {
         float grad = sample_h[i] * delta;
         grad = clamp(grad, -threshold, threshold);
 
-        device atomic_float* wAddr = (device atomic_float*)&W[i * output_dim + neuron_id];
-        float oldWeight = atomic_load_explicit(wAddr, memory_order_relaxed);
+        uint gradWIdx = i * output_dim + neuron_id;
+        atomic_fetch_add_explicit(&gradientsW[gradWIdx], grad, memory_order_relaxed);
 
-        float wUpdate = -learning_rate * grad * decay;
-        atomic_fetch_add_explicit(wAddr, wUpdate, memory_order_relaxed);
-
-        // error to feed back
-        float prevErrTerm = oldWeight * delta;
+        float weightVal = W[i * output_dim + neuron_id];
+        float prevErrTerm = weightVal * delta;
         atomic_fetch_add_explicit((device atomic_float*)&sample_prevE[i], prevErrTerm, memory_order_relaxed);
     }
 
-    // Bias
-    device atomic_float* bAddr = (device atomic_float*)&b[neuron_id];
-    float biasUpdate = -learning_rate * delta * decay;
-    atomic_fetch_add_explicit(bAddr, biasUpdate, memory_order_relaxed);
+    atomic_fetch_add_explicit(&gradientsB[neuron_id], delta, memory_order_relaxed);
 }
