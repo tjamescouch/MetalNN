@@ -40,8 +40,8 @@ kernel void forward_self_attention(
     uint seqIdx = gid % seqLength;
 
     // Offset calculations
-    uint input_offset = (batchSize * seqIdx + batchIdx) * inputDim;
-    uint buffer_offset = (batchSize * seqIdx + batchIdx) * modelDim;
+    uint input_offset = (batchIdx * seqLength + seqIdx) * inputDim;
+    uint buffer_offset = (batchIdx * seqLength + seqIdx) * modelDim;
     uint output_offset = input_offset;
 
     // Step 1: Compute Q, K, V vectors
@@ -134,32 +134,33 @@ inline void atomicAdd(volatile device atomic_float* ptr, float val)
     atomic_fetch_add_explicit(ptr, val, memory_order_relaxed);
 }
 
+
 kernel void backward_self_attention(
-    device const float* input                [[buffer(0)]],   // [batchSize * seqLength * inputDim]
-    device const float* weightsQ             [[buffer(1)]],   // [inputDim * modelDim]
-    device const float* weightsK             [[buffer(2)]],   // [inputDim * modelDim]
-    device const float* weightsV             [[buffer(3)]],   // [inputDim * modelDim]
-    device const float* weightsO             [[buffer(4)]],   // [modelDim * inputDim]
+    device const float* input                [[buffer(0)]],
+    device const float* weightsQ             [[buffer(1)]],
+    device const float* weightsK             [[buffer(2)]],
+    device const float* weightsV             [[buffer(3)]],
+    device const float* weightsO             [[buffer(4)]],
 
-    device const float* bufferQ              [[buffer(5)]],   // [batchSize * seqLength * modelDim]
-    device const float* bufferK              [[buffer(6)]],   // [batchSize * seqLength * modelDim]
-    device const float* bufferV              [[buffer(7)]],   // [batchSize * seqLength * modelDim]
-    device const float* attn_weights         [[buffer(8)]],   // [batchSize * seqLength * seqLength]
+    device const float* bufferQ              [[buffer(5)]],
+    device const float* bufferK              [[buffer(6)]],
+    device const float* bufferV              [[buffer(7)]],
+    device const float* attn_weights         [[buffer(8)]],
 
-    device atomic_float* inputErrors         [[buffer(9)]],   // [batchSize * seqLength * inputDim]
-    device const float* outputErrors         [[buffer(10)]],  // [batchSize * seqLength * inputDim]
+    device atomic_float* inputErrors         [[buffer(9)]],
+    device const float* outputErrors         [[buffer(10)]],
 
-    device atomic_float* gradWeightsQ        [[buffer(11)]],  // [inputDim * modelDim]
-    device atomic_float* gradWeightsK        [[buffer(12)]],  // [inputDim * modelDim]
-    device atomic_float* gradWeightsV        [[buffer(13)]],  // [inputDim * modelDim]
-    device atomic_float* gradWeightsO        [[buffer(14)]],  // [modelDim * inputDim]
+    device atomic_float* gradWeightsQ        [[buffer(11)]],
+    device atomic_float* gradWeightsK        [[buffer(12)]],
+    device atomic_float* gradWeightsV        [[buffer(13)]],
+    device atomic_float* gradWeightsO        [[buffer(14)]],
 
     constant uint& batchSize                 [[buffer(15)]],
     constant uint& seqLength                 [[buffer(16)]],
     constant uint& inputDim                  [[buffer(17)]],
     constant uint& modelDim                  [[buffer(18)]],
 
-    // NEW scratch buffer to store large per-thread arrays
+    // Large scratch buffer, sized for batchSize*seqLength threads
     device float* scratch                    [[buffer(19)]],
 
     uint tid                                 [[thread_position_in_threadgroup]],
@@ -168,103 +169,99 @@ kernel void backward_self_attention(
     uint gridSize                            [[threads_per_grid]]
 )
 {
-    // Each thread corresponds to (b, s)
+    // Global thread index
     uint gid = blockId * threadsPerGroup + tid;
     uint totalTokens = batchSize * seqLength;
-    if (gid >= totalTokens) {
-        return;
-    }
+    if (gid >= totalTokens) return;
+
+    // Map to (b, s)
     uint b = gid / seqLength;
     uint s = gid % seqLength;
 
-    //-----------------------------------------
-    // 1) Precompute offsets
-    //-----------------------------------------
-    uint inputOffset   = (b * seqLength + s) * inputDim;
-    uint outErrOffset  = (b * seqLength + s) * inputDim;
-    uint attnOffsetBS  = (b * seqLength * seqLength) + (s * seqLength);
+    // Offsets
+    uint inputOffset  = (b * seqLength + s) * inputDim;
+    uint outErrOffset = (b * seqLength + s) * inputDim;
+    uint attnOff      = (b * seqLength * seqLength) + (s * seqLength);
 
-    //-----------------------------------------
-    // 2) Layout of the scratch space
-    //    We'll store:
-    //       [ modelDim ] dAttn
-    //       [ modelDim ] attnVal
-    //       [ seqLength ] dAttnW_raw
-    //       [ seqLength ] dAttnW
-    //       [ seqLength * modelDim ] dV_s
-    //       [ seqLength * modelDim ] dK_s
-    //       [ modelDim ] dQ
+    //--------------------------------------------
+    // PART 0: define scratch layout per thread
+    //--------------------------------------------
+    // We'll store:
+    //   - dAttn[modelDim]
+    //   - attnVal[modelDim]
+    //   - dAttnW_raw[seqLength]
+    //   - dAttnW[seqLength]
+    //   - dV_s[seqLength * modelDim]
+    //   - dK_s[seqLength * modelDim]
+    //   - dQ[modelDim]
     //
-    // So total = 2*modelDim + 2*seqLength + 2*(seqLength*modelDim) + modelDim
-    //          = 3*modelDim + 2*seqLength + 2*(seqLength*modelDim).
-    //-----------------------------------------
-    const uint scratchPerThread = (3*modelDim) + (2*seqLength) + (2 * seqLength * modelDim);
+    // We'll also store dOut_i[inputDim] and a small inVal[inputDim] in scratch
+    // instead of private arrays to avoid 'hard-coded 256'.
+    //
+    // So total needed = 3*modelDim + 2*seqLength + 2*(seqLength*modelDim) + modelDim + inputDim + inputDim
+    //                 = 4*modelDim + 2*seqLength + 2*(seqLength * modelDim) + 2*inputDim.
+    //--------------------------------------------
+    uint scratchPerThread = (4*modelDim) + (2*seqLength) + (2*seqLength*modelDim) + (2*inputDim);
 
-    // Base offset in "scratch" for this thread
-    uint baseOffset = gid * scratchPerThread;
-    // We'll define pointers for each sub-block:
-    device float* dAttn_d    = scratch + baseOffset;                       // size = modelDim
-    device float* attnVal_d  = dAttn_d + modelDim;                         // size = modelDim
-    device float* dAttnW_raw = attnVal_d + modelDim;                       // size = seqLength
-    device float* dAttnW     = dAttnW_raw + seqLength;                     // size = seqLength
-    device float* dV_s       = dAttnW + seqLength;                         // size = seqLength*modelDim
-    device float* dK_s       = dV_s + (seqLength * modelDim);              // size = seqLength*modelDim
-    device float* dQ         = dK_s + (seqLength * modelDim);              // size = modelDim
+    uint base = gid * scratchPerThread;
+    device float* dAttn_d    = scratch + base;                           // [modelDim]
+    device float* attnVal_d  = dAttn_d + modelDim;                       // [modelDim]
+    device float* dAttnW_raw = attnVal_d + modelDim;                     // [seqLength]
+    device float* dAttnW     = dAttnW_raw + seqLength;                   // [seqLength]
+    device float* dV_s       = dAttnW + seqLength;                       // [seqLength*modelDim]
+    device float* dK_s       = dV_s + (seqLength*modelDim);              // [seqLength*modelDim]
+    device float* dQ         = dK_s + (seqLength*modelDim);              // [modelDim]
+    device float* dOut_i     = dQ + modelDim;                            // [inputDim]
+    device float* inVal      = dOut_i + inputDim;                        // [inputDim]
 
-    //-----------------------------------------
-    // 3) Read dOut for this token from global
-    //    We'll store it in registers or a small
-    //    local array, since inputDim might be
-    //    smaller than, say, 256 or so.
-    //-----------------------------------------
-    thread float dOut_i[256];
+    //--------------------------------------------
+    // PART 1: read dOut from global => dOut_i
+    //--------------------------------------------
     for (uint i = 0; i < inputDim; i++) {
         dOut_i[i] = outputErrors[outErrOffset + i];
     }
 
-    //-----------------------------------------
-    // 4) dAttn = dOut_i * weightsO^T => [modelDim]
-    //-----------------------------------------
+    //--------------------------------------------
+    // PART 2: dAttn = dOut * weightsO^T
+    //--------------------------------------------
     for (uint d = 0; d < modelDim; d++) {
         float sumVal = 0.0f;
         for (uint i = 0; i < inputDim; i++) {
-            sumVal += dOut_i[i] * weightsO[d * inputDim + i];
+            sumVal += dOut_i[i] * weightsO[d*inputDim + i];
         }
         dAttn_d[d] = sumVal;
     }
 
-    //-----------------------------------------
-    // 5) Recompute attnVal_d = attn_output(b,s,:)
-    //    = sum_j [ attn_weights(b,s,j) * V(b,j,:) ]
-    //-----------------------------------------
+    //--------------------------------------------
+    // PART 3: attnVal_d = sum_j( attn_weights(b,s,j)* V(b,j) )
+    //--------------------------------------------
     for (uint d = 0; d < modelDim; d++) {
         float sumVal = 0.0f;
         for (uint j = 0; j < seqLength; j++) {
-            float aw = attn_weights[attnOffsetBS + j];
-            uint vOff_j = (b * seqLength + j) * modelDim + d;
-            sumVal += aw * bufferV[vOff_j];
+            float aw = attn_weights[attnOff + j];
+            uint vOff = (b*seqLength + j)*modelDim + d;
+            sumVal += aw * bufferV[vOff];
         }
         attnVal_d[d] = sumVal;
     }
 
-    //-----------------------------------------
-    // 6) gradWeightsO = outer( attnVal_d, dOut_i )
-    //    We'll do a tile-based accumulation in
-    //    threadgroup memory to reduce atomic collisions.
-    //-----------------------------------------
-    threadgroup float partialGradO[TILE_DIM * TILE_DIM];
+    //--------------------------------------------
+    // PART 4: gradWeightsO += outer( attnVal_d, dOut_i )
+    //         tile partial sums in threadgroup
+    //--------------------------------------------
+    threadgroup float partialGradO[TILE_DIM*TILE_DIM];
     for (uint dStart = 0; dStart < modelDim; dStart += TILE_DIM) {
         for (uint iStart = 0; iStart < inputDim; iStart += TILE_DIM) {
-            // Zero tile
+            // zero tile
             for (uint idx = tid; idx < TILE_DIM*TILE_DIM; idx += threadsPerGroup) {
                 partialGradO[idx] = 0.0f;
             }
             threadgroup_barrier(mem_flags::mem_threadgroup);
 
-            // Accumulate partial
+            // accumulate
             for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
-                uint ld = localIdx / TILE_DIM;   // row in tile
-                uint li = localIdx % TILE_DIM;   // col in tile
+                uint ld = localIdx / TILE_DIM;
+                uint li = localIdx % TILE_DIM;
                 uint d_ = dStart + ld;
                 uint i_ = iStart + li;
                 if (d_ < modelDim && i_ < inputDim) {
@@ -274,150 +271,232 @@ kernel void backward_self_attention(
             }
             threadgroup_barrier(mem_flags::mem_threadgroup);
 
-            // Atomic add to global
+            // atomic add
             for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
                 uint ld = localIdx / TILE_DIM;
                 uint li = localIdx % TILE_DIM;
                 uint d_ = dStart + ld;
                 uint i_ = iStart + li;
                 if (d_ < modelDim && i_ < inputDim) {
-                    float v = partialGradO[localIdx];
-                    atomicAdd(&(gradWeightsO[d_ * inputDim + i_]), v);
+                    atomicAdd(&(gradWeightsO[d_*inputDim + i_]), partialGradO[localIdx]);
                 }
             }
             threadgroup_barrier(mem_flags::mem_threadgroup);
         }
     }
 
-    //-----------------------------------------
-    // 7) dV_s(j,d) = attn_weights(b,s,j)* dAttn_d[d]
-    //    for j in [0..seqLength], store in scratch
-    //-----------------------------------------
+    //--------------------------------------------
+    // PART 5: dV_s => for j in [0..seqLength], dV_s(j,d) = attnW(b,s,j)* dAttn(d)
+    //--------------------------------------------
     for (uint j = 0; j < seqLength; j++) {
-        float aw = attn_weights[attnOffsetBS + j];
+        float aw = attn_weights[attnOff + j];
         for (uint d = 0; d < modelDim; d++) {
             dV_s[j*modelDim + d] = aw * dAttn_d[d];
         }
     }
 
-    //-----------------------------------------
-    // 8) dAttn_weights raw => dAttnW_raw[j] = dot(dAttn, V(b,j,:))
-    //    Then apply the softmax derivative:
-    //      dAttnW[j] = attn_weights(b,s,j) *
-    //        ( dAttnW_raw[j] - sum_{k}(attn_weights(b,s,k)* dAttnW_raw[k]) )
-    //-----------------------------------------
+    //--------------------------------------------
+    // PART 6: dAttnW_raw => dot(dAttn, V(b,j)), then apply softmax derivative
+    //--------------------------------------------
     float sumSoftmax = 0.0f;
-    // First compute all dAttnW_raw
+    // fill dAttnW_raw
     for (uint j = 0; j < seqLength; j++) {
-        float sumVal = 0.0f;
-        uint vOff_j = (b * seqLength + j)*modelDim;
+        float accum = 0.0f;
+        uint vOff_j = (b*seqLength + j)*modelDim;
         for (uint d = 0; d < modelDim; d++) {
-            sumVal += dAttn_d[d] * bufferV[vOff_j + d];
+            accum += dAttn_d[d] * bufferV[vOff_j + d];
         }
-        dAttnW_raw[j] = sumVal;
+        dAttnW_raw[j] = accum;
     }
-    // Then sum for the softmax part
+    // sum for softmax
     for (uint j = 0; j < seqLength; j++) {
-        sumSoftmax += attn_weights[attnOffsetBS + j] * dAttnW_raw[j];
+        float aw = attn_weights[attnOff + j];
+        sumSoftmax += aw * dAttnW_raw[j];
     }
-    // Apply final
+    // final
     for (uint j = 0; j < seqLength; j++) {
-        float aw = attn_weights[attnOffsetBS + j];
+        float aw = attn_weights[attnOff + j];
         dAttnW[j] = aw * (dAttnW_raw[j] - sumSoftmax);
     }
 
-    //-----------------------------------------
-    // 9) dQ + dK_s => from dAttnW
-    //    scale = 1 / sqrt(modelDim)
-    //    dQ[d] = sum_j [ dAttnW[j] * K(b,j,d) ] * scale
-    //    dK_s[j,d] = dAttnW[j] * Q(b,s,d) * scale
-    //-----------------------------------------
+    //--------------------------------------------
+    // PART 7: dQ, dK => from dAttnW
+    //--------------------------------------------
     float scale = 1.0f / sqrt((float)modelDim);
-
-    // Zero out dQ
+    // zero dQ
     for (uint d = 0; d < modelDim; d++) {
         dQ[d] = 0.0f;
     }
-    // Zero out dK_s in scratch
+    // zero dK_s
     for (uint j = 0; j < seqLength; j++) {
         for (uint d = 0; d < modelDim; d++) {
             dK_s[j*modelDim + d] = 0.0f;
         }
     }
-
-    // Accumulate
+    // accumulate
+    uint qOff_bs = (b*seqLength + s)*modelDim;
     for (uint j = 0; j < seqLength; j++) {
         float coef = dAttnW[j] * scale;
-        // add to dQ
-        uint kOff_j = (b * seqLength + j)*modelDim;
+        // dQ
+        uint kOff_j = (b*seqLength + j)*modelDim;
         for (uint d = 0; d < modelDim; d++) {
             dQ[d] += coef * bufferK[kOff_j + d];
         }
-        // fill dK_s
-        // Q(b,s,d) offset is (b*seqLength + s)*modelDim + d
-        uint qOff_bs = (b * seqLength + s)*modelDim;
+        // dK_s
         for (uint d = 0; d < modelDim; d++) {
             dK_s[j*modelDim + d] = coef * bufferQ[qOff_bs + d];
         }
     }
 
-    //-----------------------------------------
-    // 10) Accumulate into inputErrors + gradWeights
-    //     for Q, K, V
-    //-----------------------------------------
+    //--------------------------------------------
+    // PART 8: Q => accumulate inputErrors(b,s)
+    //            + gradWeightsQ
+    //--------------------------------------------
+    // read input(b,s) => inVal
+    for (uint i = 0; i < inputDim; i++) {
+        inVal[i] = input[inputOffset + i];
+    }
 
-    //-----------------------------------------
-    // 10a) Q => dInput(b,s) from dQ, gradWeightsQ
-    //-----------------------------------------
-    {
-        // read input(b,s,:)
-        thread float inVal[256];
-        for (uint i = 0; i < inputDim; i++) {
-            inVal[i] = input[inputOffset + i];
+    // dInput(b,s,i) = sum_d( dQ[d]*weightsQ[i,d] )
+    // We'll do a partial sum in shared memory to reduce collisions, if desired
+
+    // For demonstration, let's tile partial sums for inputErrors too:
+    threadgroup float partialInputQ[TILE_DIM];
+    for (uint iStart = 0; iStart < inputDim; iStart += TILE_DIM) {
+        // zero tile
+        for (uint idx = tid; idx < TILE_DIM; idx += threadsPerGroup) {
+            partialInputQ[idx] = 0.0f;
         }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
 
-        // dInput(b,s,i) += sum_d( dQ[d] * weightsQ[i,d] )
-        for (uint i = 0; i < inputDim; i++) {
-            float sumVal = 0.0f;
-            for (uint d = 0; d < modelDim; d++) {
-                sumVal += dQ[d] * weightsQ[i*modelDim + d];
+        // accumulate
+        for (uint localIdx = tid; localIdx < TILE_DIM; localIdx += threadsPerGroup) {
+            uint i_ = iStart + localIdx;
+            if (i_ < inputDim) {
+                float accum = 0.0f;
+                for (uint d = 0; d < modelDim; d++) {
+                    accum += dQ[d] * weightsQ[i_*modelDim + d];
+                }
+                partialInputQ[localIdx] = accum;
             }
-            atomicAdd(&(inputErrors[inputOffset + i]), sumVal);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        // atomic add
+        for (uint localIdx = tid; localIdx < TILE_DIM; localIdx += threadsPerGroup) {
+            uint i_ = iStart + localIdx;
+            if (i_ < inputDim) {
+                float val = partialInputQ[localIdx];
+                atomicAdd(&(inputErrors[inputOffset + i_]), val);
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    // Now gradWeightsQ => outer(inVal, dQ)
+    threadgroup float partialGradQ[TILE_DIM*TILE_DIM];
+    for (uint dStart = 0; dStart < modelDim; dStart += TILE_DIM) {
+        for (uint iStart = 0; iStart < inputDim; iStart += TILE_DIM) {
+            // zero tile
+            for (uint idx = tid; idx < TILE_DIM*TILE_DIM; idx += threadsPerGroup) {
+                partialGradQ[idx] = 0.0f;
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+
+            // accumulate
+            for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
+                uint ld = localIdx / TILE_DIM;
+                uint li = localIdx % TILE_DIM;
+                uint dd = dStart + ld;
+                uint ii = iStart + li;
+                if (dd < modelDim && ii < inputDim) {
+                    float val = inVal[ii] * dQ[dd];
+                    partialGradQ[localIdx] = val;
+                }
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+
+            // atomic add
+            for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
+                uint ld = localIdx / TILE_DIM;
+                uint li = localIdx % TILE_DIM;
+                uint dd = dStart + ld;
+                uint ii = iStart + li;
+                if (dd < modelDim && ii < inputDim) {
+                    atomicAdd(&(gradWeightsQ[ii*modelDim + dd]), partialGradQ[localIdx]);
+                }
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+    }
+
+    //--------------------------------------------
+    // PART 9: K => accumulate inputErrors(b,j) + gradWeightsK
+    //--------------------------------------------
+    // same approach: for each j in [seqLength]
+    for (uint j = 0; j < seqLength; j++) {
+        uint inOff_j = (b*seqLength + j)*inputDim;
+        // read input(b,j) => inVal
+        for (uint i = 0; i < inputDim; i++) {
+            inVal[i] = input[inOff_j + i];
         }
 
-        // gradWeightsQ(i,d) += inVal[i]* dQ[d]
-        // tile-based in threadgroup memory
-        threadgroup float partialGradQ[TILE_DIM*TILE_DIM];
+        // dInput(b,j,i) from dK_s[j,d]*weightsK[i,d] => tile partial sums
+        for (uint iStart = 0; iStart < inputDim; iStart += TILE_DIM) {
+            for (uint idx = tid; idx < TILE_DIM; idx += threadsPerGroup) {
+                partialInputQ[idx] = 0.0f;
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+
+            for (uint localIdx = tid; localIdx < TILE_DIM; localIdx += threadsPerGroup) {
+                uint i_ = iStart + localIdx;
+                if (i_ < inputDim) {
+                    float accum = 0.0f;
+                    for (uint d = 0; d < modelDim; d++) {
+                        accum += dK_s[j*modelDim + d] * weightsK[i_*modelDim + d];
+                    }
+                    partialInputQ[localIdx] = accum;
+                }
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+
+            for (uint localIdx = tid; localIdx < TILE_DIM; localIdx += threadsPerGroup) {
+                uint i_ = iStart + localIdx;
+                if (i_ < inputDim) {
+                    float val = partialInputQ[localIdx];
+                    atomicAdd(&(inputErrors[inOff_j + i_]), val);
+                }
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+
+        // gradWeightsK => outer(inVal, dK_s[j])
         for (uint dStart = 0; dStart < modelDim; dStart += TILE_DIM) {
             for (uint iStart = 0; iStart < inputDim; iStart += TILE_DIM) {
-                // zero tile
                 for (uint idx = tid; idx < TILE_DIM*TILE_DIM; idx += threadsPerGroup) {
                     partialGradQ[idx] = 0.0f;
                 }
                 threadgroup_barrier(mem_flags::mem_threadgroup);
 
-                // accumulate
                 for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
                     uint ld = localIdx / TILE_DIM;
                     uint li = localIdx % TILE_DIM;
                     uint dd = dStart + ld;
                     uint ii = iStart + li;
                     if (dd < modelDim && ii < inputDim) {
-                        float val = inVal[ii] * dQ[dd];
+                        float val = inVal[ii] * dK_s[j*modelDim + dd];
                         partialGradQ[localIdx] = val;
                     }
                 }
                 threadgroup_barrier(mem_flags::mem_threadgroup);
 
-                // atomic add
                 for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
                     uint ld = localIdx / TILE_DIM;
                     uint li = localIdx % TILE_DIM;
                     uint dd = dStart + ld;
                     uint ii = iStart + li;
                     if (dd < modelDim && ii < inputDim) {
-                        float v = partialGradQ[localIdx];
-                        atomicAdd(&(gradWeightsQ[ii*modelDim + dd]), v);
+                        atomicAdd(&(gradWeightsK[ii*modelDim + dd]), partialGradQ[localIdx]);
                     }
                 }
                 threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -425,120 +504,77 @@ kernel void backward_self_attention(
         }
     }
 
-    //-----------------------------------------
-    // 10b) K => for each j in [0..seqLength]
-    //   inputErrors(b,j) plus gradWeightsK
-    //-----------------------------------------
-    {
-        for (uint j = 0; j < seqLength; j++) {
-            uint inOff_j = (b*seqLength + j)*inputDim;
-            thread float inVal_j[256];
-            for (uint i = 0; i < inputDim; i++) {
-                inVal_j[i] = input[inOff_j + i];
+    //--------------------------------------------
+    // PART 10: V => accumulate inputErrors + gradWeightsV
+    //--------------------------------------------
+    for (uint j = 0; j < seqLength; j++) {
+        uint inOff_j = (b*seqLength + j)*inputDim;
+        // read input(b,j) => inVal
+        for (uint i = 0; i < inputDim; i++) {
+            inVal[i] = input[inOff_j + i];
+        }
+
+        // dInput(b,j,i)
+        for (uint iStart = 0; iStart < inputDim; iStart += TILE_DIM) {
+            for (uint idx = tid; idx < TILE_DIM; idx += threadsPerGroup) {
+                partialInputQ[idx] = 0.0f;
             }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
 
-            // dInput(b,j,i) += sum_d( dK_s[j,d]*weightsK[i,d] )
-            for (uint i = 0; i < inputDim; i++) {
-                float sumVal = 0.0f;
-                for (uint d = 0; d < modelDim; d++) {
-                    sumVal += dK_s[j*modelDim + d]* weightsK[i*modelDim + d];
+            for (uint localIdx = tid; localIdx < TILE_DIM; localIdx += threadsPerGroup) {
+                uint i_ = iStart + localIdx;
+                if (i_ < inputDim) {
+                    float accum = 0.0f;
+                    for (uint d = 0; d < modelDim; d++) {
+                        accum += dV_s[j*modelDim + d] * weightsV[i_*modelDim + d];
+                    }
+                    partialInputQ[localIdx] = accum;
                 }
-                atomicAdd(&(inputErrors[inOff_j + i]), sumVal);
             }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
 
-            // gradWeightsK(i,d) += inVal_j[i]* dK_s[j,d]
-            threadgroup float partialGradK[TILE_DIM*TILE_DIM];
-            for (uint dStart = 0; dStart < modelDim; dStart += TILE_DIM) {
-                for (uint iStart = 0; iStart < inputDim; iStart += TILE_DIM) {
-                    for (uint idx = tid; idx < TILE_DIM*TILE_DIM; idx += threadsPerGroup) {
-                        partialGradK[idx] = 0.0f;
-                    }
-                    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-                    for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
-                        uint ld = localIdx / TILE_DIM;
-                        uint li = localIdx % TILE_DIM;
-                        uint dd = dStart + ld;
-                        uint ii = iStart + li;
-                        if (dd < modelDim && ii < inputDim) {
-                            float val = inVal_j[ii]* dK_s[j*modelDim + dd];
-                            partialGradK[localIdx] = val;
-                        }
-                    }
-                    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-                    for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
-                        uint ld = localIdx / TILE_DIM;
-                        uint li = localIdx % TILE_DIM;
-                        uint dd = dStart + ld;
-                        uint ii = iStart + li;
-                        if (dd < modelDim && ii < inputDim) {
-                            atomicAdd(&(gradWeightsK[ii*modelDim + dd]), partialGradK[localIdx]);
-                        }
-                    }
-                    threadgroup_barrier(mem_flags::mem_threadgroup);
+            for (uint localIdx = tid; localIdx < TILE_DIM; localIdx += threadsPerGroup) {
+                uint i_ = iStart + localIdx;
+                if (i_ < inputDim) {
+                    atomicAdd(&(inputErrors[inOff_j + i_]), partialInputQ[localIdx]);
                 }
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+
+        // gradWeightsV => outer(inVal, dV_s[j])
+        for (uint dStart = 0; dStart < modelDim; dStart += TILE_DIM) {
+            for (uint iStart = 0; iStart < inputDim; iStart += TILE_DIM) {
+                for (uint idx = tid; idx < TILE_DIM*TILE_DIM; idx += threadsPerGroup) {
+                    partialGradQ[idx] = 0.0f;
+                }
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+
+                for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
+                    uint ld = localIdx / TILE_DIM;
+                    uint li = localIdx % TILE_DIM;
+                    uint dd = dStart + ld;
+                    uint ii = iStart + li;
+                    if (dd < modelDim && ii < inputDim) {
+                        float val = inVal[ii] * dV_s[j*modelDim + dd];
+                        partialGradQ[localIdx] = val;
+                    }
+                }
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+
+                for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
+                    uint ld = localIdx / TILE_DIM;
+                    uint li = localIdx % TILE_DIM;
+                    uint dd = dStart + ld;
+                    uint ii = iStart + li;
+                    if (dd < modelDim && ii < inputDim) {
+                        atomicAdd(&(gradWeightsV[ii*modelDim + dd]), partialGradQ[localIdx]);
+                    }
+                }
+                threadgroup_barrier(mem_flags::mem_threadgroup);
             }
         }
     }
 
-    //-----------------------------------------
-    // 10c) V => for each j in [0..seqLength]
-    //   inputErrors(b,j) plus gradWeightsV
-    //-----------------------------------------
-    {
-        for (uint j = 0; j < seqLength; j++) {
-            uint inOff_j = (b*seqLength + j)*inputDim;
-            thread float inVal_j[256];
-            for (uint i = 0; i < inputDim; i++) {
-                inVal_j[i] = input[inOff_j + i];
-            }
-
-            // dInput(b,j,i) += sum_d( dV_s[j*modelDim + d]*weightsV[i*modelDim + d] )
-            for (uint i = 0; i < inputDim; i++) {
-                float sumVal = 0.0f;
-                for (uint d = 0; d < modelDim; d++) {
-                    sumVal += dV_s[j*modelDim + d] * weightsV[i*modelDim + d];
-                }
-                atomicAdd(&(inputErrors[inOff_j + i]), sumVal);
-            }
-
-            // gradWeightsV(i,d) += inVal_j[i] * dV_s[j*modelDim + d]
-            threadgroup float partialGradV[TILE_DIM*TILE_DIM];
-            for (uint dStart = 0; dStart < modelDim; dStart += TILE_DIM) {
-                for (uint iStart = 0; iStart < inputDim; iStart += TILE_DIM) {
-                    for (uint idx = tid; idx < TILE_DIM*TILE_DIM; idx += threadsPerGroup) {
-                        partialGradV[idx] = 0.0f;
-                    }
-                    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-                    for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
-                        uint ld = localIdx / TILE_DIM;
-                        uint li = localIdx % TILE_DIM;
-                        uint dd = dStart + ld;
-                        uint ii = iStart + li;
-                        if (dd < modelDim && ii < inputDim) {
-                            float val = inVal_j[ii] * dV_s[j*modelDim + dd];
-                            partialGradV[localIdx] = val;
-                        }
-                    }
-                    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-                    for (uint localIdx = tid; localIdx < TILE_DIM*TILE_DIM; localIdx += threadsPerGroup) {
-                        uint ld = localIdx / TILE_DIM;
-                        uint li = localIdx % TILE_DIM;
-                        uint dd = dStart + ld;
-                        uint ii = iStart + li;
-                        if (dd < modelDim && ii < inputDim) {
-                            atomicAdd(&(gradWeightsV[ii*modelDim + dd]), partialGradV[localIdx]);
-                        }
-                    }
-                    threadgroup_barrier(mem_flags::mem_threadgroup);
-                }
-            }
-        }
-    }
-
-    // Done for this token (b,s).
+    // Done.
 }
-

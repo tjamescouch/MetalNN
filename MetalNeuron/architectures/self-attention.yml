@@ -16,14 +16,14 @@ layers:
 training:
   optimizer:
     type: adam
-    learning_rate: 0.001
+    learning_rate: 0.0005
     parameters:
       beta1: 0.9
       beta2: 0.999
       epsilon: 1e-8
 
   epochs: 2
-  batch_size: 1
+  batch_size: 6
 
 dataset:
   type: "function"
