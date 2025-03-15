@@ -22,7 +22,6 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
 
     std::cout << "Getting global parameters..." << std::endl;
     auto config = ConfigurationManager::instance().getConfig();
-    auto globalLearningRate = config->training.optimizer.learning_rate;
     auto batchSize = config->training.batch_size;
 
     std::cout << "Getting common layer parameters..." << std::endl;
@@ -35,8 +34,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
     );
     layerConfig.params["name"] = layerName;
 
-    auto learningRate = layerConfig.params["learning_rate"].get_value_or<float>(globalLearningRate);
-    learningRate = learningRate > 0 ? learningRate : globalLearningRate;
+    auto learningRate = layerConfig.learning_rate;
 
     Layer* layer = nullptr;
 

@@ -148,15 +148,10 @@ void BatchNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* l
     backwardFunction->release();
     
     ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
-    auto parameters = pConfig->training.optimizer.parameters;
+    auto optimizerConfig = pConfig->training.optimizer;
 
-    float lr      = pConfig->training.optimizer.learning_rate;
-    float beta1   = parameters["beta1"].get_value_or<float>(0.9f);
-    float beta2   = parameters["beta2"].get_value_or<float>(0.999f);
-    float epsilon = parameters["epsilon"].get_value_or<float>(1e-8);
-
-    optimizerGamma_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
-    optimizerBeta_  = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+    optimizerGamma_ = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    optimizerBeta_  = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
     
     optimizerGamma_->buildPipeline(device, library);
     optimizerBeta_->buildPipeline(device, library);
@@ -315,5 +310,11 @@ void BatchNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQue
     
     memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
     outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
+    
+    memset(optimizerGamma_->gradientBuffer()->contents(), 0, outputDim_ * sizeof(float));
+    optimizerGamma_->gradientBuffer()->didModifyRange(NS::Range(0, optimizerGamma_->gradientBuffer()->length()));
+    
+    memset(optimizerBeta_->gradientBuffer()->contents(), 0, outputDim_ * sizeof(float));
+    optimizerBeta_->gradientBuffer()->didModifyRange(NS::Range(0, optimizerBeta_->gradientBuffer()->length()));
 }
 
