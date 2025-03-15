@@ -82,7 +82,7 @@ kernel void backward_batch_norm(
     device const float*  runningMean       [[buffer(7)]],
     device const float*  runningVariance   [[buffer(8)]],
     constant float&      epsilon           [[buffer(9)]],
-    constant int&        featureDim        [[buffer(10)]],
+    constant uint&       featureDim        [[buffer(10)]],
     constant bool&       isTraining        [[buffer(11)]],
     constant uint&       batchSize         [[buffer(12)]],
     device float*        debug             [[buffer(13)]],
@@ -91,7 +91,7 @@ kernel void backward_batch_norm(
     uint                 gid               [[thread_position_in_grid]]
 )
 {
-    if ((int)gid >= featureDim) return;
+    if (gid >= featureDim) return;
 
     // Decide mean and variance source
     float mean   = isTraining ? savedMean[gid] : runningMean[gid];
