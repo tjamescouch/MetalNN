@@ -47,6 +47,7 @@
 				"architectures/layer-norm.yml",
 				"architectures/map-reduce.yml",
 				"architectures/multi-dense-layer.yml",
+				"architectures/multi-head-attention.yml",
 				"architectures/ocr-complete.yml",
 				"architectures/ocr-with-batch-normalization.yml",
 				"architectures/ocr-with-dropout.yml",

@@ -38,7 +38,7 @@ void AdamOptimizer::encode(MTL::ComputeCommandEncoder* encoder,
     if (paramCount == 0) return;
     
     timestep_++;
-    uint accumulationInterval = 4;
+    uint accumulationInterval = 2;
     bool applyUpdates = (timestep_ % accumulationInterval) == 0;
     
     encoder->setComputePipelineState(pipelineState_); // <- Must happen first!

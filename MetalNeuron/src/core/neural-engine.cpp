@@ -34,7 +34,7 @@ filename(config.filename)
     int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
     _pInputLayer = new InputLayer(input_dim, first_layer_time_steps, batch_size);
     
-    _pLayerFactory = new LayerFactory();
+    _pLayerFactory = new LayerFactory(_pInputLayer);
     
     Logger::instance().setBatchSize(batch_size);
     Logger::instance().setIsRegression(config.dataset.type == "function");

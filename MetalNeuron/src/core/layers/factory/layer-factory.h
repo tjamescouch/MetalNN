@@ -15,6 +15,7 @@
 
 class LayerFactory {
 public:
+    LayerFactory(Layer* _pInputLayer);
     Layer* createLayer(LayerConfig& layerConfig,
                               MTL::Device* device,
                               MTL::Library* library,

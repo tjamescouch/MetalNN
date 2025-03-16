@@ -1,122 +1,75 @@
-name: "Composable Transformer"
+name: "Transformer Basic Test"
 
 layers:
-  # Initial embedding of tokens into vector space
-  - type: Embedding
-    input_size: "vocab_size"
-    output_size: 512
-
-  # Positional encoding explicitly provides sequence-order information
-  - type: PositionalEncoding
-    embedding_dim: 512
-    max_sequence_length: 1024
-
-  # Multi-head attention layer
   - type: MultiHeadAttention
-    input_size: 512
-    output_size: 512
-    num_heads: 8
-    dropout_rate: 0.1
+    name: "mha_1"
+    input_size: 256
+    output_size: 256
+    num_heads: 4
+    sequence_length: 10
+    initializer: xavier
 
-  # Add & Norm (Residual Connection explicitly shown)
+  - type: LayerNormalization
+    name: "norm_1"
+    input_size: 256
+    output_size: 256
+    epsilon: 1e-5
+
   - type: ResidualConnection
-    layers:
-      - type: Dropout
-        rate: 0.1
-        input_size: 512
-        output_size: 512
+    input_size: 256
+    output_size: 256
+    source_layer: "input"
 
-  - type: LayerNorm
-    input_size: 512
-    output_size: 512
-
-  # Explicitly broken-down Feed-Forward Network
   - type: Dense
-    input_size: 512
-    output_size: 2048
+    name: "dense_ffn_expand"
+    input_size: 256
+    output_size: 1024
     activation: gelu
     initializer: he
 
   - type: Dropout
     rate: 0.1
-    input_size: 2048
-    output_size: 2048
+    input_size: 1024
+    output_size: 1024
 
   - type: Dense
-    input_size: 2048
-    output_size: 512
+    name: "dense_ffn_reduce"
+    input_size: 1024
+    output_size: 256
     activation: linear
     initializer: xavier
 
-  - type: LayerNorm
-    input_size: 512
-    output_size: 512
-
-  # Additional Transformer Block explicitly shown (Stacking clearly indicated)
-  - type: MultiHeadAttention
-    input_size: 512
-    output_size: 512
-    num_heads: 8
-    dropout_rate: 0.1
+  - type: LayerNormalization
+    name: "norm_ffn"
+    input_size: 256
+    output_size: 256
+    epsilon: 1e-5
 
   - type: ResidualConnection
-    layers:
-      - LayerNorm
-      - Dropout
-    dropout_rate: 0.1
+    input_size: 256
+    output_size: 256
+    source_layer: "mha_1"
 
-  # Another explicitly broken-down Feed-Forward layer
-  - type: Dense
-    input_size: 512
-    output_size: 2048
-    activation: gelu
-    initializer: he
-
-  - type: Dropout
-    rate: 0.1
-    input_size: 2048
-    output_size: 2048
-
-  - type: Dense
-    input_size: 2048
-    output_size: 512
-    activation: linear
-    initializer: xavier
-
-  - type: LayerNorm
-    input_size: 512
-    output_size: 512
-
-  # Final Dense projection for classification
-  - type: Dense
-    input_size: 512
-    output_size: 10
-    activation: softmax
-    initializer: xavier
+  - type: ResidualConnection
+    input_size: 256
+    output_size: 256
+    source_layer: "dense_ffn_expand"
 
 training:
   optimizer:
     type: adam
-    learning_rate: 0.001
+    learning_rate: 0.0001
     parameters:
       beta1: 0.9
       beta2: 0.999
       epsilon: 1e-8
-      weight_decay: 0.01
 
-  scheduler:
-    type: cosine_annealing
-    warmup_steps: 4000
-
-  epochs: 10
-  batch_size: 64
+  epochs: 5
+  batch_size: 2
 
 dataset:
-  type: "text"
-  training_data: "train.txt"
-  validation_data: "valid.txt"
-  tokenizer: "tokenizer.json"
+  type: "function"
 
 metadata:
   author: "James Couch"
-  description: "Explicit Transformer architecture with clearly broken-down Feed-Forward layers and explicit residual connections."
+  description: "Basic Transformer with clearly structured Multi-Head Attention, explicit residual connections, and layer normalization."

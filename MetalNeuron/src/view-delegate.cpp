@@ -25,7 +25,8 @@
 //const char* modelFilename = "gelu.yml";
 //const char* modelFilename = "multi-dense-layer.yml";
 //const char* modelFilename = "single-dense-layer.yml";
-const char* modelFilename = "self-attention.yml";
+//const char* modelFilename = "self-attention.yml";
+const char* modelFilename = "multi-head-attention.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {

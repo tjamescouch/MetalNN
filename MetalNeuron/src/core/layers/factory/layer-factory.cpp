@@ -8,12 +8,20 @@
 #include "layer-factory.h"
 #include "dense-layer.h"
 #include "dropout-layer.h"
+#include "multi-head-attention-layer.h"
 #include "batch-normalization-layer.h"
 #include "layer-normalization-layer.h"
 #include "residual-connection-layer.h"
 #include "self-attention-layer.h"
 #include "map-reduce-layer.h"
 #include "configuration-manager.h"
+
+const char* inputLayerName = "input";
+
+LayerFactory::LayerFactory(Layer* _pInputLayer) {
+    _pInputLayer->setName(inputLayerName);
+    layerMap_[inputLayerName] = _pInputLayer;
+}
 
 Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
                                  MTL::Device* device,
@@ -59,6 +67,14 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
         
         layer = (new SelfAttentionLayer(inputSize, outputSize, sequence_length, batchSize))->setInitializer(initializer);
+        
+    } else if (layerConfig.type == "MultiHeadAttention") {
+        std::cout << "Creating self attention layer..." << std::endl;
+        float sequence_length = layerConfig.params.at("sequence_length").get_value_or<float>(0.3);
+        int num_heads = layerConfig.params.at("num_heads").get_value_or<int>(2);
+        auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
+        
+        layer = (new MultiHeadAttentionLayer(inputSize, outputSize, sequence_length, batchSize, num_heads))->setInitializer(initializer);
         
     } else if (layerConfig.type == "BatchNormalization") {
         std::cout << "Creating batch normalization layer..." << std::endl;
