@@ -119,7 +119,7 @@ kernel void forward_self_attention(
 
 
 // Tune for your GPU
-#define THREADGROUP_SIZE 64
+#define THREADGROUP_SIZE 1024
 #define TILE_DIM         16
 
 // Utility atomic add (Metal 3+ usually has atomic_float natively)

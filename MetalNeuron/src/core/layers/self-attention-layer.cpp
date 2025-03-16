@@ -176,7 +176,7 @@ void SelfAttentionLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSiz
     // Thread dispatch configuration
     const int gridSize = batchSize * seqLength_ * modelDim_;
     MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
-    MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 512), 1, 1);
+    MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 1024), 1, 1);
 
     encoder->dispatchThreads(threadsPerGrid, threadsPerGroup);
     encoder->endEncoding();
@@ -219,14 +219,12 @@ void SelfAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSi
     //Scratch
     encoder->setBuffer(bufferScratch_, 0, 19);     // Gradients for outputProjection
 
-    // Thread dispatch configuration: one thread per element
-    const int gridSize = batchSize * seqLength_;
-    const int threadgroupWidth = 32; // A common safe choice
+    // Thread dispatch configuration
+    const int gridSize = batchSize * seqLength_ * modelDim_;
+    MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
+    MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 1024), 1, 1);
 
-    MTL::Size threadsPerThreadgroup = MTL::Size(threadgroupWidth, 1, 1);
-    MTL::Size threadgroupsPerGrid = MTL::Size((gridSize + threadgroupWidth - 1) / threadgroupWidth, 1, 1);
-
-    encoder->dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup);
+    encoder->dispatchThreads(threadsPerGrid, threadsPerGroup);
     
     optimizerWeightsQ_->encode(encoder, bufferQ_, inputDim_ * modelDim_, batchSize);
     optimizerWeightsK_->encode(encoder, bufferK_, inputDim_ * modelDim_, batchSize);
