@@ -185,12 +185,20 @@ void MultiHeadAttentionLayer::forward(MTL::CommandBuffer* commandBuffer, int bat
     encoder->setBytes(&modelDim_, sizeof(uint), 12);
     encoder->setBytes(&numHeads_, sizeof(uint), 13);
 
-    // Thread dispatch configuration
-    const int gridSize = batchSize * seqLength_ * modelDim_;
-    MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
-    MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 1024), 1, 1);
 
-    encoder->dispatchThreads(threadsPerGrid, threadsPerGroup);
+    // 6) Calculate thread count: each thread handles 1 token => batchSize * seqLength
+    const uint32_t totalThreads = batchSize * seqLength_;
+
+    // 7) Choose a threadgroup size. For example, 64:
+    MTL::Size threadsPerThreadgroup = MTL::Size::Make(64, 1, 1);
+
+    // The grid size is totalThreads in 1D
+    MTL::Size gridSize = MTL::Size::Make(totalThreads, 1, 1);
+
+    // 8) Encode the dispatch
+    encoder->dispatchThreads(gridSize, threadsPerThreadgroup);
+    
+    
     encoder->endEncoding();
 }
 
@@ -233,12 +241,32 @@ void MultiHeadAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
     
     encoder->setBytes(&numHeads_, sizeof(uint), 20);
 
-    // Thread dispatch configuration
-    const int gridSize = batchSize * seqLength_ * modelDim_;
-    MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
-    MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 1024), 1, 1);
+    // 1) Each thread in this kernel handles exactly one (batchIndex, seqIndex).
+    //    So total number of threads needed = batchSize * seqLength.
+    const uint32_t totalTokens = batchSize * seqLength_;
 
-    encoder->dispatchThreads(threadsPerGrid, threadsPerGroup);
+    // 2) Pick a threadgroup (aka "block") size, e.g. 256 or 128.
+    //    There's no universal best; you usually experiment or pick a typical GPU-friendly size.
+    const uint32_t threadsPerGroup = 256;
+
+    // 3) Compute how many threadgroups we need:
+    //    Each threadgroup has 'threadsPerGroup' threads,
+    //    so numberOfThreadgroups = ceil(totalTokens / threadsPerGroup).
+    uint32_t numberOfThreadgroups = (totalTokens + threadsPerGroup - 1) / threadsPerGroup;
+
+    // 4) In Metal, we can dispatch in 1D. We form an MTL::Size for threadgroups,
+    //    and one for the threadsPerGroup.
+    MTL::Size threadgroupCount = MTL::Size::Make(numberOfThreadgroups, 1, 1);
+    MTL::Size threadgroupSize  = MTL::Size::Make(threadsPerGroup, 1, 1);
+
+    // 5) Encode the dispatch:
+    //    "dispatchThreadgroups" uses the # of threadgroups and the threadsPerGroup size.
+    //    The kernel will see:
+    //      blockId in [0..numberOfThreadgroups-1]
+    //      tid in [0..threadsPerGroup-1]
+    //    Then 'gid = blockId*threadsPerGroup + tid'
+    //    (that matches how your kernel calculates its global ID).
+    encoder->dispatchThreadgroups(threadgroupCount, threadgroupSize);
     
     optimizerWeightsQ_->encode(encoder, bufferQ_, inputDim_ * modelDim_, batchSize);
     optimizerWeightsK_->encode(encoder, bufferK_, inputDim_ * modelDim_, batchSize);
