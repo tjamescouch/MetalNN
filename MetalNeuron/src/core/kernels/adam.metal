@@ -18,7 +18,7 @@ kernel void adam_kernel(
     constant uint& timestep          [[buffer(9)]],   // Global step for bias correction
     constant uint& param_count       [[buffer(10)]],  // Total number of parameters
     constant bool& apply_updates     [[buffer(11)]],  // timestep % N == 0
-    constant bool& N                 [[buffer(12)]],  // accumulation interval
+    constant uint& N                 [[buffer(12)]],  // accumulation interval
     uint tid                         [[thread_position_in_grid]]
 )
 {
@@ -32,9 +32,9 @@ kernel void adam_kernel(
     m[tid] = beta1 * m[tid] + (1.0f - beta1) * grad_avg;
     v[tid] = beta2 * v[tid] + (1.0f - beta2) * grad_avg * grad_avg;
 
-    // 3) Skip explicit bias correction; keep old m & v directly.
-    float m_hat = m[tid];
-    float v_hat = v[tid];
+    //FIXME - compute power once on CPU rather than per thread
+    float m_hat = m[tid] / (1.0f - pow(beta1, timestep));
+    float v_hat = v[tid] / (1.0f - pow(beta2, timestep));
 
     // 4) Compute the Adam update (no bias correction)
     float update = learning_rate * (m_hat / (sqrt(v_hat) + epsilon));

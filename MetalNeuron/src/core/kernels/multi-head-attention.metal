@@ -115,8 +115,6 @@ kernel void forward_multi_head_attention(
     }
 }
 
-#include <metal_stdlib>
-using namespace metal;
 
 // For your tuning
 #define TILE_DIM 16
