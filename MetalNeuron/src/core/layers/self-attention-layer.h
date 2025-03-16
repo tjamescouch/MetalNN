@@ -8,7 +8,7 @@
 
 class SelfAttentionLayer : public Layer {
 public:
-    SelfAttentionLayer(uint inputDim, uint modelDim, uint seqLength);
+    SelfAttentionLayer(uint inputDim, uint modelDim, uint seqLength, uint batchSize);
     ~SelfAttentionLayer();
 
     void buildBuffers(MTL::Device* device) override;
@@ -64,6 +64,9 @@ private:
     // Input and Output Buffers
     std::unordered_map<BufferType, MTL::Buffer*> inputBuffers_;
     std::unordered_map<BufferType, MTL::Buffer*> outputBuffers_;
+    
+    MTL::Buffer* bufferAttentionWeights_ = nullptr;
+    MTL::Buffer* bufferScratch_ = nullptr;
 
     // Weight buffers
     MTL::Buffer* weightsQ_ = nullptr;

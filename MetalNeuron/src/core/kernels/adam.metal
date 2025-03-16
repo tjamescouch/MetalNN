@@ -17,6 +17,8 @@ kernel void adam_kernel(
     constant uint& batch_size        [[buffer(8)]],   // Current batch size
     constant uint& timestep          [[buffer(9)]],   // Global step for bias correction
     constant uint& param_count       [[buffer(10)]],  // Total number of parameters
+    constant bool& apply_updates     [[buffer(11)]],  // timestep % N == 0
+    constant bool& N                 [[buffer(12)]],  // accumulation interval
     uint tid                         [[thread_position_in_grid]]
 )
 {
@@ -24,7 +26,7 @@ kernel void adam_kernel(
     if (tid >= param_count) return;
 
     // 1) Average the gradient over the batch (assuming 'gradients' is the sum)
-    float grad_avg = gradients[tid] / (float)batch_size;
+    float grad_avg = gradients[tid] / (float)(batch_size * N);
 
     // 2) Update biased first moment estimate (m) and second moment estimate (v)
     m[tid] = beta1 * m[tid] + (1.0f - beta1) * grad_avg;
@@ -40,10 +42,12 @@ kernel void adam_kernel(
     // Optional clamp to prevent extreme updates
     update = clamp(update, -1e3f, 1e3f);
 
-    // 5) Apply the update
-    parameters[tid] -= update;
-
-    // 6) Reset gradient accumulator for next batch
-    gradients[tid] = 0.0f;
+    if (apply_updates) {
+        // 5) Apply the update
+        parameters[tid] -= update;
+        
+        // 6) Reset gradient accumulator for next batch
+        gradients[tid] = 0.0f;
+    }
 }
 

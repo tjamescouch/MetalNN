@@ -22,8 +22,8 @@ training:
       beta2: 0.999
       epsilon: 1e-8
 
-  epochs: 10
-  batch_size: 4
+  epochs: 2
+  batch_size: 2
 
 dataset:
   type: "function"

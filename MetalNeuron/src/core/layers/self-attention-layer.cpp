@@ -12,12 +12,14 @@
 #include "adam-optimizer.h"
 #include "weight-initializer.h"
 
-SelfAttentionLayer::SelfAttentionLayer(uint inputDim, uint modelDim, uint seqLength)
+SelfAttentionLayer::SelfAttentionLayer(uint inputDim, uint modelDim, uint seqLength, uint batchSize)
     : inputDim_(inputDim),
       modelDim_(modelDim),
       seqLength_(seqLength),
-      batchSize_(0),
+      batchSize_(batchSize),
       device_(nullptr),
+      bufferAttentionWeights_(nullptr),
+      bufferScratch_(nullptr),
       bufferQ_(nullptr),
       bufferK_(nullptr),
       bufferV_(nullptr),
@@ -34,6 +36,9 @@ SelfAttentionLayer::SelfAttentionLayer(uint inputDim, uint modelDim, uint seqLen
 }
 
 SelfAttentionLayer::~SelfAttentionLayer() {
+    if (bufferAttentionWeights_) bufferAttentionWeights_->release();
+    if (bufferScratch_) bufferScratch_->release();
+    
     if (bufferQ_) bufferQ_->release();
     if (bufferK_) bufferK_->release();
     if (bufferV_) bufferV_->release();
@@ -70,16 +75,13 @@ void SelfAttentionLayer::buildPipeline(MTL::Device* device, MTL::Library* librar
     
     ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
     auto parameters = pConfig->training.optimizer.parameters;
-
-    float lr      = pConfig->training.optimizer.learning_rate;
-    float beta1   = parameters["beta1"].get_value_or<float>(0.9f);
-    float beta2   = parameters["beta2"].get_value_or<float>(0.999f);
-    float epsilon = parameters["epsilon"].get_value_or<float>(1e-8);
+    auto optimizerConfig = pConfig->training.optimizer;
+    float lr = pConfig->training.optimizer.learning_rate;
         
-    optimizerWeightsQ_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
-    optimizerWeightsK_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
-    optimizerWeightsV_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
-    optimizerOutputProjection_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon);
+    optimizerWeightsQ_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    optimizerWeightsK_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    optimizerWeightsV_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    optimizerOutputProjection_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
     
     optimizerWeightsQ_->buildPipeline(device, library);
     optimizerWeightsK_->buildPipeline(device, library);
@@ -88,13 +90,25 @@ void SelfAttentionLayer::buildPipeline(MTL::Device* device, MTL::Library* librar
 }
 
 void SelfAttentionLayer::buildBuffers(MTL::Device* device) {
+    const size_t attentionBufferSize = batchSize_ * seqLength_ * seqLength_ * sizeof(float);
     const size_t activationBufferSize = seqLength_ * modelDim_ * sizeof(float);
     const size_t weightsBufferSize = inputDim_ * modelDim_ * sizeof(float);
+    const size_t scratchPerThreadSize = 3*modelDim_ + 2*seqLength_ + 2*(seqLength_*modelDim_);
+    const size_t scratchBufferSize = batchSize_ * seqLength_ * scratchPerThreadSize * sizeof(float);
+    
+    bufferAttentionWeights_ = device->newBuffer(attentionBufferSize, MTL::ResourceStorageModeManaged);
+    memset(bufferAttentionWeights_->contents(), 0, attentionBufferSize);
+    
+    bufferScratch_ = device->newBuffer(scratchBufferSize, MTL::ResourceStorageModeManaged);
+    memset(bufferScratch_->contents(), 0, scratchBufferSize);
 
     // Buffers for projected queries (Q), keys (K), and values (V)
     bufferQ_ = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
     bufferK_ = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
     bufferV_ = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
+    memset(bufferQ_->contents(), 0, activationBufferSize);
+    memset(bufferK_->contents(), 0, activationBufferSize);
+    memset(bufferV_->contents(), 0, activationBufferSize);
 
     // Buffers for weights of Q, K, V projections and the output projection
     weightsQ_ = device->newBuffer(weightsBufferSize, MTL::ResourceStorageModeManaged);
@@ -162,7 +176,7 @@ void SelfAttentionLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSiz
     // Thread dispatch configuration
     const int gridSize = batchSize * seqLength_ * modelDim_;
     MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
-    MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 512), 1, 1);
+    MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 1024), 1, 1);
 
     encoder->dispatchThreads(threadsPerGrid, threadsPerGroup);
     encoder->endEncoding();
@@ -185,27 +199,32 @@ void SelfAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSi
     encoder->setBuffer(bufferQ_, 0, 5);
     encoder->setBuffer(bufferK_, 0, 6);
     encoder->setBuffer(bufferV_, 0, 7);
+    encoder->setBuffer(bufferAttentionWeights_, 0, 8);
 
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors], 0, 8);          // Errors leaving the layer
-    encoder->setBuffer(inputBuffers_[BufferType::InputErrors], 0, 9);            // Errors entering the layer
+    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors], 0, 9);          // Errors leaving the layer
+    encoder->setBuffer(inputBuffers_[BufferType::InputErrors], 0, 10);            // Errors entering the layer
 
 
-    encoder->setBuffer(optimizerWeightsQ_->gradientBuffer(), 0, 10);              // Gradients for weightsQ
-    encoder->setBuffer(optimizerWeightsK_->gradientBuffer(), 0, 11);              // Gradients for weightsK
-    encoder->setBuffer(optimizerWeightsV_->gradientBuffer(), 0, 12);              // Gradients for weightsV
-    encoder->setBuffer(optimizerOutputProjection_->gradientBuffer(), 0, 13);     // Gradients for outputProjection
+    encoder->setBuffer(optimizerWeightsQ_->gradientBuffer(), 0, 11);              // Gradients for weightsQ
+    encoder->setBuffer(optimizerWeightsK_->gradientBuffer(), 0, 12);              // Gradients for weightsK
+    encoder->setBuffer(optimizerWeightsV_->gradientBuffer(), 0, 13);              // Gradients for weightsV
+    encoder->setBuffer(optimizerOutputProjection_->gradientBuffer(), 0, 14);     // Gradients for outputProjection
 
     // Constant arguments (dimensions)
-    encoder->setBytes(&bs, sizeof(uint), 14);
-    encoder->setBytes(&seqLength_, sizeof(uint), 15);
-    encoder->setBytes(&inputDim_, sizeof(uint), 16);
-    encoder->setBytes(&modelDim_, sizeof(uint), 17);
+    encoder->setBytes(&bs, sizeof(uint), 15);
+    encoder->setBytes(&seqLength_, sizeof(uint), 16);
+    encoder->setBytes(&inputDim_, sizeof(uint), 17);
+    encoder->setBytes(&modelDim_, sizeof(uint), 18);
+    
+    //Scratch
+    encoder->setBuffer(bufferScratch_, 0, 19);     // Gradients for outputProjection
 
-    // Thread dispatch configuration: one thread per element
-    const int gridSize = batchSize * seqLength_ * inputDim_;
+    // Thread dispatch configuration
+    const int gridSize = batchSize * seqLength_ * modelDim_;
     MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
-    MTL::Size threadgroupSize = MTL::Size(std::min(gridSize, 512), 1, 1);
-    encoder->dispatchThreads(threadsPerGrid, threadgroupSize);
+    MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 1024), 1, 1);
+
+    encoder->dispatchThreads(threadsPerGrid, threadsPerGroup);
     
     optimizerWeightsQ_->encode(encoder, bufferQ_, inputDim_ * modelDim_, batchSize);
     optimizerWeightsK_->encode(encoder, bufferK_, inputDim_ * modelDim_, batchSize);
