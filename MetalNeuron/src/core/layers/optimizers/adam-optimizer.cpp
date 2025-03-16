@@ -38,6 +38,8 @@ void AdamOptimizer::encode(MTL::ComputeCommandEncoder* encoder,
     if (paramCount == 0) return;
     
     timestep_++;
+    uint accumulationInterval = 4;
+    bool applyUpdates = (timestep_ % accumulationInterval) == 0;
     
     encoder->setComputePipelineState(pipelineState_); // <- Must happen first!
 
@@ -53,6 +55,8 @@ void AdamOptimizer::encode(MTL::ComputeCommandEncoder* encoder,
     encoder->setBytes(&batchSize, sizeof(uint), 8);
     encoder->setBytes(&timestep_, sizeof(uint), 9);
     encoder->setBytes(&paramCount, sizeof(uint), 10);
+    encoder->setBytes(&applyUpdates, sizeof(bool), 11);
+    encoder->setBytes(&accumulationInterval, sizeof(uint), 12);
 
     // Configure and dispatch threadgroups
     MTL::Size threadgroupSize = MTL::Size(mathlib::min<uint>(paramCount, 1024u), 1, 1);

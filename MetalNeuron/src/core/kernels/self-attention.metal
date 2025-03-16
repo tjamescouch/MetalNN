@@ -4,9 +4,6 @@
 
 using namespace metal;
 
-// Choose maximum dimensions so you don't overflow thread stack memory.
-// You must ensure at runtime: seqLength <= MAX_SEQ_LENGTH && modelDim <= MAX_MODEL_DIM.
-#define MAX_SEQ_LENGTH 1024
 #define MAX_MODEL_DIM 1024
 
 inline uint i2D(uint width, uint row, uint col) {
@@ -120,9 +117,6 @@ kernel void forward_self_attention(
     }
 }
 
-
-#include <metal_stdlib>
-using namespace metal;
 
 // Tune for your GPU
 #define THREADGROUP_SIZE 64
