@@ -67,8 +67,8 @@ kernel void backward_layer_norm(
     constant uint& featureDim                [[buffer(8)]],
     constant uint& batchSize                 [[buffer(9)]],
     constant float& learningRate             [[buffer(10)]],
-    device atomic_float* gradientsBeta       [[buffer(14)]],
-    device atomic_float* gradientsGamma      [[buffer(15)]],
+    device atomic_float* gradientsBeta       [[buffer(11)]],
+    device atomic_float* gradientsGamma      [[buffer(12)]],
     uint gid                               [[thread_position_in_grid]]
 ) {
     if (gid >= batchSize) return;

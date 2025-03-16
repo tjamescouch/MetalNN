@@ -5,7 +5,7 @@ layers:
     name: "mha_1"
     input_size: 256
     output_size: 256
-    num_heads: 4
+    num_heads: 2
     sequence_length: 10
     initializer: xavier
 
@@ -18,7 +18,7 @@ layers:
   - type: ResidualConnection
     input_size: 256
     output_size: 256
-    source_layer: "input"
+    from_layer: "input"
 
   - type: Dense
     name: "dense_ffn_expand"
@@ -48,12 +48,19 @@ layers:
   - type: ResidualConnection
     input_size: 256
     output_size: 256
-    source_layer: "mha_1"
+    from_layer: "mha_1"
 
   - type: ResidualConnection
     input_size: 256
     output_size: 256
-    source_layer: "dense_ffn_expand"
+    from_layer: "dense_ffn_expand"
+     
+  - type: Dense
+    name: "final_dense"
+    input_size: 256
+    output_size: 256  # Adjust as needed for your task
+    activation: linear
+    initializer: xavier
 
 training:
   optimizer:

@@ -340,7 +340,7 @@ kernel void backward_multi_head_attention(
         // F) dQ_head, dK_s => from dAttnW
         //    scale= 1 / sqrt(headDim)
         //-----------------------------------------
-        float scale = 1.0f / sqrt((float)headDim);
+        float scale = rsqrt((float)headDim);
         // zero dQ_head
         for (uint d = 0; d < headDim; d++) {
             dQ_head[d] = 0.0f;
