@@ -1,17 +1,20 @@
 #pragma once
 
-#include "dataset.h"
 #include <functional>
 #include <string>
 
+#include "dataset.h"
+#include "model-config.h"
+
 class DataManager {
 public:
-    DataManager(Dataset* dataset);
+    DataManager();
     ~DataManager();
 
     void setDataset(Dataset* dataset);
     Dataset* getCurrentDataset() const;
 
+    DataManager* configure(ModelConfig* pConfig);
     void initialize(int batchSize, std::function<void()> callback);
 
     int inputDim() const;
@@ -19,7 +22,7 @@ public:
     void loadNextBatch(int currentBatchSize);
 
 private:
-    Dataset* current_dataset_;
+    Dataset* dataset_;
     int sampleIndex_ = 0;
 
 };

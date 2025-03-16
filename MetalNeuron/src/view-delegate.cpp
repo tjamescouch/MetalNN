@@ -10,9 +10,6 @@
 #include <iostream>
 #include <filesystem>
 #include <mach-o/dyld.h>
-#include "mnist-dataset.h"
-#include "function-dataset.h"
-#include "math-lib.h"
 #include "configuration-manager.h"
 
 //const char* modelFilename = "ocr.yml";
@@ -26,9 +23,9 @@
 //const char* modelFilename = "multi-dense-layer.yml";
 //const char* modelFilename = "single-dense-layer.yml";
 //const char* modelFilename = "self-attention.yml";
-const char* modelFilename = "multi-head-attention.yml";
+//const char* modelFilename = "multi-head-attention.yml";
 //const char* modelFilename = "layer-norm.yml";
-//const char* modelFilename = "transformer.yml";
+const char* modelFilename = "transformer.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {
@@ -44,23 +41,7 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice)
     
     ConfigurationManager::instance().setConfig(&config);
 
-    // Instantiate DataManager first with dataset from config
-    Dataset* dataset = nullptr;
-    if (config.dataset.type == "mnist") {
-        dataset = new MNISTDataset(
-            config.dataset.images,
-            config.dataset.labels
-        );
-    } else if (config.dataset.type == "function") {
-        dataset = new FunctionDataset(mathlib::inputFunc, mathlib::targetFunc,
-                                    config.layers.front().params.at("input_size").get_value<int>(),
-                                    config.layers.back().params.at("output_size").get_value<int>(),
-                                    1000); //Arbitrary dataset size
-    } else {
-        throw std::runtime_error("Unsupported dataset type: " + config.dataset.type);
-    }
-
-    _pDataManager = new DataManager(dataset);
+    _pDataManager = (new DataManager())->configure(&config);
     
     // Instantiate NeuralEngine using the updated constructor with DataManager
     _pNeuralEngine = new NeuralEngine(_pDevice, config, _pDataManager);

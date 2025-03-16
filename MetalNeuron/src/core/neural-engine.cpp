@@ -376,11 +376,6 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
 }
 
 
-void NeuralEngine::initializeWithDataset(Dataset* dataset) {
-    _pDataManager = new DataManager(dataset);
-}
-
-
 void NeuralEngine::saveModel(const std::string& filepath) {
     std::ofstream file(filepath, std::ios::binary);
     
