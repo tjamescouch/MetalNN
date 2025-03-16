@@ -48,6 +48,9 @@ void AdamOptimizer::encode(MTL::ComputeCommandEncoder* encoder,
     bool applyUpdates = (timestep_ % accumulation_interval_) == 0;
     
     encoder->setComputePipelineState(pipelineState_); // <- Must happen first!
+    
+    const float beta1Scale = 1.0f / (1.0f - pow(beta1_, timestep_));
+    const float beta2Scale = 1.0f / (1.0f - pow(beta2_, timestep_));
 
     // Set buffers and parameters
     encoder->setBuffer(params, 0, 0);
@@ -63,6 +66,8 @@ void AdamOptimizer::encode(MTL::ComputeCommandEncoder* encoder,
     encoder->setBytes(&paramCount, sizeof(uint), 10);
     encoder->setBytes(&applyUpdates, sizeof(bool), 11);
     encoder->setBytes(&accumulation_interval_, sizeof(uint), 12);
+    encoder->setBytes(&beta1Scale, sizeof(float), 13);
+    encoder->setBytes(&beta2Scale, sizeof(float), 14);
 
     // Configure and dispatch threadgroups
     MTL::Size threadgroupSize = MTL::Size(mathlib::min<uint>(paramCount, 1024u), 1, 1);

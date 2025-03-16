@@ -19,6 +19,8 @@ kernel void adam_kernel(
     constant uint& param_count       [[buffer(10)]],  // Total number of parameters
     constant bool& apply_updates     [[buffer(11)]],  // timestep % N == 0
     constant uint& N                 [[buffer(12)]],  // accumulation interval
+    constant float& beta1_scale      [[buffer(13)]],  // 1.0f / (1.0f - pow(beta1_, timestep_))
+    constant float& beta2_scale      [[buffer(14)]],  // 1.0f / (1.0f - pow(beta2_, timestep_))
     uint tid                         [[thread_position_in_grid]]
 )
 {
@@ -32,9 +34,8 @@ kernel void adam_kernel(
     m[tid] = beta1 * m[tid] + (1.0f - beta1) * grad_avg;
     v[tid] = beta2 * v[tid] + (1.0f - beta2) * grad_avg * grad_avg;
 
-    //FIXME - compute power once on CPU rather than per thread
-    float m_hat = m[tid] / (1.0f - pow(beta1, timestep));
-    float v_hat = v[tid] / (1.0f - pow(beta2, timestep));
+    float m_hat = m[tid] * beta1_scale;
+    float v_hat = v[tid] * beta2_scale;
 
     // 4) Compute the Adam update (no bias correction)
     float update = learning_rate * (m_hat / (sqrt(v_hat) + epsilon));

@@ -12,28 +12,31 @@
 #include "adam-optimizer.h"
 #include "weight-initializer.h"
 
-MultiHeadAttentionLayer::MultiHeadAttentionLayer(uint inputDim, uint modelDim, uint seqLength, uint batchSize, uint numHeads)
-    : inputDim_(inputDim),
-      modelDim_(modelDim),
-      seqLength_(seqLength),
-      batchSize_(batchSize),
-      numHeads_(numHeads),
-      device_(nullptr),
-      bufferAttentionWeights_(nullptr),
-      bufferScratch_(nullptr),
-      bufferQ_(nullptr),
-      bufferK_(nullptr),
-      bufferV_(nullptr),
-      weightsQ_(nullptr),
-      weightsK_(nullptr),
-      weightsV_(nullptr),
-      outputProjection_(nullptr),
-      optimizerWeightsQ_(nullptr),
-      optimizerWeightsK_(nullptr),
-      optimizerWeightsV_(nullptr),
-      optimizerOutputProjection_(nullptr),
-      forwardPipelineState_(nullptr),
-      backwardPipelineState_(nullptr) {
+MultiHeadAttentionLayer::MultiHeadAttentionLayer(uint inputDim, uint modelDim, uint seqLength, uint batchSize, uint numHeads) :
+inputDim_(inputDim),
+modelDim_(modelDim),
+seqLength_(seqLength),
+batchSize_(batchSize),
+numHeads_(numHeads),
+device_(nullptr),
+bufferAttentionWeights_(nullptr),
+bufferScratch_(nullptr),
+bufferQ_(nullptr),
+bufferK_(nullptr),
+bufferV_(nullptr),
+weightsQ_(nullptr),
+weightsK_(nullptr),
+weightsV_(nullptr),
+outputProjection_(nullptr),
+optimizerWeightsQ_(nullptr),
+optimizerWeightsK_(nullptr),
+optimizerWeightsV_(nullptr),
+optimizerOutputProjection_(nullptr),
+forwardPipelineState_(nullptr),
+backwardPipelineState_(nullptr) {
+    assert(modelDim_ % numHeads_ == 0);
+    uint headDim = modelDim / numHeads;
+    scale_ = 1.0f/sqrt(float(headDim));
 }
 
 MultiHeadAttentionLayer::~MultiHeadAttentionLayer() {
@@ -184,7 +187,10 @@ void MultiHeadAttentionLayer::forward(MTL::CommandBuffer* commandBuffer, int bat
     encoder->setBytes(&inputDim_, sizeof(uint), 11);
     encoder->setBytes(&modelDim_, sizeof(uint), 12);
     encoder->setBytes(&numHeads_, sizeof(uint), 13);
+    encoder->setBytes(&scale_, sizeof(float), 14);
 
+    
+    
 
     // 6) Calculate thread count: each thread handles 1 token => batchSize * seqLength
     const uint32_t totalThreads = batchSize * seqLength_;
@@ -240,6 +246,9 @@ void MultiHeadAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
     encoder->setBuffer(bufferScratch_, 0, 19);     // Gradients for outputProjection
     
     encoder->setBytes(&numHeads_, sizeof(uint), 20);
+    encoder->setBytes(&scale_, sizeof(float), 21);
+    
+    
 
     // 1) Each thread in this kernel handles exactly one (batchIndex, seqIndex).
     //    So total number of threads needed = batchSize * seqLength.
