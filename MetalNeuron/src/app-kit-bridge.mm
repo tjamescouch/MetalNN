@@ -159,7 +159,7 @@ extern "C" void updateTextField(const char* message) {
             };
 
             NSAttributedString* attributedMessage = [[NSAttributedString alloc]
-                initWithString:[safeString stringByAppendingString:@"\n"]
+                initWithString:[safeString stringByAppendingString:@""]
                 attributes:attributes];
 
             NSScrollView* scrollView = [globalTextView enclosingScrollView];

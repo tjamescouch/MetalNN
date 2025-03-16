@@ -55,9 +55,14 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     
     ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
     auto optimizerConfig = pConfig->training.optimizer;
+    
+    uint accumulation_interval = optimizerConfig.accumulation_interval;
+    float beta1 = optimizerConfig.beta1;
+    float beta2 = optimizerConfig.beta2;
+    float epsilon = optimizerConfig.epsilon;
         
-    optimizerWeights_ = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
-    optimizerBiases_  = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    optimizerWeights_ = std::make_unique<AdamOptimizer>(learningRate_, beta1, beta2, epsilon, accumulation_interval);
+    optimizerBiases_  = std::make_unique<AdamOptimizer>(learningRate_, beta1, beta2, epsilon, accumulation_interval);
     
     optimizerWeights_->buildPipeline(device, library);
     optimizerBiases_->buildPipeline(device, library);

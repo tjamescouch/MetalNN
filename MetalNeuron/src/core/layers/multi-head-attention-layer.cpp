@@ -77,12 +77,17 @@ void MultiHeadAttentionLayer::buildPipeline(MTL::Device* device, MTL::Library* l
     ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
     auto parameters = pConfig->training.optimizer.parameters;
     auto optimizerConfig = pConfig->training.optimizer;
-    float lr = pConfig->training.optimizer.learning_rate;
+    float lr = pConfig->training.optimizer.learning_rate; //FIXME get layer specific learning rate in factory
+    
+    uint accumulation_interval = optimizerConfig.accumulation_interval;
+    float beta1 = optimizerConfig.beta1;
+    float beta2 = optimizerConfig.beta2;
+    float epsilon = optimizerConfig.epsilon;
         
-    optimizerWeightsQ_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
-    optimizerWeightsK_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
-    optimizerWeightsV_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
-    optimizerOutputProjection_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    optimizerWeightsQ_         = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon, accumulation_interval);
+    optimizerWeightsK_         = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon, accumulation_interval);
+    optimizerWeightsV_         = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon, accumulation_interval);
+    optimizerOutputProjection_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon, accumulation_interval);
     
     optimizerWeightsQ_->buildPipeline(device, library);
     optimizerWeightsK_->buildPipeline(device, library);

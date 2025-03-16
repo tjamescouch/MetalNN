@@ -7,10 +7,17 @@
 #include "adam-optimizer.h"
 #include "math-lib.h"
 
-AdamOptimizer::AdamOptimizer(float lr, float beta1, float beta2, float epsilon)
-: bufferGradients_(nullptr), bufferM_(nullptr), bufferV_(nullptr),
-pipelineState_(nullptr), timestep_(0),
-learningRate_(lr), beta1_(beta1), beta2_(beta2), epsilon_(epsilon) {}
+AdamOptimizer::AdamOptimizer(float lr, float beta1, float beta2, float epsilon, uint accumulation_interval) :
+bufferGradients_(nullptr),
+bufferM_(nullptr),
+bufferV_(nullptr),
+pipelineState_(nullptr),
+timestep_(0),
+accumulation_interval_(accumulation_interval),
+learningRate_(lr),
+beta1_(beta1),
+beta2_(beta2),
+epsilon_(epsilon) {}
 
 void AdamOptimizer::buildBuffers(MTL::Device* device, size_t paramSize) {
     bufferGradients_ = device->newBuffer(paramSize, MTL::ResourceStorageModeManaged);
@@ -38,8 +45,7 @@ void AdamOptimizer::encode(MTL::ComputeCommandEncoder* encoder,
     if (paramCount == 0) return;
     
     timestep_++;
-    uint accumulationInterval = 2;
-    bool applyUpdates = (timestep_ % accumulationInterval) == 0;
+    bool applyUpdates = (timestep_ % accumulation_interval_) == 0;
     
     encoder->setComputePipelineState(pipelineState_); // <- Must happen first!
 
@@ -56,7 +62,7 @@ void AdamOptimizer::encode(MTL::ComputeCommandEncoder* encoder,
     encoder->setBytes(&timestep_, sizeof(uint), 9);
     encoder->setBytes(&paramCount, sizeof(uint), 10);
     encoder->setBytes(&applyUpdates, sizeof(bool), 11);
-    encoder->setBytes(&accumulationInterval, sizeof(uint), 12);
+    encoder->setBytes(&accumulation_interval_, sizeof(uint), 12);
 
     // Configure and dispatch threadgroups
     MTL::Size threadgroupSize = MTL::Size(mathlib::min<uint>(paramCount, 1024u), 1, 1);
