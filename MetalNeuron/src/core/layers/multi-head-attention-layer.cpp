@@ -193,17 +193,22 @@ void MultiHeadAttentionLayer::forward(MTL::CommandBuffer* commandBuffer, int bat
     encoder->setBytes(&scale_, sizeof(float), 14);
     
 
-    // 6) Calculate thread count: each thread handles 1 token => batchSize * seqLength
-    const uint32_t totalThreads = batchSize * seqLength_;
+    // 6) Calculate thread count: each thread handles exactly 1 token (batch × sequence length)
+    const uint32_t totalThreads = batchSize_ * seqLength_;
 
-    // 7) Choose a threadgroup size. For example, 64:
-    MTL::Size threadsPerThreadgroup = MTL::Size::Make(64, 1, 1);
+    // 7) Choose a threadgroup size (e.g., 64)
+    const uint32_t threadsPerGroup = 64;
 
-    // The grid size is totalThreads in 1D
-    MTL::Size gridSize = MTL::Size::Make(totalThreads, 1, 1);
+    // 8) Calculate number of threadgroups needed (rounded up)
+    uint32_t numThreadgroups = (totalThreads + threadsPerGroup - 1) / threadsPerGroup;
 
-    // 8) Encode the dispatch
-    encoder->dispatchThreads(gridSize, threadsPerThreadgroup);
+    // 9) Define threadgroup and grid sizes explicitly for dispatch
+    MTL::Size threadsPerThreadgroup = MTL::Size::Make(threadsPerGroup, 1, 1);
+    MTL::Size threadgroups = MTL::Size::Make(numThreadgroups, 1, 1);
+
+    // 10) Dispatch threadgroups explicitly (consistent with GPU indexing expectations)
+    encoder->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
+
     
     
     encoder->endEncoding();
