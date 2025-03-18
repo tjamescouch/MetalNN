@@ -67,8 +67,8 @@ enum class BufferType : unsigned int {
     HiddenErrors,
     Gradients,
     Activation,
-    OutputErrors,
-    InputErrors,
+    OutgoingErrors,
+    IncomingErrors,
     Delta
 };
 

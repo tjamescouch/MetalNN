@@ -43,6 +43,9 @@ public:
     
     void printFloatBufferL2Norm(MTL::Buffer* b, std::string message);
     void printFloatBufferMeanL2Norm(MTL::Buffer* b, std::string message);
+    
+    void assertBufferContentsAreValid(MTL::Buffer* b, std::string layerName);
+    
     void count(MTL::Buffer* b, std::string message, std::function<bool(float)> predicate);
     
     static Logger log;

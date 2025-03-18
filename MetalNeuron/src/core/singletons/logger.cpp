@@ -60,7 +60,7 @@ void Logger::flushAnalytics() {
 }
 
 void Logger::logAnalytics(const float* output, int outputCount,
-                               const float* target, int targetCount) {
+                          const float* target, int targetCount) {
     batchOutputs_.emplace_back(output, output + outputCount);
     batchTargets_.emplace_back(target, target + targetCount);
 }
@@ -205,6 +205,54 @@ Logger& Logger::instance() {
 
 void Logger::initSingleton() {
     instance_ = new Logger();
+}
+
+void Logger::assertBufferContentsAreValid(MTL::Buffer* b, std::string layerName) {
+    float* data = static_cast<float*>(b->contents());
+    size_t numFloats = b->length() / sizeof(float);
+    bool nonZeroFound = false;
+    bool largeValuesFound = false;
+    bool assertionsSatisfied = true;
+    float maxval = 100;
+    
+    for (int i = 0; i < numFloats; ++i) {
+        if(isnan(data[i])) {
+            log << "Error in layer " << layerName << " : buffer contains nan" << std::endl;
+            assertionsSatisfied = false;
+            
+            break;
+        }
+        if(isinf(data[i])) {
+            log << "Error in layer " << layerName << " : buffer contains inf" << std::endl;
+            assertionsSatisfied = false;
+            
+            break;
+        }
+        
+        float absval = abs(data[i]);
+        
+        if (absval > 0) {
+            nonZeroFound = true;
+        }
+        
+        if (absval > maxval) {
+            largeValuesFound = true;
+        }
+    }
+    
+    if (!nonZeroFound) {
+        //log << "Warning in layer " << layerName << " : buffer is all 0" << std::endl;
+    }
+    
+    if (largeValuesFound) {
+        //log << "Warning in layer " << layerName << " : large values found" << std::endl;
+    }
+    
+    /*
+    if(!assertionsSatisfied) {
+        printFloatBuffer(b, "Dumping buffer: ");
+        assert(false);
+    }*/
 }
 
 void Logger::printFloatBuffer(MTL::Buffer* b, std::string message, int maxElements) {

@@ -5,7 +5,7 @@ layers:
     name: "mha_1"
     input_size: 256
     output_size: 256
-    num_heads: 1
+    num_heads: 2
     sequence_length: 10
     initializer: xavier
 
@@ -18,6 +18,7 @@ layers:
   - type: ResidualConnection
     input_size: 256
     output_size: 256
+    name: "residual_connection1"
     from_layer: "input"
 
   - type: Dense
@@ -28,6 +29,7 @@ layers:
     initializer: he
 
   - type: Dropout
+    name: "dropout_1"
     rate: 0.1
     input_size: 1024
     output_size: 1024
@@ -46,11 +48,13 @@ layers:
     epsilon: 1e-5
     
   - type: ResidualConnection
+    name: "residual_connection2"
     input_size: 256
     output_size: 256
     from_layer: "input"
 
   - type: Dense
+    name: "penultimate_dense"
     input_size: 256
     output_size: 256
     activation: linear
@@ -61,11 +65,10 @@ layers:
     output_size: 256
     from_layer: "mha_1"
 
-     
   - type: Dense
     name: "final_dense"
     input_size: 256
-    output_size: 256  # Adjust as needed for your task
+    output_size: 256
     activation: tanh
     initializer: he
 
@@ -80,7 +83,7 @@ training:
       epsilon: 1e-8
 
   epochs: 5
-  batch_size: 1
+  batch_size: 2
 
 dataset:
   type: "function"

@@ -73,7 +73,7 @@ void MultiHeadAttentionLayer::buildPipeline(MTL::Device* device, MTL::Library* l
     kernelBackwardFn->release();
 
     if (!backwardPipelineState_) {
-        Logger::log << "Error occurred creating self_attention_backward pipeline: " << error->localizedDescription()->utf8String() << std::endl;
+        Logger::log << "Error occurred creating backward pipeline: " << error->localizedDescription()->utf8String() << std::endl;
         std::exit(-1);
     }
     
@@ -100,7 +100,8 @@ void MultiHeadAttentionLayer::buildPipeline(MTL::Device* device, MTL::Library* l
 
 void MultiHeadAttentionLayer::buildBuffers(MTL::Device* device) {
     const size_t attentionBufferSize = batchSize_ * seqLength_ * seqLength_ * sizeof(float);
-    const size_t activationBufferSize = seqLength_ * modelDim_ * sizeof(float);
+    const size_t activationBufferSize = batchSize_ * seqLength_ * modelDim_ * sizeof(float);
+    const size_t errorBufferSize = batchSize_ * seqLength_ * inputDim_ * sizeof(float);
     const size_t weightsBufferSize = inputDim_ * modelDim_ * sizeof(float);
     
     const size_t headDim = modelDim_ / numHeads_;
@@ -108,7 +109,7 @@ void MultiHeadAttentionLayer::buildBuffers(MTL::Device* device) {
     
     const size_t scratchPerThread=2*(inputDim_)+3*(headDim)+2*(seqLength_ * headDim)+2*(seqLength_);
     const size_t scratchBufferSize=(batchSize_ * seqLength_) * scratchPerThread * sizeof(float);
-
+    
     
     bufferAttentionWeights_ = device->newBuffer(attentionBufferSize, MTL::ResourceStorageModeManaged);
     memset(bufferAttentionWeights_->contents(), 0, attentionBufferSize);
@@ -152,7 +153,9 @@ void MultiHeadAttentionLayer::buildBuffers(MTL::Device* device) {
 
 
     outputBuffers_[BufferType::Output] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
-    outputBuffers_[BufferType::OutputErrors] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
+    outputBuffers_[BufferType::OutgoingErrors] = device->newBuffer(errorBufferSize, MTL::ResourceStorageModeManaged);
+    
+    outputBuffers_[BufferType::Debug] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
     
     optimizerWeightsQ_->buildBuffers(device, weightsBufferSize);
     optimizerWeightsK_->buildBuffers(device, weightsBufferSize);
@@ -188,8 +191,6 @@ void MultiHeadAttentionLayer::forward(MTL::CommandBuffer* commandBuffer, int bat
     encoder->setBytes(&modelDim_, sizeof(uint), 12);
     encoder->setBytes(&numHeads_, sizeof(uint), 13);
     encoder->setBytes(&scale_, sizeof(float), 14);
-
-    
     
 
     // 6) Calculate thread count: each thread handles 1 token => batchSize * seqLength
@@ -227,14 +228,14 @@ void MultiHeadAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
     encoder->setBuffer(bufferV_, 0, 7);
     encoder->setBuffer(bufferAttentionWeights_, 0, 8);
 
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors], 0, 9);          // Errors leaving the layer
-    encoder->setBuffer(inputBuffers_[BufferType::InputErrors], 0, 10);            // Errors entering the layer
+    encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors], 0, 9);          // Errors leaving the layer
+    encoder->setBuffer(inputBuffers_[BufferType::IncomingErrors], 0, 10);            // Errors entering the layer
 
 
     encoder->setBuffer(optimizerWeightsQ_->gradientBuffer(), 0, 11);              // Gradients for weightsQ
     encoder->setBuffer(optimizerWeightsK_->gradientBuffer(), 0, 12);              // Gradients for weightsK
     encoder->setBuffer(optimizerWeightsV_->gradientBuffer(), 0, 13);              // Gradients for weightsV
-    encoder->setBuffer(optimizerOutputProjection_->gradientBuffer(), 0, 14);     // Gradients for outputProjection
+    encoder->setBuffer(optimizerOutputProjection_->gradientBuffer(), 0, 14);      // Gradients for outputProjection
 
     // Constant arguments (dimensions)
     encoder->setBytes(&bs, sizeof(uint), 15);
@@ -243,11 +244,10 @@ void MultiHeadAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
     encoder->setBytes(&modelDim_, sizeof(uint), 18);
     
     //Scratch
-    encoder->setBuffer(bufferScratch_, 0, 19);     // Gradients for outputProjection
+    encoder->setBuffer(bufferScratch_, 0, 19); 
     
     encoder->setBytes(&numHeads_, sizeof(uint), 20);
     encoder->setBytes(&scale_, sizeof(float), 21);
-    
     
 
     // 1) Each thread in this kernel handles exactly one (batchIndex, seqIndex).
@@ -312,29 +312,38 @@ void MultiHeadAttentionLayer::connectBackwardConnections(Layer* prevLayer,
                                    int timestep)
 {
     if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::InputErrors, timestep, getOutputBufferAt(BufferType::OutputErrors, timestep));
+        prevLayer->setInputBufferAt(BufferType::IncomingErrors, timestep, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
     }
 }
 
-void MultiHeadAttentionLayer::debugLog() {}
-void MultiHeadAttentionLayer::onForwardComplete(MTL::CommandQueue*, int) {
-    //Logger::log.printFloatBuffer(inputBuffers_[BufferType::InputErrors], "[Self-Attention Input Errors]", 10);
-    //Logger::log.printFloatBuffer(inputBuffers_[BufferType::Input], "[Forward Self-Attention Input (full)]", seqLength_ * inputDim_);
-    //Logger::log.printFloatBuffer(outputBuffers_[BufferType::Output], "[Forward Self-Attention Output]", 2);
+void MultiHeadAttentionLayer::debugLog() {
+    Logger::instance().assertBufferContentsAreValid(optimizerWeightsQ_->gradientBuffer(), getName() + " grad optimizerWeightsQ_");
+    Logger::instance().assertBufferContentsAreValid(optimizerWeightsK_->gradientBuffer(), getName() + " grad optimizerWeightsK_");
+    Logger::instance().assertBufferContentsAreValid(optimizerWeightsV_->gradientBuffer(), getName() + " grad optimizerWeightsV_");
+    Logger::instance().assertBufferContentsAreValid(optimizerOutputProjection_->gradientBuffer(), getName() + " grad optimizerOutputProjection_");
     
+    Logger::instance().assertBufferContentsAreValid(weightsQ_, getName() + " weightsQ_");
+    Logger::instance().assertBufferContentsAreValid(weightsK_, getName() + " weightsK_");
+    Logger::instance().assertBufferContentsAreValid(weightsV_, getName() + " weightsV_");
+    
+    Logger::instance().assertBufferContentsAreValid(outputProjection_, getName() + " outputProjection_");
+    
+    
+    Logger::instance().assertBufferContentsAreValid(bufferK_, getName() + " bufferK_");
+    Logger::instance().assertBufferContentsAreValid(bufferV_, getName() + " bufferV_");
+    
+    Logger::instance().assertBufferContentsAreValid(bufferQ_, getName() + " bufferQ_");
+    
+    Logger::instance().assertBufferContentsAreValid(inputBuffers_[BufferType::Input], getName() + " input");
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName() + " output");
+}
+
+void MultiHeadAttentionLayer::onForwardComplete(MTL::CommandQueue*, int) {
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName());
 }
 
 void MultiHeadAttentionLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    /*
-    Logger::log << "input errors @" << inputBuffers_[BufferType::InputErrors] << std::endl;
-    Logger::log.printFloatBuffer(inputBuffers_[BufferType::InputErrors], "[B Self-Attention Input Errors]", 10);
-    Logger::log.printFloatBuffer(outputBuffers_[BufferType::OutputErrors], "[B Self-Attention Output Errors]", 10);
-    
-    Logger::log.printFloatBuffer(optimizerWeightsQ_->gradientBuffer(), "[Gradient Weights Q]", 10);
-    Logger::log.printFloatBuffer(optimizerWeightsK_->gradientBuffer(), "[Gradient Weights K]", 10);
-    Logger::log.printFloatBuffer(optimizerWeightsV_->gradientBuffer(), "[Gradient Weights V]", 10);
-    Logger::log.printFloatBuffer(optimizerOutputProjection_->gradientBuffer(), "[Gradient Output Projection]", 10);
-     */
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName());
 }
 
 void MultiHeadAttentionLayer::saveParameters(std::ostream&) const {}

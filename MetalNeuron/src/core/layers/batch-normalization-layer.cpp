@@ -114,13 +114,13 @@ void BatchNormalizationLayer::buildBuffers(MTL::Device* device) {
     
     inputBuffers_[BufferType::Input].clear();
     outputBuffers_[BufferType::Output].clear();
-    inputBuffers_[BufferType::InputErrors].clear();
-    outputBuffers_[BufferType::OutputErrors].clear();
+    inputBuffers_[BufferType::IncomingErrors].clear();
+    outputBuffers_[BufferType::OutgoingErrors].clear();
     
     inputBuffers_[BufferType::Input].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
     outputBuffers_[BufferType::Output].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
-    inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
-    outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
+    inputBuffers_[BufferType::IncomingErrors].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
+    outputBuffers_[BufferType::OutgoingErrors].push_back(device->newBuffer(bufferSize_, MTL::ResourceStorageModeManaged));
     
     optimizerBeta_->buildBuffers(device, outputDim_ * sizeof(float));
     optimizerGamma_->buildBuffers(device, outputDim_ * sizeof(float));
@@ -202,8 +202,8 @@ void BatchNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int)
     
     // indices:
     encoder->setBuffer(inputBuffers_[BufferType::Input][0],       0, 0); // input
-    encoder->setBuffer(inputBuffers_[BufferType::InputErrors][0], 0, 1); // inputErrors
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 2); // outputErrors
+    encoder->setBuffer(inputBuffers_[BufferType::IncomingErrors][0], 0, 1); // inputErrors
+    encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors][0], 0, 2); // outputErrors
     encoder->setBuffer(bufferGamma_, 0, 3);     // gamma
     encoder->setBuffer(bufferBeta_, 0, 4);      // beta
 
@@ -280,7 +280,7 @@ void BatchNormalizationLayer::connectForwardConnections(Layer* previousLayer, La
 
 void BatchNormalizationLayer::connectBackwardConnections(Layer* prevLayer, Layer* inputLayer,
                                                   MTL::Buffer* zeroBuffer, int timestep) {
-    prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
+    prevLayer->setInputBufferAt(BufferType::IncomingErrors, 0, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
 }
 
 void BatchNormalizationLayer::saveParameters(std::ostream& os) const {
@@ -313,7 +313,7 @@ void BatchNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQue
     bufferRunningMean_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
     bufferRunningVariance_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
     
-    memset(outputBuffers_[BufferType::OutputErrors][0]->contents(), 0, outputBuffers_[BufferType::OutputErrors][0]->length());
-    outputBuffers_[BufferType::OutputErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][0]->length()));
+    memset(outputBuffers_[BufferType::OutgoingErrors][0]->contents(), 0, outputBuffers_[BufferType::OutgoingErrors][0]->length());
+    outputBuffers_[BufferType::OutgoingErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutgoingErrors][0]->length()));
 }
 
