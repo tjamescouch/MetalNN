@@ -31,8 +31,8 @@ isTerminal_(false) {
     outputBuffers_[BufferType::Output].resize(1, nullptr);
     outputBuffers_[BufferType::Debug].resize(1, nullptr);
     
-    inputBuffers_[BufferType::InputErrors].resize(1, nullptr);
-    outputBuffers_[BufferType::OutputErrors].resize(1, nullptr);
+    inputBuffers_[BufferType::IncomingErrors].resize(1, nullptr);
+    outputBuffers_[BufferType::OutgoingErrors].resize(1, nullptr);
 }
 
 DropoutLayer::~DropoutLayer() {
@@ -75,26 +75,26 @@ void DropoutLayer::buildBuffers(MTL::Device* device) {
     
     
     outputBuffers_[BufferType::Output].resize(sequenceLength_);
-    inputBuffers_[BufferType::InputErrors].resize(sequenceLength_);
-    outputBuffers_[BufferType::OutputErrors].resize(sequenceLength_);
+    inputBuffers_[BufferType::IncomingErrors].resize(sequenceLength_);
+    outputBuffers_[BufferType::OutgoingErrors].resize(sequenceLength_);
     outputBuffers_[BufferType::Debug].resize(sequenceLength_);
     
     int t = 0;
     
 
-    outputBuffers_[BufferType::OutputErrors][t] = device->newBuffer(featureDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    outputBuffers_[BufferType::OutgoingErrors][t] = device->newBuffer(featureDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::Output][t] = device->newBuffer(featureDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::Debug][t] = device->newBuffer(featureDim_ * sizeof(float), MTL::ResourceStorageModeManaged);
     
     memset(outputBuffers_[BufferType::Output][t]->contents(), 0, featureDim_ * batchSize_ * sizeof(float));
-    memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, featureDim_ * batchSize_ * sizeof(float));
+    memset(outputBuffers_[BufferType::OutgoingErrors][t]->contents(), 0, featureDim_ * batchSize_ * sizeof(float));
     memset(outputBuffers_[BufferType::Debug][t]->contents(), 0, featureDim_ * sizeof(float));
     
     outputBuffers_[BufferType::Output][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Output][t]->length()));
-    outputBuffers_[BufferType::OutputErrors][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutputErrors][t]->length()));
+    outputBuffers_[BufferType::OutgoingErrors][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutgoingErrors][t]->length()));
     outputBuffers_[BufferType::Debug][t]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Debug][t]->length()));
     
-    Logger::log << "dropout output error buffer initalized @" << outputBuffers_[BufferType::OutputErrors][t] << std::endl;
+    Logger::log << "dropout output error buffer initalized @" << outputBuffers_[BufferType::OutgoingErrors][t] << std::endl;
     
     generateRandomMask();
     assert(bufferRandomMask_ && "Random mask buffer allocation failed");
@@ -108,32 +108,33 @@ void DropoutLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize) {
         generateRandomMask();
     }
     
-    for(int t = 0; t < sequenceLength_; ++t) {
-        auto encoder = cmdBuf->computeCommandEncoder();
-        encoder->setComputePipelineState(forwardPipelineState_);
-        encoder->setBuffer(inputBuffers_[BufferType::Input][t], 0, 0);
-        encoder->setBuffer(outputBuffers_[BufferType::Output][t], 0, 1);
-        encoder->setBuffer(bufferRandomMask_, 0, 2);
-        encoder->setBytes(&rate_, sizeof(float), 3);
-        encoder->setBytes(&featureDim_, sizeof(int), 4);
-        encoder->setBytes(&isTraining, sizeof(bool), 5);
-        encoder->setBuffer(outputBuffers_[BufferType::Debug][t], 0, 6);
-        
-        MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
-        MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
-        encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
-        encoder->endEncoding();
-        
-        inputBuffers_[BufferType::Input][t]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][t]->length()));
-    }
+    int t = 0;
+    
+    auto encoder = cmdBuf->computeCommandEncoder();
+    encoder->setComputePipelineState(forwardPipelineState_);
+    encoder->setBuffer(inputBuffers_[BufferType::Input][t], 0, 0);
+    encoder->setBuffer(outputBuffers_[BufferType::Output][t], 0, 1);
+    encoder->setBuffer(bufferRandomMask_, 0, 2);
+    encoder->setBytes(&rate_, sizeof(float), 3);
+    encoder->setBytes(&featureDim_, sizeof(int), 4);
+    encoder->setBytes(&isTraining, sizeof(bool), 5);
+    encoder->setBuffer(outputBuffers_[BufferType::Debug][t], 0, 6);
+    
+    MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
+    MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
+    encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
+    encoder->endEncoding();
+    
+    inputBuffers_[BufferType::Input][t]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][t]->length()));
+
 }
 
 void DropoutLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     for(int t = 0; t < sequenceLength_; ++t) {
         auto encoder = cmdBuf->computeCommandEncoder();
         encoder->setComputePipelineState(backwardPipelineState_);
-        encoder->setBuffer(inputBuffers_[BufferType::InputErrors][t], 0, 0);
-        encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][t], 0, 1);
+        encoder->setBuffer(inputBuffers_[BufferType::IncomingErrors][t], 0, 0);
+        encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors][t], 0, 1);
         encoder->setBuffer(bufferRandomMask_, 0, 2);
         encoder->setBytes(&rate_, sizeof(float), 3);
         encoder->setBytes(&featureDim_, sizeof(int), 4);
@@ -190,9 +191,9 @@ void DropoutLayer::connectBackwardConnections(Layer* prevLayer,
                                    MTL::Buffer* zeroBuffer,
                                    int timestep)
 {
-    Logger::log << "dropout output error buffer @" << getOutputBufferAt(BufferType::OutputErrors, timestep) << std::endl;
+    Logger::log << "dropout output error buffer @" << getOutputBufferAt(BufferType::OutgoingErrors, timestep) << std::endl;
     if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::InputErrors, timestep, getOutputBufferAt(BufferType::OutputErrors, timestep));
+        prevLayer->setInputBufferAt(BufferType::IncomingErrors, timestep, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
     }
 }
 
@@ -212,4 +213,7 @@ void DropoutLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int bat
 }
 
 void DropoutLayer::debugLog() {
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Debug][0], getName() + " debug");
+    Logger::instance().assertBufferContentsAreValid(inputBuffers_[BufferType::Input][0], getName() + " input");
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output][0], getName() + " output");
 }

@@ -41,8 +41,8 @@ public:
                                     MTL::Buffer* zeroBuffer, int timestep) override {};
     
     
-    void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
-    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override {};
+    void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
+    void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
     
     void saveParameters(std::ostream& os) const override;
     void loadParameters(std::istream& is) override;

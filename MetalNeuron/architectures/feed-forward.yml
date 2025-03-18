@@ -2,17 +2,20 @@ name: "Feed Forward NN"
 
 layers:
   - type: Dense
+    name: Dense1
     input_size: 256
     output_size: 1024  # Expansion to higher dimension
     activation: gelu
     initializer: he
 
   - type: Dropout
+    name: Dropout
     rate: 0.1
     input_size: 1024
     output_size: 1024
 
   - type: Dense
+    name: Dense2
     input_size: 1024
     output_size: 256   # Projection back to original dimension
     activation: linear
@@ -21,6 +24,7 @@ layers:
 training:
   optimizer:
     type: adam
+    accumulation_interval: 2
     learning_rate: 0.0001
     parameters:
       beta1: 0.9

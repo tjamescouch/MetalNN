@@ -93,3 +93,11 @@ void InputLayer::saveParameters(std::ostream& os) const {
 void InputLayer::loadParameters(std::istream& is) {
     // No parameters to load
 }
+
+void InputLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output][0], getName());
+}
+
+void InputLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output][0], getName());
+}

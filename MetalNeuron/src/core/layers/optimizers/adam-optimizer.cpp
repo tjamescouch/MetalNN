@@ -42,7 +42,7 @@ void AdamOptimizer::encode(MTL::ComputeCommandEncoder* encoder,
                            MTL::Buffer* params,
                            uint32_t paramCount,
                            uint batchSize) {
-    if (paramCount == 0) return;
+    assert(paramCount > 0);
     
     timestep_++;
     bool applyUpdates = (timestep_ % accumulation_interval_) == 0;

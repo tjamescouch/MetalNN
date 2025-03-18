@@ -18,11 +18,11 @@ forwardPipelineState_(nullptr),
 backwardPipelineState_(nullptr),
 isTerminal_(false) {
     assert(outputSize == 1);
-    inputBuffers_[BufferType::InputErrors].resize(sequenceLength_, nullptr);
+    inputBuffers_[BufferType::IncomingErrors].resize(sequenceLength_, nullptr);
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
     outputBuffers_[BufferType::Delta].resize(sequenceLength_, nullptr);
-    outputBuffers_[BufferType::OutputErrors].resize(sequenceLength_, nullptr);
+    outputBuffers_[BufferType::OutgoingErrors].resize(sequenceLength_, nullptr);
 }
 
 
@@ -38,18 +38,18 @@ MapReduceLayer::~MapReduceLayer() {
 }
 
 void MapReduceLayer::buildBuffers(MTL::Device* device) {
-    inputBuffers_[BufferType::InputErrors].clear();
+    inputBuffers_[BufferType::IncomingErrors].clear();
     inputBuffers_[BufferType::Input].clear();
     outputBuffers_[BufferType::Output].clear();
     outputBuffers_[BufferType::Delta].clear();
-    outputBuffers_[BufferType::OutputErrors].clear();
+    outputBuffers_[BufferType::OutgoingErrors].clear();
     
     for (int t = 0; t < sequenceLength_; ++t) {
         inputBuffers_[BufferType::Input].push_back(device->newBuffer(inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged));
-        inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged));
+        inputBuffers_[BufferType::IncomingErrors].push_back(device->newBuffer(inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged));
         outputBuffers_[BufferType::Output].push_back(device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged));
         outputBuffers_[BufferType::Delta].push_back(device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged));
-        outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+        outputBuffers_[BufferType::OutgoingErrors].push_back(device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged));
     }
 }
 
@@ -72,7 +72,7 @@ void MapReduceLayer::connectBackwardConnections(Layer* prevLayer,
                                                 MTL::Buffer* zeroBuffer,
                                                 int timestep)
 {
-    prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
+    prevLayer->setInputBufferAt(BufferType::IncomingErrors, 0, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
 }
 
 void MapReduceLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -120,7 +120,7 @@ void MapReduceLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
     
     encoder->setBuffer(outputBuffers_[BufferType::Delta][0], 0, 0);
     encoder->setBuffer(outputBuffers_[BufferType::Output][0], 0, 1); // forwardOutput buffer
-    encoder->setBuffer(inputBuffers_[BufferType::InputErrors][0], 0, 2);
+    encoder->setBuffer(inputBuffers_[BufferType::IncomingErrors][0], 0, 2);
     encoder->setBytes(&inputSize_, sizeof(uint), 3);
     encoder->setBytes(&reductionType_, sizeof(uint), 4);
     
@@ -174,7 +174,7 @@ void MapReduceLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int ba
 
 void MapReduceLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
     for (int t = 0; t < sequenceLength_; t++) {
-        memset(outputBuffers_[BufferType::OutputErrors][t]->contents(), 0, outputBuffers_[BufferType::OutputErrors][t]->length());
+        memset(outputBuffers_[BufferType::OutgoingErrors][t]->contents(), 0, outputBuffers_[BufferType::OutgoingErrors][t]->length());
     }
 }
 

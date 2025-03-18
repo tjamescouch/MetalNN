@@ -75,6 +75,7 @@ void NeuralEngine::runTraining() {
         Logger::log << "🔄 Starting epoch: " << (*currentEpoch + 1) << " / " << epochs << std::endl;
         
         // Run batches for the current epoch, and then call next epoch on completion
+        // FIXME - break down into 'runs' to avoid overflowing the stack due to the recursion
         computeBackwardBatches(_pDataManager->getCurrentDataset()->numSamples(), ceil((float)_pDataManager->getCurrentDataset()->numSamples() / pConfig->training.batch_size), [this, currentEpoch, epochCallback]() {
             (*currentEpoch)++;
             (*epochCallback)();
@@ -90,6 +91,7 @@ void NeuralEngine::runInference() {
     TrainingManager::instance().setTraining(false);
     auto pConfig = ConfigurationManager::instance().getConfig();
     
+    // FIXME - break down into 'runs' to avoid overflowing the stack due to the recursion
     computeForwardBatches(_pDataManager->getCurrentDataset()->numSamples(), ceil((float)_pDataManager->getCurrentDataset()->numSamples() / pConfig->training.batch_size), [this]() {
         Logger::log << "✅ Forward pass complete!" << std::endl;
     });
@@ -203,10 +205,9 @@ void NeuralEngine::computeForward(int batchSize, std::function<void()> onComplet
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
         
-        
         _pInputLayer->onForwardComplete(_pCommandQueue, batchSize);
-        for (auto& layer : dynamicLayers_) {
-            layer->onForwardComplete(_pCommandQueue, batchSize);
+        for (auto& l : dynamicLayers_) {
+            l->onForwardComplete(_pCommandQueue, batchSize);
         }
         
         onComplete();
@@ -296,10 +297,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
             Logger::instance().accumulateLoss(totalBatchLoss / currentBatchSize, 1);
         }
         assert(!isnan(totalBatchLoss));
-        
-        
-        
-        
+     
         if (((totalSamples - currentBatchSize) % 500) == 0) {
             Logger::instance().finalizeBatchLoss();
         }

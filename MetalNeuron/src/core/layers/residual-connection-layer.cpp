@@ -6,6 +6,7 @@
 //
 
 #include "residual-connection-layer.h"
+#include "logger.h"
 
 ResidualConnectionLayer::ResidualConnectionLayer(int featureDim, int batchSize)
     : featureDim_(featureDim), batchSize_(batchSize), isTerminal_(false),
@@ -24,7 +25,7 @@ void ResidualConnectionLayer::buildBuffers(MTL::Device* device) {
     size_t bufferSize = batchSize_ * featureDim_ * sizeof(float);
     
     outputBuffers_[BufferType::Output] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
-    outputBuffers_[BufferType::OutputErrors] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
+    outputBuffers_[BufferType::OutgoingErrors] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
 
     residualOutputErrorBuffer_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
 }
@@ -62,8 +63,8 @@ void ResidualConnectionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
     auto encoder = commandBuffer->computeCommandEncoder();
     encoder->setComputePipelineState(backwardPipelineState_);
 
-    encoder->setBuffer(inputBuffers_[BufferType::InputErrors], 0, 0);   // input error coming from next layer
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors], 0, 1); // propagate back to previous layer
+    encoder->setBuffer(inputBuffers_[BufferType::IncomingErrors], 0, 0);   // input error coming from next layer
+    encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors], 0, 1); // propagate back to previous layer
     encoder->setBuffer(residualOutputErrorBuffer_, 0, 2);               // propagate error back to residual source layer
 
     MTL::Size gridSize = MTL::Size(batchSize_ * featureDim_, 1, 1);
@@ -108,13 +109,19 @@ void ResidualConnectionLayer::connectBackwardConnections(Layer* prevLayer,
                                    int timestep)
 {
     if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::InputErrors, timestep, getOutputBufferAt(BufferType::OutputErrors, timestep));
+        prevLayer->setInputBufferAt(BufferType::IncomingErrors, timestep, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
     }
 }
 
 void ResidualConnectionLayer::debugLog() {}
-void ResidualConnectionLayer::onForwardComplete(MTL::CommandQueue*, int) {}
-void ResidualConnectionLayer::onBackwardComplete(MTL::CommandQueue*, int) {}
+
+void ResidualConnectionLayer::onForwardComplete(MTL::CommandQueue*, int) {
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName());
+}
+
+void ResidualConnectionLayer::onBackwardComplete(MTL::CommandQueue*, int) {
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName());
+}
 
 void ResidualConnectionLayer::saveParameters(std::ostream&) const {}
 void ResidualConnectionLayer::loadParameters(std::istream&) {}

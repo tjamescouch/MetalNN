@@ -113,8 +113,8 @@ void LayerNormalizationLayer::buildBuffers(MTL::Device* device) {
     // Allocate input and output buffers explicitly (single timestep only)
     inputBuffers_[BufferType::Input].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
     outputBuffers_[BufferType::Output].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
-    inputBuffers_[BufferType::InputErrors].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
-    outputBuffers_[BufferType::OutputErrors].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
+    inputBuffers_[BufferType::IncomingErrors].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
+    outputBuffers_[BufferType::OutgoingErrors].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
 
     // Optimizer buffers for gamma and beta
     optimizerGamma_->buildBuffers(device, featureDim_ * sizeof(float));
@@ -185,8 +185,8 @@ void LayerNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize
     
     // indices:
     encoder->setBuffer(inputBuffers_[BufferType::Input][0],       0, 0);
-    encoder->setBuffer(inputBuffers_[BufferType::InputErrors][0], 0, 1);
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors][0], 0, 2);
+    encoder->setBuffer(inputBuffers_[BufferType::IncomingErrors][0], 0, 1);
+    encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors][0], 0, 2);
     encoder->setBuffer(bufferGamma_, 0, 3);
     encoder->setBuffer(bufferBeta_, 0, 4);
 
@@ -253,7 +253,7 @@ void LayerNormalizationLayer::connectForwardConnections(Layer* previousLayer, La
 }
 
 void LayerNormalizationLayer::connectBackwardConnections(Layer* prevLayer, Layer* inputLayer, MTL::Buffer* zeroBuffer, int timestep) {
-    prevLayer->setInputBufferAt(BufferType::InputErrors, 0, getOutputBufferAt(BufferType::OutputErrors, timestep));
+    prevLayer->setInputBufferAt(BufferType::IncomingErrors, 0, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
 }
 
 void LayerNormalizationLayer::saveParameters(std::ostream& os) const {
@@ -270,8 +270,9 @@ void LayerNormalizationLayer::loadParameters(std::istream& is) {
 }
 
 void LayerNormalizationLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output][0], getName());
 }
 
 void LayerNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output][0], getName());
 }

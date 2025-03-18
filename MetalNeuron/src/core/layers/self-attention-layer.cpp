@@ -143,7 +143,7 @@ void SelfAttentionLayer::buildBuffers(MTL::Device* device) {
 
 
     outputBuffers_[BufferType::Output] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
-    outputBuffers_[BufferType::OutputErrors] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
+    outputBuffers_[BufferType::OutgoingErrors] = device->newBuffer(activationBufferSize, MTL::ResourceStorageModeManaged);
     
     optimizerWeightsQ_->buildBuffers(device, weightsBufferSize);
     optimizerWeightsK_->buildBuffers(device, weightsBufferSize);
@@ -206,8 +206,8 @@ void SelfAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSi
     encoder->setBuffer(bufferV_, 0, 7);
     encoder->setBuffer(bufferAttentionWeights_, 0, 8);
 
-    encoder->setBuffer(outputBuffers_[BufferType::OutputErrors], 0, 9);          // Errors leaving the layer
-    encoder->setBuffer(inputBuffers_[BufferType::InputErrors], 0, 10);            // Errors entering the layer
+    encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors], 0, 9);          // Errors leaving the layer
+    encoder->setBuffer(inputBuffers_[BufferType::IncomingErrors], 0, 10);            // Errors entering the layer
 
 
     encoder->setBuffer(optimizerWeightsQ_->gradientBuffer(), 0, 11);              // Gradients for weightsQ
@@ -266,7 +266,7 @@ void SelfAttentionLayer::connectBackwardConnections(Layer* prevLayer,
                                    int timestep)
 {
     if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::InputErrors, timestep, getOutputBufferAt(BufferType::OutputErrors, timestep));
+        prevLayer->setInputBufferAt(BufferType::IncomingErrors, timestep, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
     }
 }
 

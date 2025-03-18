@@ -33,6 +33,7 @@ kernel void forward_dense_layer(
     uint neuron_id = gid % output_dim;
 
     if (sample_id >= batchSize || neuron_id >= output_dim) return;
+    
 
     // We'll use a threadgroup array for partial storage
     threadgroup float shared_y[1024];
@@ -44,6 +45,7 @@ kernel void forward_dense_layer(
         float weightVal = W[i * output_dim + neuron_id];
         sum += inputVal * weightVal;
     }
+    
 
     // Clamp to avoid numerical blow-up
     sum = clamp(sum, -max_abs_sum, max_abs_sum);
@@ -84,9 +86,6 @@ kernel void forward_dense_layer(
         }
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
-
-        // Optionally store debug
-        debug[gid] = shared_y[tid];
     }
     else {
         // For non-softmax, apply the chosen activation in place
@@ -97,6 +96,8 @@ kernel void forward_dense_layer(
 
     // 3) Write the result to the output array
     y[gid] = shared_y[tid];
+    
+    debug[gid] = y[gid];
 }
 
 
