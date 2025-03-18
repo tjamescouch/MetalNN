@@ -12,25 +12,22 @@
 
 MapReduceLayer::MapReduceLayer(int inputSize, int outputSize, ReductionType reductionType)
 : inputSize_(inputSize), output_dim_(outputSize),
-sequenceLength_(1),
 reductionType_(reductionType),
 forwardPipelineState_(nullptr),
 backwardPipelineState_(nullptr),
 isTerminal_(false) {
     assert(outputSize == 1);
-    inputBuffers_[BufferType::IncomingErrors].resize(sequenceLength_, nullptr);
-    inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
-    outputBuffers_[BufferType::Output].resize(sequenceLength_, nullptr);
-    outputBuffers_[BufferType::Delta].resize(sequenceLength_, nullptr);
-    outputBuffers_[BufferType::OutgoingErrors].resize(sequenceLength_, nullptr);
+    inputBuffers_[BufferType::IncomingErrors].resize(1, nullptr);
+    inputBuffers_[BufferType::Input].resize(1, nullptr);
+    outputBuffers_[BufferType::Output].resize(1, nullptr);
+    outputBuffers_[BufferType::Delta].resize(1, nullptr);
+    outputBuffers_[BufferType::OutgoingErrors].resize(1, nullptr);
 }
 
 
 MapReduceLayer::~MapReduceLayer() {
-    for (int t = 0; t < sequenceLength_; ++t) {
-        for (auto ob : outputBuffers_) {
-            ob.second[t]->release();
-        }
+    for (auto ob : outputBuffers_) {
+        ob.second[0]->release();
     }
     
     if (forwardPipelineState_) forwardPipelineState_->release();
@@ -44,35 +41,32 @@ void MapReduceLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::Delta].clear();
     outputBuffers_[BufferType::OutgoingErrors].clear();
     
-    for (int t = 0; t < sequenceLength_; ++t) {
-        inputBuffers_[BufferType::Input].push_back(device->newBuffer(inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged));
-        inputBuffers_[BufferType::IncomingErrors].push_back(device->newBuffer(inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged));
-        outputBuffers_[BufferType::Output].push_back(device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged));
-        outputBuffers_[BufferType::Delta].push_back(device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged));
-        outputBuffers_[BufferType::OutgoingErrors].push_back(device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged));
-    }
+    inputBuffers_[BufferType::Input].push_back(device->newBuffer(inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged));
+    inputBuffers_[BufferType::IncomingErrors].push_back(device->newBuffer(inputSize_ * sizeof(float), MTL::ResourceStorageModeManaged));
+    outputBuffers_[BufferType::Output].push_back(device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+    outputBuffers_[BufferType::Delta].push_back(device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged));
+    outputBuffers_[BufferType::OutgoingErrors].push_back(device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged));
 }
 
 
 void MapReduceLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                               MTL::Buffer* zeroBuffer, int timestep){
+                                               MTL::Buffer* zeroBuffer){
     if (previousLayer) {
-        setInputBufferAt(BufferType::Input, timestep,
-                         previousLayer->getOutputBufferAt(BufferType::Output, timestep));
+        setInputBufferAt(BufferType::Input,
+                         previousLayer->getOutputBufferAt(BufferType::Output));
     } else if (inputLayer) {
-        setInputBufferAt(BufferType::Input, timestep,
-                         inputLayer->getOutputBufferAt(BufferType::Output, timestep));
+        setInputBufferAt(BufferType::Input,
+                         inputLayer->getOutputBufferAt(BufferType::Output));
     } else {
-        setInputBufferAt(BufferType::Input, timestep, zeroBuffer);
+        setInputBufferAt(BufferType::Input, zeroBuffer);
     }
 }
 
 void MapReduceLayer::connectBackwardConnections(Layer* prevLayer,
                                                 Layer* inputLayer,
-                                                MTL::Buffer* zeroBuffer,
-                                                int timestep)
+                                                MTL::Buffer* zeroBuffer)
 {
-    prevLayer->setInputBufferAt(BufferType::IncomingErrors, 0, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
+    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }
 
 void MapReduceLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -132,20 +126,20 @@ void MapReduceLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
 }
 
 
-void MapReduceLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
-    inputBuffers_[type][timestep] = buffer;
+void MapReduceLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
+    inputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* MapReduceLayer::getOutputBufferAt(BufferType type, int timestep) {
-    return outputBuffers_[type][timestep];
+MTL::Buffer* MapReduceLayer::getOutputBufferAt(BufferType type) {
+    return outputBuffers_[type][0];
 }
 
-void MapReduceLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
-    outputBuffers_[type][timestep] = buffer;
+void MapReduceLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+    outputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* MapReduceLayer::getInputBufferAt(BufferType type, int timestep) {
-    return inputBuffers_[type][timestep];
+MTL::Buffer* MapReduceLayer::getInputBufferAt(BufferType type) {
+    return inputBuffers_[type][0];
 }
 
 int MapReduceLayer::inputSize() const {
@@ -156,11 +150,11 @@ int MapReduceLayer::outputSize() const {
     return output_dim_;
 }
 
-void MapReduceLayer::updateTargetBufferAt(const float* targetData, int timestep) {
+void MapReduceLayer::updateTargetBufferAt(const float* targetData) {
     // Typically a MapReduceLayer might ignore this or handle it differently
 }
 
-void MapReduceLayer::updateTargetBufferAt(const float* targetData, int timestep, int batchSize) {
+void MapReduceLayer::updateTargetBufferAt(const float* targetData, int batchSize) {
     // Typically a MapReduceLayer might ignore this or handle it differently
 }
 
@@ -173,9 +167,7 @@ void MapReduceLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int ba
 }
 
 void MapReduceLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    for (int t = 0; t < sequenceLength_; t++) {
-        memset(outputBuffers_[BufferType::OutgoingErrors][t]->contents(), 0, outputBuffers_[BufferType::OutgoingErrors][t]->length());
-    }
+    memset(outputBuffers_[BufferType::OutgoingErrors][0]->contents(), 0, outputBuffers_[BufferType::OutgoingErrors][0]->length());
 }
 
 void MapReduceLayer::saveParameters(std::ostream& outStream) const {

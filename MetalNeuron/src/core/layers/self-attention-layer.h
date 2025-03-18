@@ -18,15 +18,15 @@ public:
     void backward(MTL::CommandBuffer* commandBuffer, int batchSize) override;
 
     void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                   MTL::Buffer* zeroBuffer, int timestep) override;
+                                   MTL::Buffer* zeroBuffer) override;
     void connectBackwardConnections(Layer* prevLayer, Layer* inputLayer,
-                                    MTL::Buffer* zeroBuffer, int timestep) override;
+                                    MTL::Buffer* zeroBuffer) override;
 
-    void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;
+    void setInputBufferAt(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBufferAt(BufferType type) override;
 
-    void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) override;
+    void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputBufferAt(BufferType type) override;
 
     void setIsTerminal(bool isTerminal) override;
 
@@ -40,8 +40,8 @@ public:
     int inputSize() const override { return inputDim_; }
     int outputSize() const override { return modelDim_; }
     
+    void updateTargetBufferAt(const float*) override {}
     void updateTargetBufferAt(const float*, int) override {}
-    void updateTargetBufferAt(const float*, int, int) override {}
     
     SelfAttentionLayer* setInitializer(std::string initializer) { initializer_ = initializer; return this; }
 

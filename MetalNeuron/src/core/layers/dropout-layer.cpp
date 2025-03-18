@@ -160,40 +160,39 @@ void DropoutLayer::generateRandomMask() {
     bufferRandomMask_->didModifyRange(NS::Range(0, bufferRandomMask_->length()));
 }
 
-void DropoutLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
+void DropoutLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
     assert(buffer && "Setting input buffer to NULL");
-    inputBuffers_[type][timestep] = buffer;
+    inputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* DropoutLayer::getOutputBufferAt(BufferType type, int timestep) {
-    return outputBuffers_[type][timestep];
+MTL::Buffer* DropoutLayer::getOutputBufferAt(BufferType type) {
+    return outputBuffers_[type][0];
 }
 
-void DropoutLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
-    outputBuffers_[type][timestep] = buffer;
+void DropoutLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+    outputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* DropoutLayer::getInputBufferAt(BufferType type, int timestep) {
-    return inputBuffers_[type][timestep];
+MTL::Buffer* DropoutLayer::getInputBufferAt(BufferType type) {
+    return inputBuffers_[type][0];
 }
 
 void DropoutLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) {
-    setInputBufferAt(BufferType::Input, timestep,
+                                     MTL::Buffer* zeroBuffer) {
+    setInputBufferAt(BufferType::Input,
                      previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
-                     : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     ? previousLayer->getOutputBufferAt(BufferType::Output)
+                     : inputLayer->getOutputBufferAt(BufferType::Output)
                      );
 }
 
 void DropoutLayer::connectBackwardConnections(Layer* prevLayer,
                                    Layer* inputLayer,
-                                   MTL::Buffer* zeroBuffer,
-                                   int timestep)
+                                   MTL::Buffer* zeroBuffer)
 {
-    Logger::log << "dropout output error buffer @" << getOutputBufferAt(BufferType::OutgoingErrors, timestep) << std::endl;
+    Logger::log << "dropout output error buffer @" << getOutputBufferAt(BufferType::OutgoingErrors) << std::endl;
     if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::IncomingErrors, timestep, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
+        prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
     }
 }
 

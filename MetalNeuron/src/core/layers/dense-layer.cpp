@@ -116,22 +116,19 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     optimizerBiases_->buildBuffers(device, biasSize);
 }
 
-void DenseLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
-    assert(timestep == 0);
+void DenseLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
     assert(buffer && "Setting input buffer to NULL");
-    inputBuffers_[type][timestep] = buffer;
+    inputBuffers_[type][0] = buffer;
 }
 
-void DenseLayer::updateTargetBufferAt(const float* targetData, int timestep) {
-    assert(timestep == 0);
-    memcpy(inputBuffers_[BufferType::Targets][timestep]->contents(), targetData, inputBuffers_[BufferType::Targets][timestep]->length());
-    inputBuffers_[BufferType::Targets][timestep]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][timestep]->length()));
+void DenseLayer::updateTargetBufferAt(const float* targetData) {
+    memcpy(inputBuffers_[BufferType::Targets][0]->contents(), targetData, inputBuffers_[BufferType::Targets][0]->length());
+    inputBuffers_[BufferType::Targets][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][0]->length()));
 }
 
-void DenseLayer::updateTargetBufferAt(const float* targetData, int timestep, int _batchSize) {
-    assert(timestep == 0);
-    memcpy(inputBuffers_[BufferType::Targets][timestep]->contents(), targetData, batchSize_ * outputDim_ * sizeof(float));
-    inputBuffers_[BufferType::Targets][timestep]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][timestep]->length()));
+void DenseLayer::updateTargetBufferAt(const float* targetData, int _batchSize) {
+    memcpy(inputBuffers_[BufferType::Targets][0]->contents(), targetData, batchSize_ * outputDim_ * sizeof(float));
+    inputBuffers_[BufferType::Targets][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][0]->length()));
 }
 
 void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
@@ -207,17 +204,16 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
 }
 
-void DenseLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
-    outputBuffers_[type][timestep] = buffer;
+void DenseLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+    outputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* DenseLayer::getInputBufferAt(BufferType type, int timestep) {
-    return inputBuffers_[type][timestep];
+MTL::Buffer* DenseLayer::getInputBufferAt(BufferType type) {
+    return inputBuffers_[type][0];
 }
 
-MTL::Buffer* DenseLayer::getOutputBufferAt(BufferType type, int timestep) {
-    assert(timestep == 0);
-    return outputBuffers_[type][timestep];
+MTL::Buffer* DenseLayer::getOutputBufferAt(BufferType type) {
+    return outputBuffers_[type][0];
 }
 
 int DenseLayer::inputSize() const {
@@ -229,21 +225,20 @@ int DenseLayer::outputSize() const {
 }
 
 void DenseLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                           MTL::Buffer* zeroBuffer, int timestep) {
-    setInputBufferAt(BufferType::Input, timestep,
+                                           MTL::Buffer* zeroBuffer) {
+    setInputBufferAt(BufferType::Input,
                      previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
-                     : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     ? previousLayer->getOutputBufferAt(BufferType::Output)
+                     : inputLayer->getOutputBufferAt(BufferType::Output)
                      );
 }
 
 void DenseLayer::connectBackwardConnections(Layer* prevLayer,
                                             Layer* inputLayer,
-                                            MTL::Buffer* zeroBuffer,
-                                            int timestep)
+                                            MTL::Buffer* zeroBuffer)
 {
     if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::IncomingErrors, timestep, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
+        prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
     }
 }
 

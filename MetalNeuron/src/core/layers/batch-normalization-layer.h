@@ -22,21 +22,21 @@ public:
     void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
     
-    void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;
+    void setInputBufferAt(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBufferAt(BufferType type) override;
 
-    void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) override;
+    void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputBufferAt(BufferType type) override;
     
     int inputSize() const override { return inputDim_; }
     int outputSize() const override;
-    void updateTargetBufferAt(const float* targetData, int timestep) override;
-    void updateTargetBufferAt(const float* targetData, int timestep, int batchSize) override;
+    void updateTargetBufferAt(const float* targetData) override;
+    void updateTargetBufferAt(const float* targetData, int batchSize) override;
     
     void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                             MTL::Buffer* zeroBuffer, int timestep) override;
+                             MTL::Buffer* zeroBuffer) override;
     void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) override;
+                                     MTL::Buffer* zeroBuffer) override;
     
     void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
     void onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;

@@ -22,19 +22,19 @@ public:
     void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
 
+    void updateTargetBufferAt(const float*) override {}
     void updateTargetBufferAt(const float*, int) override {}
-    void updateTargetBufferAt(const float*, int, int) override {}
     
     
-    void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;
+    void setInputBufferAt(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBufferAt(BufferType type) override;
 
-    void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) override;
+    void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputBufferAt(BufferType type) override;
     void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                         MTL::Buffer* zeroBuffer, int timestep) override;
+                                         MTL::Buffer* zeroBuffer) override;
     void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) override;
+                                     MTL::Buffer* zeroBuffer) override;
     
     int inputSize() const override { return inputDim_; }
     int outputSize() const override { return featureDim_; }
