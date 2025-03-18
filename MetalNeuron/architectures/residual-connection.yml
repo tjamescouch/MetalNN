@@ -9,8 +9,8 @@ layers:
     name: "dense_1"
 
   - type: LayerNormalization
-    input_size: 256
-    output_size: 256
+    input_shape: [1, 256]
+    output_shape: [1, 256]
     epsilon: 1e-5
     
   - type: ResidualConnection
