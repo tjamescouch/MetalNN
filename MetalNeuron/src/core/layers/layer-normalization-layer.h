@@ -13,7 +13,7 @@
 
 class LayerNormalizationLayer : public Layer {
 public:
-    LayerNormalizationLayer(int featureDim, int batchSize, float learningRate, float epsilon = 1e-5f);
+    LayerNormalizationLayer(int featureDim, int seqLength, int batchSize, float learningRate, float epsilon);
     ~LayerNormalizationLayer() override;
 
     void buildBuffers(MTL::Device* device) override;
@@ -47,10 +47,11 @@ public:
 
     void debugLog() override { /*TODO*/ }
 
-    void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; }  
+    void setIsTerminal(bool isTerminal) override { isTerminal_ = isTerminal; }
     
 private:
     int featureDim_;
+    int seqLength_;
     float epsilon_;
     bool isTerminal_;
     int batchSize_;

@@ -35,6 +35,10 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
     std::cout << "Getting common layer parameters..." << std::endl;
     int inputSize = layerConfig.params.at("input_size").get_value<int>();
     int outputSize = layerConfig.params.at("output_size").get_value<int>();
+    
+    int sequence_length = layerConfig.params["sequence_length"].get_value_or<int>(1);
+    sequence_length = sequence_length > 0 ? sequence_length : 1;
+    
 
     // Provide a default sequential numeric ID if name not explicitly provided
     std::string layerName = layerConfig.params["name"].get_value_or<std::string>(
@@ -63,14 +67,13 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         
     } else if (layerConfig.type == "SelfAttention") {
         std::cout << "Creating self attention layer..." << std::endl;
-        float sequence_length = layerConfig.params.at("sequence_length").get_value_or<float>(0.3);
+        
         auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
         
         layer = (new SelfAttentionLayer(inputSize, outputSize, sequence_length, batchSize))->setInitializer(initializer);
         
     } else if (layerConfig.type == "MultiHeadAttention") {
         std::cout << "Creating multi-head attention layer..." << std::endl;
-        float sequence_length = layerConfig.params.at("sequence_length").get_value_or<float>(0.3);
         int num_heads = layerConfig.params.at("num_heads").get_value_or<int>(2);
         auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
         
@@ -86,7 +89,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         std::cout << "Creating layer normalization layer..." << std::endl;
         float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
         epsilon = epsilon > 0 ? epsilon : 1e-5f;
-        layer = new LayerNormalizationLayer(inputSize, batchSize, learningRate, epsilon);
+        layer = new LayerNormalizationLayer(inputSize, batchSize, sequence_length, learningRate, epsilon);
         
     } else if (layerConfig.type == "ResidualConnection") {
         auto from = layerConfig.params.at("from_layer").get_value<std::string>();
