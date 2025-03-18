@@ -214,46 +214,42 @@ void LayerNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize
 }
 
 
-void LayerNormalizationLayer::updateTargetBufferAt(const float* targetData, int timestep) {
-    assert(timestep==0 && "Timesteps not supported for this layer");
+void LayerNormalizationLayer::updateTargetBufferAt(const float* targetData) {
+    assert(false);
 }
 
-void LayerNormalizationLayer::updateTargetBufferAt(const float* targetData, int timestep, int batchSize) {
-    assert(timestep==0 && "Timesteps not supported for this layer");
+void LayerNormalizationLayer::updateTargetBufferAt(const float* targetData, int batchSize) {
+    assert(false);
 }
 
 
-void LayerNormalizationLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
-    assert(timestep==0 && "Timesteps not supported for this layer");
+void LayerNormalizationLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
     assert(buffer && "Setting input buffer to NULL");
-    inputBuffers_[type][timestep] = buffer;
+    inputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* LayerNormalizationLayer::getOutputBufferAt(BufferType type, int timestep) {
-    assert(timestep==0 && "Timesteps not supported for this layer");
-    return outputBuffers_[type][timestep];
+MTL::Buffer* LayerNormalizationLayer::getOutputBufferAt(BufferType type) {
+    return outputBuffers_[type][0];
 }
 
-void LayerNormalizationLayer::setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
-    assert(timestep==0 && "Timesteps not supported for this layer");
-    outputBuffers_[type][timestep] = buffer;
+void LayerNormalizationLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+    outputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* LayerNormalizationLayer::getInputBufferAt(BufferType type, int timestep) {
-    assert(timestep==0 && "Timesteps not supported for this layer");
-    return inputBuffers_[type][timestep];
+MTL::Buffer* LayerNormalizationLayer::getInputBufferAt(BufferType type) {
+    return inputBuffers_[type][0];
 }
 
-void LayerNormalizationLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer, MTL::Buffer* zeroBuffer, int timestep) {
-    setInputBufferAt(BufferType::Input, timestep,
+void LayerNormalizationLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer, MTL::Buffer* zeroBuffer) {
+    setInputBufferAt(BufferType::Input,
                      previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
-                     : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     ? previousLayer->getOutputBufferAt(BufferType::Output)
+                     : inputLayer->getOutputBufferAt(BufferType::Output)
                      );
 }
 
-void LayerNormalizationLayer::connectBackwardConnections(Layer* prevLayer, Layer* inputLayer, MTL::Buffer* zeroBuffer, int timestep) {
-    prevLayer->setInputBufferAt(BufferType::IncomingErrors, 0, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
+void LayerNormalizationLayer::connectBackwardConnections(Layer* prevLayer, Layer* inputLayer, MTL::Buffer* zeroBuffer) {
+    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }
 
 void LayerNormalizationLayer::saveParameters(std::ostream& os) const {

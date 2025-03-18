@@ -23,20 +23,20 @@ public:
 
     
     void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) override;
+                                     MTL::Buffer* zeroBuffer) override;
     void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) override;
+                                     MTL::Buffer* zeroBuffer) override;
     
-    void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) override;
-    void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputBufferAt(BufferType type, int timestep) override;
+    void setInputBufferAt(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBufferAt(BufferType type) override;
+    void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputBufferAt(BufferType type) override;
 
     int inputSize() const override;
     int outputSize() const override;
 
-    void updateTargetBufferAt(const float* targetData, int timestep) override;
-    void updateTargetBufferAt(const float* targetData, int timestep, int batchSize) override;
+    void updateTargetBufferAt(const float* targetData) override;
+    void updateTargetBufferAt(const float* targetData, int batchSize) override;
 
     void debugLog() override;
 
@@ -51,7 +51,6 @@ public:
 private:
     int output_dim_;
     int inputSize_;
-    int sequenceLength_;
     ReductionType reductionType_;
     bool isTerminal_;
     

@@ -290,34 +290,33 @@ void MultiHeadAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
     encoder->endEncoding();
 }
 
-void MultiHeadAttentionLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
+void MultiHeadAttentionLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
     inputBuffers_[type] = buffer;
 }
 
-MTL::Buffer* MultiHeadAttentionLayer::getOutputBufferAt(BufferType type, int) { return outputBuffers_[type]; }
+MTL::Buffer* MultiHeadAttentionLayer::getOutputBufferAt(BufferType type) { return outputBuffers_[type]; }
 
-void MultiHeadAttentionLayer::setOutputBufferAt(BufferType type, int, MTL::Buffer* buffer) {
+void MultiHeadAttentionLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type] = buffer;
 }
-MTL::Buffer* MultiHeadAttentionLayer::getInputBufferAt(BufferType type, int) { return inputBuffers_[type]; }
+MTL::Buffer* MultiHeadAttentionLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
 
 
 void MultiHeadAttentionLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) {
-    setInputBufferAt(BufferType::Input, timestep,
+                                     MTL::Buffer* zeroBuffer) {
+    setInputBufferAt(BufferType::Input,
                      previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
-                     : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     ? previousLayer->getOutputBufferAt(BufferType::Output)
+                     : inputLayer->getOutputBufferAt(BufferType::Output)
                      );
 }
 
 void MultiHeadAttentionLayer::connectBackwardConnections(Layer* prevLayer,
                                    Layer* inputLayer,
-                                   MTL::Buffer* zeroBuffer,
-                                   int timestep)
+                                   MTL::Buffer* zeroBuffer)
 {
     if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::IncomingErrors, timestep, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
+        prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
     }
 }
 

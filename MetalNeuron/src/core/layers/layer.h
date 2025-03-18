@@ -84,22 +84,22 @@ public:
     // Record commands for the backward pass.
     virtual void backward(MTL::CommandBuffer* cmdBuf, int batchSize) = 0;
     
-    virtual void setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) = 0;
-    virtual MTL::Buffer* getOutputBufferAt(BufferType type, int timestep) = 0;
-    virtual void setOutputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) = 0;
-    virtual MTL::Buffer* getInputBufferAt(BufferType type, int timestep) = 0;
+    virtual void setInputBufferAt(BufferType type, MTL::Buffer* buffer) = 0;
+    virtual MTL::Buffer* getOutputBufferAt(BufferType type) = 0;
+    virtual void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) = 0;
+    virtual MTL::Buffer* getInputBufferAt(BufferType type) = 0;
     
     virtual int inputSize() const = 0;
     virtual int outputSize() const = 0;
     
-    virtual void updateTargetBufferAt(const float* targetData, int timestep) = 0;
-    virtual void updateTargetBufferAt(const float* targetData, int timestep,
+    virtual void updateTargetBufferAt(const float* targetData) = 0;
+    virtual void updateTargetBufferAt(const float* targetData,
                                       int batchSize) = 0;
     
     virtual void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                           MTL::Buffer* zeroBuffer, int timestep) = 0;
+                                           MTL::Buffer* zeroBuffer) = 0;
     virtual void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                            MTL::Buffer* zeroBuffer, int timestep) = 0;
+                                            MTL::Buffer* zeroBuffer) = 0;
     
     virtual void debugLog() = 0;
     virtual void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) = 0;

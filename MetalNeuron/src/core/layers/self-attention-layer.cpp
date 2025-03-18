@@ -239,56 +239,42 @@ void SelfAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSi
     encoder->endEncoding();
 }
 
-void SelfAttentionLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
+void SelfAttentionLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
     inputBuffers_[type] = buffer;
 }
 
-MTL::Buffer* SelfAttentionLayer::getOutputBufferAt(BufferType type, int) { return outputBuffers_[type]; }
+MTL::Buffer* SelfAttentionLayer::getOutputBufferAt(BufferType type) { return outputBuffers_[type]; }
 
-void SelfAttentionLayer::setOutputBufferAt(BufferType type, int, MTL::Buffer* buffer) {
+void SelfAttentionLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type] = buffer;
 }
-MTL::Buffer* SelfAttentionLayer::getInputBufferAt(BufferType type, int) { return inputBuffers_[type]; }
+MTL::Buffer* SelfAttentionLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
 
 
 void SelfAttentionLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) {
-    setInputBufferAt(BufferType::Input, timestep,
+                                     MTL::Buffer* zeroBuffer) {
+    setInputBufferAt(BufferType::Input,
                      previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
-                     : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     ? previousLayer->getOutputBufferAt(BufferType::Output)
+                     : inputLayer->getOutputBufferAt(BufferType::Output)
                      );
 }
 
 void SelfAttentionLayer::connectBackwardConnections(Layer* prevLayer,
                                    Layer* inputLayer,
-                                   MTL::Buffer* zeroBuffer,
-                                   int timestep)
+                                   MTL::Buffer* zeroBuffer)
 {
     if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::IncomingErrors, timestep, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
+        prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
     }
 }
 
 void SelfAttentionLayer::debugLog() {}
 void SelfAttentionLayer::onForwardComplete(MTL::CommandQueue*, int) {
-    //Logger::log.printFloatBuffer(inputBuffers_[BufferType::InputErrors], "[Self-Attention Input Errors]", 10);
-    //Logger::log.printFloatBuffer(inputBuffers_[BufferType::Input], "[Forward Self-Attention Input (full)]", seqLength_ * inputDim_);
-    //Logger::log.printFloatBuffer(outputBuffers_[BufferType::Output], "[Forward Self-Attention Output]", 2);
     
 }
 
 void SelfAttentionLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    /*
-    Logger::log << "input errors @" << inputBuffers_[BufferType::InputErrors] << std::endl;
-    Logger::log.printFloatBuffer(inputBuffers_[BufferType::InputErrors], "[B Self-Attention Input Errors]", 10);
-    Logger::log.printFloatBuffer(outputBuffers_[BufferType::OutputErrors], "[B Self-Attention Output Errors]", 10);
-    
-    Logger::log.printFloatBuffer(optimizerWeightsQ_->gradientBuffer(), "[Gradient Weights Q]", 10);
-    Logger::log.printFloatBuffer(optimizerWeightsK_->gradientBuffer(), "[Gradient Weights K]", 10);
-    Logger::log.printFloatBuffer(optimizerWeightsV_->gradientBuffer(), "[Gradient Weights V]", 10);
-    Logger::log.printFloatBuffer(optimizerOutputProjection_->gradientBuffer(), "[Gradient Output Projection]", 10);
-     */
 }
 
 void SelfAttentionLayer::saveParameters(std::ostream&) const {}

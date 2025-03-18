@@ -73,43 +73,42 @@ void ResidualConnectionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
     encoder->endEncoding();
 }
 
-void ResidualConnectionLayer::setInputBufferAt(BufferType type, int timestep, MTL::Buffer* buffer) {
+void ResidualConnectionLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
     inputBuffers_[type] = buffer;
 }
 
-MTL::Buffer* ResidualConnectionLayer::getOutputBufferAt(BufferType type, int) { return outputBuffers_[type]; }
-void ResidualConnectionLayer::setOutputBufferAt(BufferType type, int, MTL::Buffer* buffer) {
+MTL::Buffer* ResidualConnectionLayer::getOutputBufferAt(BufferType type) { return outputBuffers_[type]; }
+void ResidualConnectionLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type] = buffer;
 }
-MTL::Buffer* ResidualConnectionLayer::getInputBufferAt(BufferType type, int) { return inputBuffers_[type]; }
+MTL::Buffer* ResidualConnectionLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
 
 int ResidualConnectionLayer::inputSize() const { return featureDim_; }
 int ResidualConnectionLayer::outputSize() const { return featureDim_; }
 
-void ResidualConnectionLayer::updateTargetBufferAt(const float* targetData, int timestep) {
+void ResidualConnectionLayer::updateTargetBufferAt(const float* targetData) {
     assert(false && "ResidualConnectionLayer cannot be used as a terminal layer with targets.");
 }
 
-void ResidualConnectionLayer::updateTargetBufferAt(const float* targetData, int timestep, int batchSize) {
+void ResidualConnectionLayer::updateTargetBufferAt(const float* targetData, int batchSize) {
     assert(false && "ResidualConnectionLayer cannot be used as a terminal layer with targets.");
 }
 
 void ResidualConnectionLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer, int timestep) {
-    setInputBufferAt(BufferType::Input, timestep,
+                                     MTL::Buffer* zeroBuffer) {
+    setInputBufferAt(BufferType::Input,
                      previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output, timestep)
-                     : inputLayer->getOutputBufferAt(BufferType::Output, timestep)
+                     ? previousLayer->getOutputBufferAt(BufferType::Output)
+                     : inputLayer->getOutputBufferAt(BufferType::Output)
                      );
 }
 
 void ResidualConnectionLayer::connectBackwardConnections(Layer* prevLayer,
                                    Layer* inputLayer,
-                                   MTL::Buffer* zeroBuffer,
-                                   int timestep)
+                                   MTL::Buffer* zeroBuffer)
 {
     if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::IncomingErrors, timestep, getOutputBufferAt(BufferType::OutgoingErrors, timestep));
+        prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
     }
 }
 
