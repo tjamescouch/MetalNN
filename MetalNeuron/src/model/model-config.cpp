@@ -33,11 +33,13 @@ ModelConfig ModelConfig::loadFromFile(const std::string& filePath) {
     float default_beta2 = 0.999f;
     float epsilon = 1e-8;
     
+    optimizerConfig.accumulation_interval = optimizerNode["accumulation_interval"].get_value_or<uint>(1);
     optimizerConfig.learning_rate = optimizerNode["learning_rate"].get_value_or<float>(deault_learning_rate);
     optimizerConfig.beta1   = optimizerNode["parameters"]["beta1"].get_value_or<float>(default_beta1);
     optimizerConfig.beta2   = optimizerNode["parameters"]["beta2"].get_value_or<float>(default_beta2);
     optimizerConfig.epsilon = optimizerNode["parameters"]["epsilon"].get_value_or<float>(epsilon);
     
+    optimizerConfig.accumulation_interval = optimizerConfig.accumulation_interval > 0 ? optimizerConfig.accumulation_interval : 1;
     optimizerConfig.learning_rate = optimizerConfig.learning_rate > 0 ? optimizerConfig.learning_rate : deault_learning_rate;
     optimizerConfig.beta1 = optimizerConfig.beta1 > 0 ? optimizerConfig.beta1 : default_beta1;
     optimizerConfig.beta2 = optimizerConfig.beta2 > 0 ? optimizerConfig.beta2 : default_beta2;

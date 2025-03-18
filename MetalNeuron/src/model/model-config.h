@@ -23,6 +23,7 @@ struct LayerConfig {
 // Optimizer configuration
 struct OptimizerConfig {
     std::string type;
+    uint accumulation_interval;
     float learning_rate;
     float beta1;
     float beta2;

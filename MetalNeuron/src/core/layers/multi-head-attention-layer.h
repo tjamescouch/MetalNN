@@ -52,6 +52,7 @@ private:
     uint batchSize_;
     uint numHeads_;
     bool isTerminal_ = false;
+    float scale_;
     
     std::string initializer_;
 

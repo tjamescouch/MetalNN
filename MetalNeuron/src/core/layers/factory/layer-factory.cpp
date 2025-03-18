@@ -69,7 +69,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         layer = (new SelfAttentionLayer(inputSize, outputSize, sequence_length, batchSize))->setInitializer(initializer);
         
     } else if (layerConfig.type == "MultiHeadAttention") {
-        std::cout << "Creating self attention layer..." << std::endl;
+        std::cout << "Creating multi-head attention layer..." << std::endl;
         float sequence_length = layerConfig.params.at("sequence_length").get_value_or<float>(0.3);
         int num_heads = layerConfig.params.at("num_heads").get_value_or<int>(2);
         auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");

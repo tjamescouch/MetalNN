@@ -124,7 +124,7 @@ extern "C" void setupTextField(void* nsWindow) {
 
         // Explicitly set text attributes:
         NSMutableParagraphStyle* paragraphStyle = [[NSMutableParagraphStyle alloc] init];
-        [paragraphStyle setLineSpacing:0.5]; // Adds spacing between lines
+        [paragraphStyle setLineSpacing:1.0]; // Adds spacing between lines
 
         [globalTextView setTypingAttributes:@{
             NSFontAttributeName: [NSFont fontWithName:@"Menlo" size:10],
@@ -159,7 +159,7 @@ extern "C" void updateTextField(const char* message) {
             };
 
             NSAttributedString* attributedMessage = [[NSAttributedString alloc]
-                initWithString:[safeString stringByAppendingString:@"\n"]
+                initWithString:[safeString stringByAppendingString:@""]
                 attributes:attributes];
 
             NSScrollView* scrollView = [globalTextView enclosingScrollView];

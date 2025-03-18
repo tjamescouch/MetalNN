@@ -149,9 +149,14 @@ void BatchNormalizationLayer::buildPipeline(MTL::Device* device, MTL::Library* l
     
     ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
     auto optimizerConfig = pConfig->training.optimizer;
+    
+    uint accumulation_interval = optimizerConfig.accumulation_interval;
+    float beta1 = optimizerConfig.beta1;
+    float beta2 = optimizerConfig.beta2;
+    float epsilon = optimizerConfig.epsilon;
 
-    optimizerGamma_ = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
-    optimizerBeta_  = std::make_unique<AdamOptimizer>(learningRate_, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    optimizerGamma_ = std::make_unique<AdamOptimizer>(learningRate_, beta1, beta2, epsilon, accumulation_interval);
+    optimizerBeta_  = std::make_unique<AdamOptimizer>(learningRate_, beta1, beta2, epsilon, accumulation_interval);
     
     optimizerGamma_->buildPipeline(device, library);
     optimizerBeta_->buildPipeline(device, library);

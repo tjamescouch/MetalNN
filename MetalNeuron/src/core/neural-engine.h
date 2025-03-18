@@ -39,8 +39,6 @@ public:
     
     void handleKeyStateChange();
     
-    void initializeWithDataset(Dataset* dataset);
-    
     void runTraining();
     void runInference();
     void saveParameters();

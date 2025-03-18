@@ -12,28 +12,31 @@
 #include "adam-optimizer.h"
 #include "weight-initializer.h"
 
-MultiHeadAttentionLayer::MultiHeadAttentionLayer(uint inputDim, uint modelDim, uint seqLength, uint batchSize, uint numHeads)
-    : inputDim_(inputDim),
-      modelDim_(modelDim),
-      seqLength_(seqLength),
-      batchSize_(batchSize),
-      numHeads_(numHeads),
-      device_(nullptr),
-      bufferAttentionWeights_(nullptr),
-      bufferScratch_(nullptr),
-      bufferQ_(nullptr),
-      bufferK_(nullptr),
-      bufferV_(nullptr),
-      weightsQ_(nullptr),
-      weightsK_(nullptr),
-      weightsV_(nullptr),
-      outputProjection_(nullptr),
-      optimizerWeightsQ_(nullptr),
-      optimizerWeightsK_(nullptr),
-      optimizerWeightsV_(nullptr),
-      optimizerOutputProjection_(nullptr),
-      forwardPipelineState_(nullptr),
-      backwardPipelineState_(nullptr) {
+MultiHeadAttentionLayer::MultiHeadAttentionLayer(uint inputDim, uint modelDim, uint seqLength, uint batchSize, uint numHeads) :
+inputDim_(inputDim),
+modelDim_(modelDim),
+seqLength_(seqLength),
+batchSize_(batchSize),
+numHeads_(numHeads),
+device_(nullptr),
+bufferAttentionWeights_(nullptr),
+bufferScratch_(nullptr),
+bufferQ_(nullptr),
+bufferK_(nullptr),
+bufferV_(nullptr),
+weightsQ_(nullptr),
+weightsK_(nullptr),
+weightsV_(nullptr),
+outputProjection_(nullptr),
+optimizerWeightsQ_(nullptr),
+optimizerWeightsK_(nullptr),
+optimizerWeightsV_(nullptr),
+optimizerOutputProjection_(nullptr),
+forwardPipelineState_(nullptr),
+backwardPipelineState_(nullptr) {
+    assert(modelDim_ % numHeads_ == 0);
+    uint headDim = modelDim / numHeads;
+    scale_ = 1.0f/sqrt(float(headDim));
 }
 
 MultiHeadAttentionLayer::~MultiHeadAttentionLayer() {
@@ -77,12 +80,17 @@ void MultiHeadAttentionLayer::buildPipeline(MTL::Device* device, MTL::Library* l
     ModelConfig* pConfig = ConfigurationManager::instance().getConfig();
     auto parameters = pConfig->training.optimizer.parameters;
     auto optimizerConfig = pConfig->training.optimizer;
-    float lr = pConfig->training.optimizer.learning_rate;
+    float lr = pConfig->training.optimizer.learning_rate; //FIXME get layer specific learning rate in factory
+    
+    uint accumulation_interval = optimizerConfig.accumulation_interval;
+    float beta1 = optimizerConfig.beta1;
+    float beta2 = optimizerConfig.beta2;
+    float epsilon = optimizerConfig.epsilon;
         
-    optimizerWeightsQ_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
-    optimizerWeightsK_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
-    optimizerWeightsV_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
-    optimizerOutputProjection_ = std::make_unique<AdamOptimizer>(lr, optimizerConfig.beta1, optimizerConfig.beta2, optimizerConfig.epsilon);
+    optimizerWeightsQ_         = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon, accumulation_interval);
+    optimizerWeightsK_         = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon, accumulation_interval);
+    optimizerWeightsV_         = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon, accumulation_interval);
+    optimizerOutputProjection_ = std::make_unique<AdamOptimizer>(lr, beta1, beta2, epsilon, accumulation_interval);
     
     optimizerWeightsQ_->buildPipeline(device, library);
     optimizerWeightsK_->buildPipeline(device, library);
@@ -179,13 +187,24 @@ void MultiHeadAttentionLayer::forward(MTL::CommandBuffer* commandBuffer, int bat
     encoder->setBytes(&inputDim_, sizeof(uint), 11);
     encoder->setBytes(&modelDim_, sizeof(uint), 12);
     encoder->setBytes(&numHeads_, sizeof(uint), 13);
+    encoder->setBytes(&scale_, sizeof(float), 14);
 
-    // Thread dispatch configuration
-    const int gridSize = batchSize * seqLength_ * modelDim_;
-    MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
-    MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 1024), 1, 1);
+    
+    
 
-    encoder->dispatchThreads(threadsPerGrid, threadsPerGroup);
+    // 6) Calculate thread count: each thread handles 1 token => batchSize * seqLength
+    const uint32_t totalThreads = batchSize * seqLength_;
+
+    // 7) Choose a threadgroup size. For example, 64:
+    MTL::Size threadsPerThreadgroup = MTL::Size::Make(64, 1, 1);
+
+    // The grid size is totalThreads in 1D
+    MTL::Size gridSize = MTL::Size::Make(totalThreads, 1, 1);
+
+    // 8) Encode the dispatch
+    encoder->dispatchThreads(gridSize, threadsPerThreadgroup);
+    
+    
     encoder->endEncoding();
 }
 
@@ -227,13 +246,36 @@ void MultiHeadAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
     encoder->setBuffer(bufferScratch_, 0, 19);     // Gradients for outputProjection
     
     encoder->setBytes(&numHeads_, sizeof(uint), 20);
+    encoder->setBytes(&scale_, sizeof(float), 21);
+    
+    
 
-    // Thread dispatch configuration
-    const int gridSize = batchSize * seqLength_ * modelDim_;
-    MTL::Size threadsPerGrid = MTL::Size(gridSize, 1, 1);
-    MTL::Size threadsPerGroup = MTL::Size(std::min(gridSize, 1024), 1, 1);
+    // 1) Each thread in this kernel handles exactly one (batchIndex, seqIndex).
+    //    So total number of threads needed = batchSize * seqLength.
+    const uint32_t totalTokens = batchSize * seqLength_;
 
-    encoder->dispatchThreads(threadsPerGrid, threadsPerGroup);
+    // 2) Pick a threadgroup (aka "block") size, e.g. 256 or 128.
+    //    There's no universal best; you usually experiment or pick a typical GPU-friendly size.
+    const uint32_t threadsPerGroup = 256;
+
+    // 3) Compute how many threadgroups we need:
+    //    Each threadgroup has 'threadsPerGroup' threads,
+    //    so numberOfThreadgroups = ceil(totalTokens / threadsPerGroup).
+    uint32_t numberOfThreadgroups = (totalTokens + threadsPerGroup - 1) / threadsPerGroup;
+
+    // 4) In Metal, we can dispatch in 1D. We form an MTL::Size for threadgroups,
+    //    and one for the threadsPerGroup.
+    MTL::Size threadgroupCount = MTL::Size::Make(numberOfThreadgroups, 1, 1);
+    MTL::Size threadgroupSize  = MTL::Size::Make(threadsPerGroup, 1, 1);
+
+    // 5) Encode the dispatch:
+    //    "dispatchThreadgroups" uses the # of threadgroups and the threadsPerGroup size.
+    //    The kernel will see:
+    //      blockId in [0..numberOfThreadgroups-1]
+    //      tid in [0..threadsPerGroup-1]
+    //    Then 'gid = blockId*threadsPerGroup + tid'
+    //    (that matches how your kernel calculates its global ID).
+    encoder->dispatchThreadgroups(threadgroupCount, threadgroupSize);
     
     optimizerWeightsQ_->encode(encoder, bufferQ_, inputDim_ * modelDim_, batchSize);
     optimizerWeightsK_->encode(encoder, bufferK_, inputDim_ * modelDim_, batchSize);

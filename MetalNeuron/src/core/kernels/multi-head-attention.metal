@@ -30,6 +30,7 @@ kernel void forward_multi_head_attention(
     constant uint& inputDim                  [[buffer(11)]],
     constant uint& modelDim                  [[buffer(12)]],
     constant uint& numHeads                  [[buffer(13)]],
+    constant float& scale                    [[buffer(14)]],
 
     uint gid                                 [[thread_position_in_grid]])
 {
@@ -62,7 +63,6 @@ kernel void forward_multi_head_attention(
         }
 
         threadgroup float attn_scores[MAX_SEQ_LENGTH];
-        float scale = rsqrt(float(headDim));
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
@@ -115,8 +115,6 @@ kernel void forward_multi_head_attention(
     }
 }
 
-#include <metal_stdlib>
-using namespace metal;
 
 // For your tuning
 #define TILE_DIM 16
@@ -158,6 +156,8 @@ kernel void backward_multi_head_attention(
     device float*       scratch        [[buffer(19)]],
 
     constant uint&      numHeads       [[buffer(20)]],
+                                          
+    constant float& scale              [[buffer(21)]],
 
     // Thread info
     uint tid                           [[thread_position_in_threadgroup]],
@@ -340,7 +340,7 @@ kernel void backward_multi_head_attention(
         // F) dQ_head, dK_s => from dAttnW
         //    scale= 1 / sqrt(headDim)
         //-----------------------------------------
-        float scale = 1.0f / sqrt((float)headDim);
+        
         // zero dQ_head
         for (uint d = 0; d < headDim; d++) {
             dQ_head[d] = 0.0f;
