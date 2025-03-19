@@ -17,6 +17,7 @@
 #include "reshape-layer.h"
 #include "map-reduce-layer.h"
 #include "configuration-manager.h"
+#include "logger.h"
 
 const char* inputLayerName = "input";
 
@@ -27,17 +28,26 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
                                  MTL::Device* device,
                                  MTL::Library* library,
                                  bool isTerminal) {
+    Logger::log << "Getting layer name" << std::endl;
+    // Provide a default sequential numeric ID if name not explicitly provided
+    std::string layerName = layerConfig.params["name"].get_value_or<std::string>(
+        "layer_" + std::to_string(layerIdCounter_++)
+    );
+    layerConfig.params["name"] = layerName;
+    
+    Logger::log << "Configuring layer" << layerName << std::endl;
 
-    std::cout << "Getting global parameters..." << std::endl;
+    Logger::log << "Getting global parameters..." << std::endl;
     auto config = ConfigurationManager::instance().getConfig();
     auto batchSize = config->training.batch_size;
 
-    std::cout << "Getting common layer parameters..." << std::endl;
+    Logger::log << "Getting common layer parameters..." << std::endl;
     int inputSize = 0;
     int outputSize = 0;
     int sequenceLength = 1;  // default for non-sequence layers
     int outputSequenceLength = 1;  // default for non-sequence layers
 
+    Logger::log << "Getting input shape" << std::endl;
     // Explicitly handle shapes for sequence-aware layers
     if (layerConfig.params.contains("input_shape")) {
         int inputShape[2] = {};
@@ -48,6 +58,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         inputSize = layerConfig.params["input_size"].get_value<int>();
     }
 
+    Logger::log << "Getting output shape" << std::endl;
     if (layerConfig.params.contains("output_shape")) {
         int outputShape[2] = {};
         layerConfig.params["output_shape"].get_value_inplace(outputShape);
@@ -57,18 +68,12 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         outputSize = layerConfig.params["output_size"].get_value<int>();
     }
 
-    // Provide a default sequential numeric ID if name not explicitly provided
-    std::string layerName = layerConfig.params["name"].get_value_or<std::string>(
-        "layer_" + std::to_string(layerIdCounter_++)
-    );
-    layerConfig.params["name"] = layerName;
-
     auto learningRate = layerConfig.learning_rate;
 
     Layer* layer = nullptr;
 
     if (layerConfig.type == "Input") {
-        std::cout << "Creating input layer..." << std::endl;
+        Logger::log << "Creating input layer..." << std::endl;
 
         // Extract the explicit output shape for the InputLayer
         int outputShape[2] = {};
@@ -79,7 +84,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         // Instantiate the InputLayer explicitly with sequence awareness
         layer = new InputLayer(sequenceLength, featureDim, batchSize);
     } else if (layerConfig.type == "Dense") {
-        std::cout << "Creating dense layer..." << std::endl;
+        Logger::log << "Creating dense layer..." << std::endl;
         auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
         auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
 
@@ -89,53 +94,53 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
                     ->setInitializer(initializer);
         
     } else if (layerConfig.type == "Dropout") {
-        std::cout << "Creating dropout layer..." << std::endl;
+        Logger::log << "Creating dropout layer..." << std::endl;
         float rate = layerConfig.params.at("rate").get_value_or<float>(0.3);
         layer = new DropoutLayer(rate, inputSize, outputSize, batchSize, 1);
         
     } else if (layerConfig.type == "SelfAttention") {
-        std::cout << "Creating self attention layer..." << std::endl;
+        Logger::log << "Creating self attention layer..." << std::endl;
         
         auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
         
         layer = (new SelfAttentionLayer(inputSize, outputSize, sequenceLength, batchSize))->setInitializer(initializer);
         
     } else if (layerConfig.type == "MultiHeadAttention") {
-        std::cout << "Creating multi-head attention layer..." << std::endl;
+        Logger::log << "Creating multi-head attention layer..." << std::endl;
         int num_heads = layerConfig.params.at("num_heads").get_value_or<int>(2);
         auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
         
         layer = (new MultiHeadAttentionLayer(inputSize, outputSize, sequenceLength, batchSize, num_heads))->setInitializer(initializer);
         
     } else if (layerConfig.type == "BatchNormalization") {
-        std::cout << "Creating batch normalization layer..." << std::endl;
+        Logger::log << "Creating batch normalization layer..." << std::endl;
         float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
         epsilon = epsilon > 0 ? epsilon : 1e-5f;
         layer = new BatchNormalizationLayer(inputSize, outputSize, batchSize, 1, learningRate, epsilon);
         
     } else if (layerConfig.type == "LayerNormalization") {
-        std::cout << "Creating layer normalization layer..." << std::endl;
+        Logger::log << "Creating layer normalization layer..." << std::endl;
         float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
         epsilon = epsilon > 0 ? epsilon : 1e-5f;
         layer = new LayerNormalizationLayer(inputSize, sequenceLength, batchSize, learningRate, epsilon);
         
     } else if (layerConfig.type == "ResidualConnection") {
         auto from = layerConfig.params.at("from_layer").get_value<std::string>();
-        std::cout << "Creating residual connection layer from " << from << "..." << std::endl;
+        Logger::log << "Creating residual connection layer from " << from << "..." << std::endl;
         layer = (new ResidualConnectionLayer(inputSize, batchSize))
                     ->setFromLayer(layerMap_[from]);
         
     } else if (layerConfig.type == "MapReduce") {
-        std::cout << "Creating MapReduce layer..." << std::endl;
+        Logger::log << "Creating MapReduce layer..." << std::endl;
         auto reductionType = layerConfig.params.at("reduction_type").get_value<std::string>();
         layer = new MapReduceLayer(inputSize, outputSize, parseReductionType(reductionType));
         
     } else if (layerConfig.type == "Flatten") {
-        std::cout << "Creating Flatten layer..." << std::endl;
+        Logger::log << "Creating Flatten layer..." << std::endl;
         layer = new FlattenLayer(sequenceLength, inputSize, outputSize, batchSize);
         
     } else if (layerConfig.type == "Reshape") {
-        std::cout << "Creating Reshape layer..." << std::endl;
+        Logger::log << "Creating Reshape layer..." << std::endl;
         layer = new ReshapeLayer(outputSequenceLength, inputSize, outputSize, batchSize);
         
     } else {
