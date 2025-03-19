@@ -72,6 +72,7 @@ private:
     int epochs;
     int input_dim;
     int output_dim;
+    uint terminalSequenceLength_;
     std::string filename;
 };
 

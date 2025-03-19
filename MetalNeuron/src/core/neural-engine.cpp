@@ -21,10 +21,19 @@ _pLayerFactory(nullptr),
 input_dim(0),
 output_dim(0),
 epochs(0),
+terminalSequenceLength_(1),
 filename(config.filename)
 {
     batch_size = config.training.batch_size;
     epochs = config.training.epochs;
+    
+    const auto& terminalLayerConfig = config.layers.back();
+    
+    if (terminalLayerConfig.params.contains("output_shape")) {
+        int outputShape[2] = {};
+        terminalLayerConfig.params.at("output_shape").get_value_inplace(outputShape);
+        terminalSequenceLength_ = outputShape[0];
+    }
     
     input_dim = _pDataManager->inputDim();
     output_dim = _pDataManager->outputDim();
@@ -255,9 +264,10 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
         
         for (int i = 0; i < currentBatchSize; ++i) {
             Logger::instance().logAnalytics(
-                                            predictedData + i * output_dim, output_dim,
-                                            targetData + i * output_dim, output_dim
-                                            );
+                predictedData + i * output_dim * terminalSequenceLength_, output_dim * terminalSequenceLength_,
+                targetData + i * output_dim * terminalSequenceLength_, output_dim * terminalSequenceLength_,
+                terminalSequenceLength_
+            );
         }
         
         if (currentBatchSize > 0) {
@@ -269,7 +279,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
             Logger::instance().finalizeBatchLoss();
         }
         
-        Logger::instance().flushAnalytics();
+        Logger::instance().flushAnalytics(terminalSequenceLength_);
         Logger::instance().clearBatchData();
         
         computeForwardBatches(totalSamples - currentBatchSize, batchesRemaining - 1, onComplete);
@@ -314,9 +324,10 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
             
             for (int i = 0; i < currentBatchSize; ++i) {
                 Logger::instance().logAnalytics(
-                                                predictedData + i * output_dim, output_dim,
-                                                targetData + i * output_dim, output_dim
-                                                );
+                    predictedData + i * output_dim * terminalSequenceLength_, output_dim * terminalSequenceLength_,
+                    targetData + i * output_dim * terminalSequenceLength_, output_dim * terminalSequenceLength_,
+                    terminalSequenceLength_
+                );
             }
             
             Logger::instance().accumulateLoss(totalBatchLoss / currentBatchSize, 1);
@@ -329,7 +340,7 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
                 Logger::instance().finalizeBatchLoss();
             }
             
-            Logger::instance().flushAnalytics();
+            Logger::instance().flushAnalytics(terminalSequenceLength_);
             Logger::instance().clearBatchData();
             
             computeBackwardBatches(totalSamples, batchesRemaining - 1, onComplete);

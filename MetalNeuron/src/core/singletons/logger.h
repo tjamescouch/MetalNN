@@ -17,10 +17,9 @@ public:
     
     void clear();
     
-    void logErrors(const std::vector<float*>& outputErrors, int outputCount, int hiddenCount, int sequenceLength);
-    
     void logAnalytics(const float* output, int outputCount,
-                      const float* target, int targetCount);
+                      const float* target, int targetCount,
+                      const uint sequenceLength);
     
     void logMSE(float* targetData, float* outputData, int dimension);
     void logCrossEntropyLoss(float* targetData, float* outputData, int dimension);
@@ -31,7 +30,7 @@ public:
     
     void addSample(const float* prediction, const float* target);
 
-    void flushAnalytics();
+    void flushAnalytics(const uint sequenceLength);
     
     void clearBatchData();
     void flushBatchData();
@@ -65,7 +64,7 @@ public:
 
     
 private:
-    void flushRegressionAnalytics();
+    void flushRegressionAnalytics(const uint sequenceLength);
     void flushClassificationAnalytics();
     
     bool isRegression_ = true;
