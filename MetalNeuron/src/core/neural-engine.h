@@ -65,8 +65,6 @@ private:
     MTL::Library* _pComputeLibrary;
     MTL::CompileOptions* _pCompileOptions;
     
-    MTL::Buffer* zeroBuffer_ = nullptr;
-    
     bool areBuffersBuilt;
     bool currentlyComputing;
     dispatch_semaphore_t _semaphore;

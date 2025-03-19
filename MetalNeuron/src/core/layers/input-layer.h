@@ -1,4 +1,3 @@
-// input-layer.h
 #ifndef INPUT_LAYER_H
 #define INPUT_LAYER_H
 
@@ -14,7 +13,7 @@ class Layer;
 
 class InputLayer : public Layer {
 public:
-    InputLayer(int inputDim, int batchSize);
+    InputLayer(int sequenceLength, int inputDim, int batchSize);
     ~InputLayer();
     
     void buildBuffers(MTL::Device* device) override;
@@ -35,10 +34,8 @@ public:
     void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) override;
     MTL::Buffer* getInputBufferAt(BufferType type) override;
     
-    void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                             MTL::Buffer* zeroBuffer) override {};
-    void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                    MTL::Buffer* zeroBuffer) override {};
+    void connectForwardConnections(Layer* previousLayer) override {};
+    void connectBackwardConnections(Layer* previousLayer) override {};
     
     
     void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) override;
@@ -65,6 +62,7 @@ private:
     int inputDim_;
     bool isTerminal_;
     int batchSize_;
+    int sequenceLength_;
     
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;

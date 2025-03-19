@@ -17,12 +17,10 @@ NeuralEngine::NeuralEngine(MTL::Device* pDevice, ModelConfig& config, DataManage
 areBuffersBuilt(false),
 currentlyComputing(false),
 _pDataManager(pDataManager),
-_pInputLayer(nullptr),
 _pLayerFactory(nullptr),
 input_dim(0),
 output_dim(0),
 epochs(0),
-zeroBuffer_(nullptr),
 filename(config.filename)
 {
     batch_size = config.training.batch_size;
@@ -31,9 +29,7 @@ filename(config.filename)
     input_dim = _pDataManager->inputDim();
     output_dim = _pDataManager->outputDim();
     
-    _pInputLayer = new InputLayer(input_dim, batch_size);
-    
-    _pLayerFactory = new LayerFactory(_pInputLayer);
+    _pLayerFactory = new LayerFactory();
     
     Logger::instance().setBatchSize(batch_size);
     Logger::instance().setIsRegression(config.dataset.type == "function");
@@ -117,13 +113,14 @@ void NeuralEngine::createDynamicLayers(ModelConfig& config) {
     
     _pDataManager->initialize(batch_size, [this, &config]() {
         Logger::instance().clear();
-        buildBuffers();
         try {
             connectDynamicLayers(config);
         } catch (...) {
             Logger::log << "Caught error connecting layers" << std::endl;
             throw;
         }
+        
+        buildBuffers();
     });
 }
 
@@ -140,20 +137,14 @@ void NeuralEngine::connectDynamicLayers(ModelConfig& config) {
     }
     dynamicLayers_.back()->setIsTerminal(true);
     
-    int first_layer_time_steps = config.first_layer_time_steps > 0 ? config.first_layer_time_steps : 1;
+    dynamic_cast<InputLayer*>(dynamicLayers_[0])->updateBufferAt(_pDataManager->getCurrentDataset()->getInputDataAt(0), batch_size);
     
-    for (int t = 0; t < first_layer_time_steps; ++t) {
-        _pInputLayer->updateBufferAt(_pDataManager->getCurrentDataset()->getInputDataAt(t, 0), t);
+    for (size_t i = 1; i < dynamicLayers_.size(); ++i) {
+        dynamicLayers_[i]->connectForwardConnections(dynamicLayers_[i - 1]);
     }
     
-    // Input wiring:
-    for (size_t i = 0; i < dynamicLayers_.size(); ++i) {
-        dynamicLayers_[i]->connectForwardConnections(i > 0 ? dynamicLayers_[i - 1] : nullptr, _pInputLayer, zeroBuffer_);
-    }
-    
-    // Backward error buffer connections
-    for (int64_t i = dynamicLayers_.size() - 1; i >= 0; --i) {
-        dynamicLayers_[i]->connectBackwardConnections(i > 0 ? dynamicLayers_[i - 1] : nullptr, _pInputLayer, zeroBuffer_);
+    for (int64_t i = dynamicLayers_.size() - 1; i > 0; --i) {
+        dynamicLayers_[i]->connectBackwardConnections(dynamicLayers_[i - 1]);
     }
 }
 
@@ -174,15 +165,9 @@ void NeuralEngine::buildComputePipeline() {
 void NeuralEngine::buildBuffers() {
     _pDataManager->loadNextBatch(batch_size);
     
-    _pInputLayer->buildBuffers(_pDevice);
-    
-    
-    zeroBuffer_ = _pDevice->newBuffer(input_dim * batch_size * sizeof(float), MTL::ResourceStorageModeManaged);
-    std::memset(zeroBuffer_->contents(), 0, input_dim  * batch_size* sizeof(float));
-    
     Dataset* currentDataset = _pDataManager->getCurrentDataset();
-    float* inputData = currentDataset->getInputDataAt(0, 0);
-    _pInputLayer->updateBufferAt(inputData, 0);
+    const float* inputData = currentDataset->getInputDataAt(0);
+    dynamic_cast<InputLayer*>(dynamicLayers_[0])->updateBufferAt(inputData, batch_size);
     
     areBuffersBuilt = true;
 }
@@ -204,7 +189,6 @@ void NeuralEngine::computeForward(int batchSize, std::function<void()> onComplet
         currentlyComputing = false;
         dispatch_semaphore_signal(_semaphore);
         
-        _pInputLayer->onForwardComplete(_pCommandQueue, batchSize);
         for (auto& l : dynamicLayers_) {
             l->onForwardComplete(_pCommandQueue, batchSize);
         }
@@ -232,7 +216,6 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
         dispatch_semaphore_signal(_semaphore);
         
 #ifdef DEBUG_NETWORK
-        _pInputLayer->debugLog();
         for (auto& layer : dynamicLayers_) {
             layer->debugLog();
         }
@@ -241,7 +224,6 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
         for (auto it = dynamicLayers_.rbegin(); it != dynamicLayers_.rend(); ++it) {
             (*it)->onBackwardComplete(_pCommandQueue, batchSize);
         }
-        _pInputLayer->onBackwardComplete(_pCommandQueue, batchSize);
         
         onComplete();
     });
@@ -266,10 +248,10 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
     _pDataManager->loadNextBatch(currentBatchSize);
     
     
-    float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(0, 0);
-    float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(0, 0);
+    const float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(0);
+    const float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
     
-    _pInputLayer->updateBufferAt(inBuffer, currentBatchSize);
+    dynamic_cast<InputLayer*>(dynamicLayers_[0])->updateBufferAt(inBuffer, currentBatchSize);
     dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, currentBatchSize);
     
     computeForward(currentBatchSize, [=, this]() mutable {
@@ -277,7 +259,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
                                                    dynamicLayers_.back()->getOutputBufferAt(BufferType::Output)->contents()
                                                    );
         
-        float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0, 0);
+        const float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
         
         float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData);
         
@@ -321,10 +303,10 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
     
     _pDataManager->loadNextBatch(currentBatchSize);
 
-    float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(0, 0);
-    float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(0, 0);
+    const float* inBuffer = _pDataManager->getCurrentDataset()->getInputDataAt(0);
+    const float* tgtBuffer = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
     
-    _pInputLayer->updateBufferAt(inBuffer, batch_size);
+    dynamic_cast<InputLayer*>(dynamicLayers_[0])->updateBufferAt(inBuffer, batch_size);
     dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, batch_size);
     
     computeForward(currentBatchSize, [=, this]() mutable {
@@ -335,7 +317,7 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
                                                        dynamicLayers_.back()->getOutputBufferAt(BufferType::Output)->contents()
                                                        );
             
-            float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0, 0);
+            const float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
             
             float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData);
             //assert(!isnan(batchLoss));
@@ -394,4 +376,3 @@ void NeuralEngine::loadModel(const std::string& filepath) {
     file.close();
     Logger::log << "✅ Model parameters loaded from: " << filepath << std::endl;
 }
-

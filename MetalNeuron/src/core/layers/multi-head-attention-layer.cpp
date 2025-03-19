@@ -302,22 +302,13 @@ void MultiHeadAttentionLayer::setOutputBufferAt(BufferType type, MTL::Buffer* bu
 MTL::Buffer* MultiHeadAttentionLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
 
 
-void MultiHeadAttentionLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer) {
-    setInputBufferAt(BufferType::Input,
-                     previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output)
-                     : inputLayer->getOutputBufferAt(BufferType::Output)
-                     );
+void MultiHeadAttentionLayer::connectForwardConnections(Layer* previousLayer) {
+    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
 }
 
-void MultiHeadAttentionLayer::connectBackwardConnections(Layer* prevLayer,
-                                   Layer* inputLayer,
-                                   MTL::Buffer* zeroBuffer)
+void MultiHeadAttentionLayer::connectBackwardConnections(Layer* prevLayer)
 {
-    if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
-    }
+    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }
 
 void MultiHeadAttentionLayer::debugLog() {

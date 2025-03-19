@@ -24,10 +24,25 @@ DataManager* DataManager::configure(ModelConfig* pConfig) {
                                     pConfig->dataset.labels
                                     );
     } else if (pConfig->dataset.type == "function") {
+        int inputShape[2] = {};
+        pConfig->layers.front().params.at("output_shape").get_value_inplace(inputShape);
+        int sequenceLength = inputShape[0];
+        int featureDim = inputShape[1];
+
+        int outputDim = 0;
+        if (pConfig->layers.back().params.contains("output_shape")) {
+            int outputShape[2] = {};
+            pConfig->layers.back().params.at("output_shape").get_value_inplace(outputShape);
+            outputDim = outputShape[1];
+        } else {
+            outputDim = pConfig->layers.back().params.at("output_size").get_value<int>();
+        }
+
         dataset_ = new FunctionDataset(mathlib::inputFunc, mathlib::targetFunc,
-                                       pConfig->layers.front().params.at("input_size").get_value<int>(),
-                                       pConfig->layers.back().params.at("output_size").get_value<int>(),
-                                       1000); //Arbitrary dataset size
+                                       sequenceLength,
+                                       featureDim,
+                                       outputDim,
+                                       1000); // Arbitrary dataset size
     } else {
         throw std::runtime_error("Unsupported dataset type: " + pConfig->dataset.type);
     }

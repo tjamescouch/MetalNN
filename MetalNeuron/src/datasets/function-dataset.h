@@ -13,16 +13,15 @@ using TargetFunction = std::function<float(int, double)>;
 class FunctionDataset : public Dataset {
 public:
     FunctionDataset(InputFunction inputFunc, TargetFunction targetFunc,
-                                     int inputDim, int outputDim, int datasetSize);
+                    int sequenceLength, int inputDim, int outputDim, int datasetSize);
     ~FunctionDataset() override;
 
     void loadData(int batchSize) override;
     
-    float* getInputDataAt(int timestep, int batchIndex) override;
-    float* getTargetDataAt(int timestep, int batchIndex) override;
+    const float* getInputDataAt(int batchIndex) const override;
+    const float* getTargetDataAt(int batchIndex) const override;
     
     float calculateLoss(const float* predictedData, int outputDim, const float* targetData) override;
-
 
     int getDatasetSize() const override;
     
@@ -31,13 +30,12 @@ public:
     
     void loadNextBatch(int batchSize) override;
 
-
     int numSamples() const override;
     
-
 private:
     InputFunction inputFunc_;
     TargetFunction targetFunc_;
+    int sequenceLength_;
     int inputDim_;
     int outputDim_;
     int datasetSize_;

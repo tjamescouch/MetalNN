@@ -35,10 +35,8 @@ public:
     void updateTargetBufferAt(const float* targetData) override;
     void updateTargetBufferAt(const float* targetData, int batchSize) override;
 
-    void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                   MTL::Buffer* zeroBuffer) override;
-    void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                    MTL::Buffer* zeroBuffer) override;
+    void connectForwardConnections(Layer* previousLayer) override;
+    void connectBackwardConnections(Layer* previousLayer) override;
 
     void debugLog() override;
     void onForwardComplete(MTL::CommandQueue* commandQueue, int batchSize) override;

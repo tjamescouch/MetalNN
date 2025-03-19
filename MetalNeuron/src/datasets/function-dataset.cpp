@@ -12,14 +12,15 @@ std::uniform_int_distribution<int> distribution(0, 200*M_PI);
 
 
 FunctionDataset::FunctionDataset(InputFunction inputFunc, TargetFunction targetFunc,
-                                 int inputDim, int outputDim, int datasetSize)
+                                 int sequenceLength, int inputDim, int outputDim, int datasetSize)
 : inputFunc_(inputFunc),
   targetFunc_(targetFunc),
+  sequenceLength_(sequenceLength),
   inputDim_(inputDim),
   outputDim_(outputDim),
   datasetSize_(datasetSize),
-  currentInputBuffer_(inputDim, 0.0f),
-  currentTargetBuffer_(outputDim, 0.0f),
+  currentInputBuffer_(sequenceLength * inputDim, 0.0f),
+  currentTargetBuffer_(sequenceLength * outputDim, 0.0f),
   inputs_(0),
   targets_(0) {
 }
@@ -83,10 +84,10 @@ int FunctionDataset::numSamples() const {
 }
 
 
-float* FunctionDataset::getInputDataAt(int timestep, int _batchIndex) {
-    return inputs_.data();
+const float* FunctionDataset::getInputDataAt(int batchIndex) const {
+    return inputs_.data() + batchIndex * inputDim_;
 }
 
-float* FunctionDataset::getTargetDataAt(int timestep, int _batchIndex) {
-    return targets_.data();
+const float* FunctionDataset::getTargetDataAt(int batchIndex) const {
+    return targets_.data() + batchIndex * outputDim_;
 }

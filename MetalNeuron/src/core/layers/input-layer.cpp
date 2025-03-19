@@ -12,7 +12,8 @@
 #include "logger.h"
 #include "common.h"  // For NS::Range
 
-InputLayer::InputLayer(int inputDim, int batchSize) :
+InputLayer::InputLayer(int sequenceLength, int inputDim, int batchSize) :
+sequenceLength_(sequenceLength),
 inputDim_(inputDim),
 isTerminal_(false),
 batchSize_(batchSize)
@@ -31,10 +32,11 @@ InputLayer::~InputLayer() {
 void InputLayer::buildBuffers(MTL::Device* device) {
     assert(outputBuffers_[BufferType::Output].size() > 0);
     
-    outputBuffers_[BufferType::Output][0] = device->newBuffer(inputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
+    size_t bufferSize = batchSize_ * sequenceLength_ * inputDim_ * sizeof(float);
+    outputBuffers_[BufferType::Output][0] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
     // Initialize buffer content to zeros.
-    memset(outputBuffers_[BufferType::Output][0]->contents(), 0, inputDim_ * batchSize_ * sizeof(float));
-    outputBuffers_[BufferType::Output][0]->didModifyRange(NS::Range::Make(0, inputDim_ * batchSize_ * sizeof(float)));
+    memset(outputBuffers_[BufferType::Output][0]->contents(), 0, bufferSize);
+    outputBuffers_[BufferType::Output][0]->didModifyRange(NS::Range::Make(0, bufferSize));
     
     assert(outputBuffers_[BufferType::Output].size() > 0);
     Logger::log << "buildBuffers: bufer output ptr: " << outputBuffers_[BufferType::Output][0] << std::endl;
@@ -48,20 +50,19 @@ void InputLayer::updateBufferAt(const float* data) {
     
     memcpy(outputBuffers_[BufferType::Output][0]->contents(),
            data,
-           inputDim_ * batchSize_ * sizeof(float));
+           sequenceLength_ * inputDim_ * batchSize_ * sizeof(float));
     outputBuffers_[BufferType::Output][0]->didModifyRange(NS::Range::Make(0, outputBuffers_[BufferType::Output][0]->length()));
 }
 
 void InputLayer::updateBufferAt(const float* data, int batchSize) {
     assert(outputBuffers_[BufferType::Output].size() > 0);
     
-    memcpy(outputBuffers_[BufferType::Output][0]->contents(), data, inputDim_ * batchSize * sizeof(float));
+    memcpy(outputBuffers_[BufferType::Output][0]->contents(), data, sequenceLength_ * inputDim_ * batchSize * sizeof(float));
     outputBuffers_[BufferType::Output][0]->didModifyRange(NS::Range::Make(0, outputBuffers_[BufferType::Output][0]->length()));
 }
 
 void InputLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
-    assert(buffer && "Setting input buffer to NULL");
-    inputBuffers_[type][0] = buffer;
+    // Intentionally empty
 }
 
 MTL::Buffer* InputLayer::getOutputBufferAt(BufferType type) {

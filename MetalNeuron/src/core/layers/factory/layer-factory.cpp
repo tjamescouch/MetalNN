@@ -18,9 +18,7 @@
 
 const char* inputLayerName = "input";
 
-LayerFactory::LayerFactory(Layer* _pInputLayer) {
-    _pInputLayer->setName(inputLayerName);
-    layerMap_[inputLayerName] = _pInputLayer;
+LayerFactory::LayerFactory() {
 }
 
 Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
@@ -44,7 +42,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         sequenceLength = inputShape[0];
         inputSize = inputShape[1];
     } else {
-        inputSize = layerConfig.params.at("input_size").get_value<int>();
+        inputSize = layerConfig.params["input_size"].get_value<int>();
     }
 
     if (layerConfig.params.contains("output_shape")) {
@@ -52,7 +50,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         layerConfig.params["output_shape"].get_value_inplace(outputShape);
         outputSize = outputShape[1];
     } else {
-        outputSize = layerConfig.params.at("output_size").get_value<int>();
+        outputSize = layerConfig.params["output_size"].get_value<int>();
     }
 
     // Provide a default sequential numeric ID if name not explicitly provided
@@ -65,7 +63,18 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
 
     Layer* layer = nullptr;
 
-    if (layerConfig.type == "Dense") {
+    if (layerConfig.type == "Input") {
+        std::cout << "Creating input layer..." << std::endl;
+
+        // Extract the explicit output shape for the InputLayer
+        int outputShape[2] = {};
+        layerConfig.params["output_shape"].get_value_inplace(outputShape);
+        int sequenceLength = outputShape[0];
+        int featureDim = outputShape[1];
+
+        // Instantiate the InputLayer explicitly with sequence awareness
+        layer = new InputLayer(sequenceLength, featureDim, batchSize);
+    } else if (layerConfig.type == "Dense") {
         std::cout << "Creating dense layer..." << std::endl;
         auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
         auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");

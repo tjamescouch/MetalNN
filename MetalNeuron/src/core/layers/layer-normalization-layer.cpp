@@ -245,15 +245,11 @@ MTL::Buffer* LayerNormalizationLayer::getInputBufferAt(BufferType type) {
     return inputBuffers_[type][0];
 }
 
-void LayerNormalizationLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer, MTL::Buffer* zeroBuffer) {
-    setInputBufferAt(BufferType::Input,
-                     previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output)
-                     : inputLayer->getOutputBufferAt(BufferType::Output)
-                     );
+void LayerNormalizationLayer::connectForwardConnections(Layer* previousLayer) {
+    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
 }
 
-void LayerNormalizationLayer::connectBackwardConnections(Layer* prevLayer, Layer* inputLayer, MTL::Buffer* zeroBuffer) {
+void LayerNormalizationLayer::connectBackwardConnections(Layer* prevLayer) {
     prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }
 

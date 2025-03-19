@@ -177,23 +177,14 @@ MTL::Buffer* DropoutLayer::getInputBufferAt(BufferType type) {
     return inputBuffers_[type][0];
 }
 
-void DropoutLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer) {
-    setInputBufferAt(BufferType::Input,
-                     previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output)
-                     : inputLayer->getOutputBufferAt(BufferType::Output)
-                     );
+void DropoutLayer::connectForwardConnections(Layer* previousLayer) {
+    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
 }
 
-void DropoutLayer::connectBackwardConnections(Layer* prevLayer,
-                                   Layer* inputLayer,
-                                   MTL::Buffer* zeroBuffer)
+void DropoutLayer::connectBackwardConnections(Layer* prevLayer)
 {
     Logger::log << "dropout output error buffer @" << getOutputBufferAt(BufferType::OutgoingErrors) << std::endl;
-    if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
-    }
+    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }
 
 void DropoutLayer::saveParameters(std::ostream& os) const {

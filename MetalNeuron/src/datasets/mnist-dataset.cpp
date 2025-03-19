@@ -176,32 +176,30 @@ void MNISTDataset::loadNextBatch(int currentBatchSize) {
     pageOffset_ += currentBatchSize;
 }
 
-float* MNISTDataset::getInputDataAt(int timestep, int _batchIndex) {
-    assert(timestep == 0);
+const float* MNISTDataset::getInputDataAt(int batchIndex) const {
     assert(batchedInputData_);
-    
+
     size_t numImages = inputs_.size();
-    int ib0 = pageOffset_;
-    const int imageSize = inputDim(); // The number of floats per image
-    
+    int ib0 = batchIndex * batchSize_;
+    const int imageSize = inputDim();
+
     for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {
         std::memcpy(batchedInputData_ + i * imageSize, inputs_[ib % numImages].data(), imageSize * sizeof(float));
     }
-    
+
     return batchedInputData_;
 }
 
-float* MNISTDataset::getTargetDataAt(int timestep, int _batchIndex) {
-    assert(timestep == 0);
+const float* MNISTDataset::getTargetDataAt(int batchIndex) const {
     assert(batchedTargetData_);
-    
+
     size_t numTargets = targets_.size();
-    int ib0 =  pageOffset_;
-    const int targetSize = outputDim(); // The number of floats per image
-    
+    int ib0 = batchIndex * batchSize_;
+    const int targetSize = outputDim();
+
     for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {
         std::memcpy(batchedTargetData_ + i * targetSize, targets_[ib % numTargets].data(), targetSize * sizeof(float));
     }
-    
+
     return batchedTargetData_;
 }
