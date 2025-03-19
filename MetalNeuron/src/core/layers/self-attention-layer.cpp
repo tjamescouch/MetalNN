@@ -251,22 +251,13 @@ void SelfAttentionLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer)
 MTL::Buffer* SelfAttentionLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
 
 
-void SelfAttentionLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer) {
-    setInputBufferAt(BufferType::Input,
-                     previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output)
-                     : inputLayer->getOutputBufferAt(BufferType::Output)
-                     );
+void SelfAttentionLayer::connectForwardConnections(Layer* previousLayer) {
+    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
 }
 
-void SelfAttentionLayer::connectBackwardConnections(Layer* prevLayer,
-                                   Layer* inputLayer,
-                                   MTL::Buffer* zeroBuffer)
+void SelfAttentionLayer::connectBackwardConnections(Layer* prevLayer)
 {
-    if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
-    }
+    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }
 
 void SelfAttentionLayer::debugLog() {}

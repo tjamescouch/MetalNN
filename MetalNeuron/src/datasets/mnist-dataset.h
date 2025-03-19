@@ -12,8 +12,8 @@ public:
     // Overrides from Dataset interface
     void loadData(int batchSize) override;
     
-    float* getInputDataAt(int timestep, int batchIndex) override;
-    float* getTargetDataAt(int timestep, int batchIndex) override;
+    const float* getInputDataAt(int batchIndex) const override;
+    const float* getTargetDataAt(int batchIndex) const override;
     
     float calculateLoss(const float* predictedData, int outputDim, const float* targetData) override;
 

@@ -1,6 +1,10 @@
 name: "Layer Normalization"
 
 layers:
+  - type: Input
+    name: "input"
+    output_shape: [1, 256]
+    
   - type: Dense
     input_size: 256
     output_size: 256
@@ -8,8 +12,8 @@ layers:
     initializer: he
 
   - type: LayerNormalization
-    input_size: 256
-    output_size: 256
+    input_shape: [1, 256]
+    output_shape: [1, 256]
     epsilon: 1e-5
 
   - type: Dense

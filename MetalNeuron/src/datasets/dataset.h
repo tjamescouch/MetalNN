@@ -7,8 +7,8 @@ public:
     virtual void loadData(int batchSize) = 0;
     virtual ~Dataset() {}
 
-    virtual float* getInputDataAt(int timestep, int batchIndex) = 0;
-    virtual float* getTargetDataAt(int timestep, int batchIndex) = 0;
+    virtual const float* getInputDataAt(int batchIndex) const = 0;
+    virtual const float* getTargetDataAt(int batchIndex) const = 0;
     
     virtual int numSamples() const = 0;
 

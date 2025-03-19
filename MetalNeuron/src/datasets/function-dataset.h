@@ -13,16 +13,16 @@ using TargetFunction = std::function<float(int, double)>;
 class FunctionDataset : public Dataset {
 public:
     FunctionDataset(InputFunction inputFunc, TargetFunction targetFunc,
-                                     int inputDim, int outputDim, int datasetSize);
+                    int inputSequenceLength, int targetSequenceLength,
+                    int inputDim, int outputDim, int datasetSize);
     ~FunctionDataset() override;
 
     void loadData(int batchSize) override;
     
-    float* getInputDataAt(int timestep, int batchIndex) override;
-    float* getTargetDataAt(int timestep, int batchIndex) override;
+    const float* getInputDataAt(int batchIndex) const override;
+    const float* getTargetDataAt(int batchIndex) const override;
     
     float calculateLoss(const float* predictedData, int outputDim, const float* targetData) override;
-
 
     int getDatasetSize() const override;
     
@@ -31,13 +31,13 @@ public:
     
     void loadNextBatch(int batchSize) override;
 
-
     int numSamples() const override;
     
-
 private:
     InputFunction inputFunc_;
     TargetFunction targetFunc_;
+    int inputSequenceLength_;
+    int targetSequenceLength_;
     int inputDim_;
     int outputDim_;
     int datasetSize_;
@@ -46,9 +46,6 @@ private:
     std::vector<int> shuffledIndices_;
     std::vector<float> inputs_;
     std::vector<float> targets_;
-    
-    std::vector<float> currentInputBuffer_;
-    std::vector<float> currentTargetBuffer_;
     
     void shuffleIndices();
     void generateBatch(double offset, int batchSize);

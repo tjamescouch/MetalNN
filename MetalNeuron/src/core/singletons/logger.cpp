@@ -33,73 +33,63 @@ Logger::~Logger() {
 Logger* Logger::instance_ = nullptr;
 std::once_flag Logger::initInstanceFlag;
 
-void Logger::logErrors(const std::vector<float*>& outputErrors, int outputCount, int hiddenCount, int sequenceLength) {
-    float avgOutputError = 0.0f;
-    
-    for (int t = 0; t < sequenceLength; ++t) {
-        float timestepOutputError = 0.0f;
-        
-        for (int i = 0; i < outputCount; ++i)
-            timestepOutputError += fabs(outputErrors[t][i]);
-        timestepOutputError /= outputCount;
-        
-        avgOutputError += timestepOutputError;
-    }
-    
-    avgOutputError /= sequenceLength;
-    
-    Logger::log << "AVG OUTPUT ERROR (across sequence): " << avgOutputError << std::endl;
-}
-
-void Logger::flushAnalytics() {
+void Logger::flushAnalytics(const uint sequenceLength) {
     if (isRegression_) {
-        return flushRegressionAnalytics();
+        return flushRegressionAnalytics(sequenceLength);
     }
     
     return flushClassificationAnalytics();
 }
 
 void Logger::logAnalytics(const float* output, int outputCount,
-                          const float* target, int targetCount) {
+                          const float* target, int targetCount,
+                          const uint sequenceLength) {
+    assert(outputCount % sequenceLength == 0 && "Output count must be divisible by sequence length.");
+    assert(targetCount % sequenceLength == 0 && "Target count must be divisible by sequence length.");
+
     batchOutputs_.emplace_back(output, output + outputCount);
     batchTargets_.emplace_back(target, target + targetCount);
 }
 
-void Logger::flushRegressionAnalytics() {
+void Logger::flushRegressionAnalytics(const uint sequenceLength) {
     if (!logFileStream->is_open()) {
         std::cerr << "Error opening log file: " << filename_ << std::endl;
         return;
     }
-    
 
-    for (size_t sampleIdx = 0; sampleIdx < batchOutputs_.size(); ++sampleIdx) {
+    size_t numSamples = batchOutputs_.size();
+    size_t outputDim = batchTargets_[0].size() / sequenceLength;
+
+    for (size_t sampleIdx = 0; sampleIdx < numSamples; ++sampleIdx) {
         const auto& output = batchOutputs_[sampleIdx];
         const auto& target = batchTargets_[sampleIdx];
-        size_t outputCount = output.size();
-        
+
         *logFileStream << "clf; hold on;" << std::endl;
         *logFileStream << "ylim([-1 1], \"Manual\");" << std::endl;
 
-        // Target array
-        *logFileStream << "target = [";
-        for (size_t i = 0; i < outputCount; ++i)
-            *logFileStream << target[i] << (i < outputCount - 1 ? ", " : "");
-        *logFileStream << "];" << std::endl;
+        for (size_t seqIdx = 0; seqIdx < sequenceLength; ++seqIdx) {
+            *logFileStream << "target = [";
+            for (size_t i = 0; i < outputDim; ++i) {
+                size_t idx = seqIdx * outputDim + i;
+                *logFileStream << target[idx] << (i < outputDim - 1 ? ", " : "");
+            }
+            *logFileStream << "];" << std::endl;
 
-        // Output array
-        *logFileStream << "output = [";
-        for (size_t i = 0; i < outputCount; ++i)
-            *logFileStream << output[i] << (i < outputCount - 1 ? ", " : "");
-        *logFileStream << "];" << std::endl;
+            *logFileStream << "output = [";
+            for (size_t i = 0; i < outputDim; ++i) {
+                size_t idx = seqIdx * outputDim + i;
+                *logFileStream << output[idx] << (i < outputDim - 1 ? ", " : "");
+            }
+            *logFileStream << "];" << std::endl;
 
-        // Plot commands
-        *logFileStream << "scatter(1:" << outputCount << ", target, 'filled', 'b', 'DisplayName', 'Target');" << std::endl;
-        *logFileStream << "scatter(1:" << outputCount << ", output, 'filled', 'r', 'DisplayName', 'Prediction');" << std::endl;
+            *logFileStream << "scatter(1:" << outputDim << ", target, 'filled', 'b', 'DisplayName', 'Target Seq " << seqIdx+1 << "');" << std::endl;
+            *logFileStream << "scatter(1:" << outputDim << ", output, 'filled', 'r', 'DisplayName', 'Prediction Seq " << seqIdx+1 << "');" << std::endl;
+        }
+
         *logFileStream << "legend('show');" << std::endl;
-        *logFileStream << "pause(0.01);" << std::endl; // Adjust for desired speed
+        *logFileStream << "pause(0.01);" << std::endl;
     }
 
-    // Clear buffers after plotting
     batchOutputs_.clear();
     batchTargets_.clear();
 }

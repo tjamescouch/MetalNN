@@ -96,10 +96,8 @@ public:
     virtual void updateTargetBufferAt(const float* targetData,
                                       int batchSize) = 0;
     
-    virtual void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                           MTL::Buffer* zeroBuffer) = 0;
-    virtual void connectBackwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                            MTL::Buffer* zeroBuffer) = 0;
+    virtual void connectForwardConnections(Layer* previousLayer) = 0;
+    virtual void connectBackwardConnections(Layer* previousLayer) = 0;
     
     virtual void debugLog() = 0;
     virtual void onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) = 0;

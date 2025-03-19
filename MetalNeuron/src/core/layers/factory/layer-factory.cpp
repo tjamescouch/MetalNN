@@ -13,14 +13,14 @@
 #include "layer-normalization-layer.h"
 #include "residual-connection-layer.h"
 #include "self-attention-layer.h"
+#include "flatten-layer.h"
+#include "reshape-layer.h"
 #include "map-reduce-layer.h"
 #include "configuration-manager.h"
 
 const char* inputLayerName = "input";
 
-LayerFactory::LayerFactory(Layer* _pInputLayer) {
-    _pInputLayer->setName(inputLayerName);
-    layerMap_[inputLayerName] = _pInputLayer;
+LayerFactory::LayerFactory() {
 }
 
 Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
@@ -33,8 +33,29 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
     auto batchSize = config->training.batch_size;
 
     std::cout << "Getting common layer parameters..." << std::endl;
-    int inputSize = layerConfig.params.at("input_size").get_value<int>();
-    int outputSize = layerConfig.params.at("output_size").get_value<int>();
+    int inputSize = 0;
+    int outputSize = 0;
+    int sequenceLength = 1;  // default for non-sequence layers
+    int outputSequenceLength = 1;  // default for non-sequence layers
+
+    // Explicitly handle shapes for sequence-aware layers
+    if (layerConfig.params.contains("input_shape")) {
+        int inputShape[2] = {};
+        layerConfig.params["input_shape"].get_value_inplace(inputShape);
+        sequenceLength = inputShape[0];
+        inputSize = inputShape[1];
+    } else {
+        inputSize = layerConfig.params["input_size"].get_value<int>();
+    }
+
+    if (layerConfig.params.contains("output_shape")) {
+        int outputShape[2] = {};
+        layerConfig.params["output_shape"].get_value_inplace(outputShape);
+        outputSequenceLength = outputShape[0];
+        outputSize = outputShape[1];
+    } else {
+        outputSize = layerConfig.params["output_size"].get_value<int>();
+    }
 
     // Provide a default sequential numeric ID if name not explicitly provided
     std::string layerName = layerConfig.params["name"].get_value_or<std::string>(
@@ -46,7 +67,18 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
 
     Layer* layer = nullptr;
 
-    if (layerConfig.type == "Dense") {
+    if (layerConfig.type == "Input") {
+        std::cout << "Creating input layer..." << std::endl;
+
+        // Extract the explicit output shape for the InputLayer
+        int outputShape[2] = {};
+        layerConfig.params["output_shape"].get_value_inplace(outputShape);
+        int sequenceLength = outputShape[0];
+        int featureDim = outputShape[1];
+
+        // Instantiate the InputLayer explicitly with sequence awareness
+        layer = new InputLayer(sequenceLength, featureDim, batchSize);
+    } else if (layerConfig.type == "Dense") {
         std::cout << "Creating dense layer..." << std::endl;
         auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
         auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
@@ -63,18 +95,17 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         
     } else if (layerConfig.type == "SelfAttention") {
         std::cout << "Creating self attention layer..." << std::endl;
-        float sequence_length = layerConfig.params.at("sequence_length").get_value_or<float>(0.3);
+        
         auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
         
-        layer = (new SelfAttentionLayer(inputSize, outputSize, sequence_length, batchSize))->setInitializer(initializer);
+        layer = (new SelfAttentionLayer(inputSize, outputSize, sequenceLength, batchSize))->setInitializer(initializer);
         
     } else if (layerConfig.type == "MultiHeadAttention") {
         std::cout << "Creating multi-head attention layer..." << std::endl;
-        float sequence_length = layerConfig.params.at("sequence_length").get_value_or<float>(0.3);
         int num_heads = layerConfig.params.at("num_heads").get_value_or<int>(2);
         auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
         
-        layer = (new MultiHeadAttentionLayer(inputSize, outputSize, sequence_length, batchSize, num_heads))->setInitializer(initializer);
+        layer = (new MultiHeadAttentionLayer(inputSize, outputSize, sequenceLength, batchSize, num_heads))->setInitializer(initializer);
         
     } else if (layerConfig.type == "BatchNormalization") {
         std::cout << "Creating batch normalization layer..." << std::endl;
@@ -86,11 +117,11 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         std::cout << "Creating layer normalization layer..." << std::endl;
         float epsilon = layerConfig.params["epsilon"].get_value_or<float>(1e-5f);
         epsilon = epsilon > 0 ? epsilon : 1e-5f;
-        layer = new LayerNormalizationLayer(inputSize, batchSize, learningRate, epsilon);
+        layer = new LayerNormalizationLayer(inputSize, sequenceLength, batchSize, learningRate, epsilon);
         
     } else if (layerConfig.type == "ResidualConnection") {
         auto from = layerConfig.params.at("from_layer").get_value<std::string>();
-        std::cout << "Creating residual connectionn layer from " << from << "..." << std::endl;
+        std::cout << "Creating residual connection layer from " << from << "..." << std::endl;
         layer = (new ResidualConnectionLayer(inputSize, batchSize))
                     ->setResidualInput(layerMap_[from]->getOutputBufferAt(BufferType::Output));
         
@@ -98,6 +129,14 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         std::cout << "Creating MapReduce layer..." << std::endl;
         auto reductionType = layerConfig.params.at("reduction_type").get_value<std::string>();
         layer = new MapReduceLayer(inputSize, outputSize, parseReductionType(reductionType));
+        
+    } else if (layerConfig.type == "Flatten") {
+        std::cout << "Creating Flatten layer..." << std::endl;
+        layer = new FlattenLayer(sequenceLength, inputSize, outputSize, batchSize);
+        
+    } else if (layerConfig.type == "Reshape") {
+        std::cout << "Creating Reshape layer..." << std::endl;
+        layer = new ReshapeLayer(outputSequenceLength, inputSize, outputSize, batchSize);
         
     } else {
         throw std::invalid_argument("Unsupported layer type");

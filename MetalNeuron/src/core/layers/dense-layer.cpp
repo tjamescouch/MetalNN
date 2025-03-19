@@ -224,22 +224,13 @@ int DenseLayer::outputSize() const {
     return outputDim_;
 }
 
-void DenseLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                           MTL::Buffer* zeroBuffer) {
-    setInputBufferAt(BufferType::Input,
-                     previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output)
-                     : inputLayer->getOutputBufferAt(BufferType::Output)
-                     );
+void DenseLayer::connectForwardConnections(Layer* previousLayer) {
+    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
 }
 
-void DenseLayer::connectBackwardConnections(Layer* prevLayer,
-                                            Layer* inputLayer,
-                                            MTL::Buffer* zeroBuffer)
+void DenseLayer::connectBackwardConnections(Layer* prevLayer)
 {
-    if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
-    }
+    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }
 
 void DenseLayer::saveParameters(std::ostream& os) const { //FIXME encode buffer lengths

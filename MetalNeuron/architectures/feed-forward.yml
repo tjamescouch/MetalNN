@@ -1,6 +1,10 @@
 name: "Feed Forward NN"
 
 layers:
+  - type: Input
+    name: "input"
+    output_shape: [1, 256]
+    
   - type: Dense
     name: Dense1
     input_size: 256

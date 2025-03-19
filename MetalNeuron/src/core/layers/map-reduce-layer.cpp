@@ -49,22 +49,11 @@ void MapReduceLayer::buildBuffers(MTL::Device* device) {
 }
 
 
-void MapReduceLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                               MTL::Buffer* zeroBuffer){
-    if (previousLayer) {
-        setInputBufferAt(BufferType::Input,
-                         previousLayer->getOutputBufferAt(BufferType::Output));
-    } else if (inputLayer) {
-        setInputBufferAt(BufferType::Input,
-                         inputLayer->getOutputBufferAt(BufferType::Output));
-    } else {
-        setInputBufferAt(BufferType::Input, zeroBuffer);
-    }
+void MapReduceLayer::connectForwardConnections(Layer* previousLayer){
+    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
 }
 
-void MapReduceLayer::connectBackwardConnections(Layer* prevLayer,
-                                                Layer* inputLayer,
-                                                MTL::Buffer* zeroBuffer)
+void MapReduceLayer::connectBackwardConnections(Layer* prevLayer)
 {
     prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }

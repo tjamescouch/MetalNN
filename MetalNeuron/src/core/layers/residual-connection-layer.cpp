@@ -27,7 +27,7 @@ void ResidualConnectionLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::Output] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::OutgoingErrors] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
 
-    residualOutputErrorBuffer_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
+    residualOutputErrorBuffer_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged); //FIXME - what does this do? it seems unconnected to other layers
 }
 
 void ResidualConnectionLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -94,22 +94,13 @@ void ResidualConnectionLayer::updateTargetBufferAt(const float* targetData, int 
     assert(false && "ResidualConnectionLayer cannot be used as a terminal layer with targets.");
 }
 
-void ResidualConnectionLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                     MTL::Buffer* zeroBuffer) {
-    setInputBufferAt(BufferType::Input,
-                     previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output)
-                     : inputLayer->getOutputBufferAt(BufferType::Output)
-                     );
+void ResidualConnectionLayer::connectForwardConnections(Layer* previousLayer) {
+    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
 }
 
-void ResidualConnectionLayer::connectBackwardConnections(Layer* prevLayer,
-                                   Layer* inputLayer,
-                                   MTL::Buffer* zeroBuffer)
+void ResidualConnectionLayer::connectBackwardConnections(Layer* prevLayer)
 {
-    if (prevLayer) {
-        prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
-    }
+    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }
 
 void ResidualConnectionLayer::debugLog() {}

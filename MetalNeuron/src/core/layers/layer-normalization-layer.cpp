@@ -18,8 +18,9 @@
 #include "model-config.h"
 #include "configuration-manager.h"
 
-LayerNormalizationLayer::LayerNormalizationLayer(int featureDim, int batchSize, float learningRate, float epsilon)
+LayerNormalizationLayer::LayerNormalizationLayer(int featureDim, int seqLength, int batchSize, float learningRate, float epsilon)
     : featureDim_(featureDim),
+      seqLength_(seqLength),
       batchSize_(batchSize),
       learningRate_(learningRate),
       epsilon_(epsilon),
@@ -67,8 +68,8 @@ void LayerNormalizationLayer::initializeParameters(MTL::Device* device) {
     bufferGamma_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
     bufferBeta_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
 
-    bufferSavedMean_ = device->newBuffer(sizeof(float) * batchSize_, MTL::ResourceStorageModeManaged);
-    bufferSavedVariance_ = device->newBuffer(sizeof(float) * batchSize_, MTL::ResourceStorageModeManaged);
+    bufferSavedMean_ = device->newBuffer(sizeof(float) * batchSize_ * seqLength_, MTL::ResourceStorageModeManaged);
+    bufferSavedVariance_ = device->newBuffer(sizeof(float) * batchSize_ * seqLength_, MTL::ResourceStorageModeManaged);
 
     // Initialize all to zeros or ones as appropriate:
     memcpy(bufferDebug_->contents(), debug.data(), bufferSize);
@@ -89,7 +90,7 @@ void LayerNormalizationLayer::initializeParameters(MTL::Device* device) {
 }
 
 void LayerNormalizationLayer::buildBuffers(MTL::Device* device) {
-    size_t bufferSize = batchSize_ * featureDim_ * sizeof(float);
+    size_t bufferSize = batchSize_ * seqLength_ * featureDim_ * sizeof(float);
 
     std::vector<float> gamma(featureDim_, 1.0f); // scale initialized to 1
     std::vector<float> beta(featureDim_, 0.0f);  // shift initialized to 0
@@ -104,16 +105,16 @@ void LayerNormalizationLayer::buildBuffers(MTL::Device* device) {
     bufferBeta_->didModifyRange(NS::Range(0, sizeof(float) * featureDim_));
 
     // Intermediate buffers for per-sample statistics
-    bufferSavedMean_ = device->newBuffer(sizeof(float) * batchSize_, MTL::ResourceStorageModeManaged);
-    bufferSavedVariance_ = device->newBuffer(sizeof(float) * batchSize_, MTL::ResourceStorageModeManaged);
+    bufferSavedMean_ = device->newBuffer(sizeof(float) * batchSize_ * seqLength_, MTL::ResourceStorageModeManaged);
+    bufferSavedVariance_ = device->newBuffer(sizeof(float) * batchSize_ * seqLength_, MTL::ResourceStorageModeManaged);
 
     // Debug buffer (optional)
     bufferDebug_ = device->newBuffer(sizeof(float) * 256, MTL::ResourceStorageModeManaged);
 
     // Allocate input and output buffers explicitly (single timestep only)
-    inputBuffers_[BufferType::Input].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
+    inputBuffers_[BufferType::Input].push_back(nullptr);
     outputBuffers_[BufferType::Output].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
-    inputBuffers_[BufferType::IncomingErrors].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
+    inputBuffers_[BufferType::IncomingErrors].push_back(nullptr);
     outputBuffers_[BufferType::OutgoingErrors].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
 
     // Optimizer buffers for gamma and beta
@@ -168,13 +169,17 @@ void LayerNormalizationLayer::forward(MTL::CommandBuffer* cmdBuf, int batchSize)
     encoder->setBytes(&epsilon_, sizeof(float), 6);
     encoder->setBytes(&featureDim_, sizeof(int), 7);
     encoder->setBytes(&batchSize_, sizeof(int), 8);
-    encoder->setBuffer(bufferDebug_, 0, 9);
+    encoder->setBytes(&seqLength_, sizeof(int), 9);
+    encoder->setBuffer(bufferDebug_, 0, 10);
 
-    // Explicit thread indexing per sample rather than per feature
-    MTL::Size threadsPerGroup = MTL::Size(std::min(batchSize_, 1024), 1, 1);
-    MTL::Size threadgroups = MTL::Size((batchSize_ + 1023) / 1024, 1, 1);
-    
-    encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
+    const uint32_t totalThreads = batchSize_ * seqLength_;
+    const uint32_t threadsPerGroup = 64;
+    uint32_t numThreadgroups = (totalThreads + threadsPerGroup - 1) / threadsPerGroup;
+
+    MTL::Size threadsPerThreadgroup = MTL::Size::Make(threadsPerGroup, 1, 1);
+    MTL::Size threadgroups = MTL::Size::Make(numThreadgroups, 1, 1);
+
+    encoder->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
     encoder->endEncoding();
 }
 
@@ -189,23 +194,23 @@ void LayerNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize
     encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors][0], 0, 2);
     encoder->setBuffer(bufferGamma_, 0, 3);
     encoder->setBuffer(bufferBeta_, 0, 4);
-
-    // NEW: savedMean=5, savedVariance=6
     encoder->setBuffer(bufferSavedMean_, 0, 5);
     encoder->setBuffer(bufferSavedVariance_, 0, 6);
-
-    // SHIFT the rest:
     encoder->setBytes(&epsilon_,       sizeof(float), 7);
     encoder->setBytes(&featureDim_,    sizeof(int),   8);
     encoder->setBytes(&batchSize,      sizeof(uint),  9);
-    encoder->setBytes(&learningRate_,  sizeof(float), 10);
-    
-    encoder->setBuffer(optimizerBeta_->gradientBuffer(), 0, 11);
-    encoder->setBuffer(optimizerGamma_->gradientBuffer(), 0, 12);
+    encoder->setBytes(&seqLength_,     sizeof(uint),  10);
+    encoder->setBytes(&learningRate_,  sizeof(float), 11);
+    encoder->setBuffer(optimizerBeta_->gradientBuffer(), 0, 12);
+    encoder->setBuffer(optimizerGamma_->gradientBuffer(), 0, 13);
 
-    MTL::Size threadsPerGroup = MTL::Size(std::min(featureDim_, 1024), 1, 1);
-    MTL::Size threadgroups = MTL::Size((featureDim_ + 1023) / 1024, 1, 1);
-    encoder->dispatchThreadgroups(threadgroups, threadsPerGroup);
+    const uint32_t totalThreads = batchSize_ * seqLength_;
+    const uint32_t threadsPerGroup = 64;
+    uint32_t numThreadgroups = (totalThreads + threadsPerGroup - 1) / threadsPerGroup;
+
+    MTL::Size threadsPerThreadgroup = MTL::Size::Make(threadsPerGroup, 1, 1);
+    MTL::Size threadgroups = MTL::Size::Make(numThreadgroups, 1, 1);
+    encoder->dispatchThreadgroups(threadgroups, threadsPerThreadgroup);
     
     optimizerGamma_->encode(encoder, bufferGamma_, featureDim_, batchSize);
     optimizerBeta_->encode(encoder, bufferBeta_, featureDim_, batchSize);
@@ -240,15 +245,11 @@ MTL::Buffer* LayerNormalizationLayer::getInputBufferAt(BufferType type) {
     return inputBuffers_[type][0];
 }
 
-void LayerNormalizationLayer::connectForwardConnections(Layer* previousLayer, Layer* inputLayer, MTL::Buffer* zeroBuffer) {
-    setInputBufferAt(BufferType::Input,
-                     previousLayer
-                     ? previousLayer->getOutputBufferAt(BufferType::Output)
-                     : inputLayer->getOutputBufferAt(BufferType::Output)
-                     );
+void LayerNormalizationLayer::connectForwardConnections(Layer* previousLayer) {
+    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
 }
 
-void LayerNormalizationLayer::connectBackwardConnections(Layer* prevLayer, Layer* inputLayer, MTL::Buffer* zeroBuffer) {
+void LayerNormalizationLayer::connectBackwardConnections(Layer* prevLayer) {
     prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }
 

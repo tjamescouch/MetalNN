@@ -15,7 +15,7 @@ using namespace metal;
 
 // Forward pass kernel for Layer Normalization
 kernel void forward_layer_norm(
-    device const float* input            [[buffer(0)]],    // [batchSize x featureDim]
+    device const float* input            [[buffer(0)]],    // [batchSize x seqLength x featureDim]
     device float* output                 [[buffer(1)]],
     device const float* gamma            [[buffer(2)]],
     device const float* beta             [[buffer(3)]],
@@ -24,14 +24,20 @@ kernel void forward_layer_norm(
     constant float& epsilon              [[buffer(6)]],
     constant int& featureDim             [[buffer(7)]],
     constant int& batchSize              [[buffer(8)]],
+    constant int& seqLength              [[buffer(9)]],
     uint gid                             [[thread_position_in_grid]]
 ) {
-    if ((int)gid >= batchSize) return;
+    int totalTokens = batchSize * seqLength;
+    if ((int)gid >= totalTokens) return;
+
+    int batch_idx = gid / seqLength;
+    int seq_idx = gid % seqLength;
+    int offset = (batch_idx * seqLength + seq_idx) * featureDim;
 
     // Compute mean per sample
     float mean = 0.0f;
     for (int f = 0; f < featureDim; f++) {
-        mean += input[gid * featureDim + f];
+        mean += input[offset + f];
     }
     mean /= float(featureDim);
     savedMean[gid] = mean;
@@ -39,7 +45,7 @@ kernel void forward_layer_norm(
     // Compute variance per sample (fixed here explicitly)
     float variance = 0.0f;
     for (int f = 0; f < featureDim; f++) {
-        float val = input[gid * featureDim + f] - mean;
+        float val = input[offset + f] - mean;
         variance += val * val;
     }
     variance /= float(featureDim);
@@ -49,14 +55,13 @@ kernel void forward_layer_norm(
 
     // Normalize explicitly each feature for this sample
     for (int f = 0; f < featureDim; f++) {
-        int idx = gid * featureDim + f;
-        float norm = (input[idx] - mean) * invStd;
-        output[idx] = norm * gamma[f] + beta[f];
+        float norm = (input[offset + f] - mean) * invStd;
+        output[offset + f] = norm * gamma[f] + beta[f];
     }
 }
 
 kernel void backward_layer_norm(
-    device const float* input                [[buffer(0)]],   // [batchSize x featureDim]
+    device const float* input                [[buffer(0)]],   // [batchSize x seqLength x featureDim]
     device const float* inputErrors          [[buffer(1)]],   // incoming errors (dY)
     device float* outputErrors               [[buffer(2)]],   // propagated errors (dX)
     device float* gamma                      [[buffer(3)]],   // gamma parameter
@@ -66,12 +71,18 @@ kernel void backward_layer_norm(
     constant float& epsilon                  [[buffer(7)]],
     constant uint& featureDim                [[buffer(8)]],
     constant uint& batchSize                 [[buffer(9)]],
-    constant float& learningRate             [[buffer(10)]],
-    device atomic_float* gradientsBeta       [[buffer(11)]],
-    device atomic_float* gradientsGamma      [[buffer(12)]],
+    constant uint& seqLength                 [[buffer(10)]],
+    constant float& learningRate             [[buffer(11)]],
+    device atomic_float* gradientsBeta       [[buffer(12)]],
+    device atomic_float* gradientsGamma      [[buffer(13)]],
     uint gid                               [[thread_position_in_grid]]
 ) {
-    if (gid >= batchSize) return;
+    uint totalTokens = batchSize * seqLength;
+    if (gid >= totalTokens) return;
+
+    uint batch_idx = gid / seqLength;
+    uint seq_idx = gid % seqLength;
+    uint offset = (batch_idx * seqLength + seq_idx) * featureDim;
 
     float mean = savedMean[gid];
     float variance = savedVariance[gid];
@@ -79,7 +90,7 @@ kernel void backward_layer_norm(
 
     // Accumulate gradients for gamma and beta
     for (uint featureIdx = 0; featureIdx < featureDim; ++featureIdx) {
-        uint idx = gid * featureDim + featureIdx;
+        uint idx = offset + featureIdx;
 
         float xhat = (input[idx] - mean) * invStd;
         float dy = inputErrors[idx];
@@ -94,7 +105,7 @@ kernel void backward_layer_norm(
     float sumDyGamma = 0.0f;
 
     for (uint featureIdx = 0; featureIdx < featureDim; ++featureIdx) {
-        uint idx = gid * featureDim + featureIdx;
+        uint idx = offset + featureIdx;
         float xhat = (input[idx] - savedMean[gid]) * invStd;
         float dy = inputErrors[idx];
 
@@ -103,7 +114,7 @@ kernel void backward_layer_norm(
     }
 
     for (uint featureIdx = 0; featureIdx < featureDim; ++featureIdx) {
-        uint idx = gid * featureDim + featureIdx;
+        uint idx = offset + featureIdx;
 
         float dy = outputErrors[idx];
         float xhat = (input[idx] - savedMean[gid]) * invStd;
@@ -112,4 +123,3 @@ kernel void backward_layer_norm(
                            (featureDim * dy - sumDyGamma - xhat * sumDyGammaXhat);
     }
 }
-

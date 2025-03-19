@@ -53,7 +53,6 @@ public:
     
 private:
     void buildComputePipeline();
-    void buildBuffers();
     
     DataManager* _pDataManager;
     
@@ -65,8 +64,6 @@ private:
     MTL::Library* _pComputeLibrary;
     MTL::CompileOptions* _pCompileOptions;
     
-    MTL::Buffer* zeroBuffer_ = nullptr;
-    
     bool areBuffersBuilt;
     bool currentlyComputing;
     dispatch_semaphore_t _semaphore;
@@ -75,6 +72,7 @@ private:
     int epochs;
     int input_dim;
     int output_dim;
+    uint terminalSequenceLength_;
     std::string filename;
 };
 

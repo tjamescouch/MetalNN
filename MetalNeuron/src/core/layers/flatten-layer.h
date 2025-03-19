@@ -1,28 +1,25 @@
 //
-//  residual-connection-layer.h
+//  flatten-layer.h
 //  MetalNeuron
 //
 //  Created by James Couch on 2025-03-13.
 //
 
-#ifndef RESIDUAL_CONNECTION_LAYER_H
-#define RESIDUAL_CONNECTION_LAYER_H
+#ifndef FLATTEN_LAYER_H
+#define FLATTEN_LAYER_H
 
 #include "layer.h"
 
-class ResidualConnectionLayer : public Layer {
+class FlattenLayer : public Layer {
 public:
-    ResidualConnectionLayer(int featureDim, int batchSize);
-    ~ResidualConnectionLayer();
+    FlattenLayer(int sequenceLength_, int inputSize, int outputSize, int batchSize);
+    ~FlattenLayer();
 
     void forward(MTL::CommandBuffer* commandBuffer, int batchSize) override;
     void backward(MTL::CommandBuffer* commandBuffer, int batchSize) override;
 
     void buildBuffers(MTL::Device* device) override;
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
-
-    ResidualConnectionLayer* setResidualInput(MTL::Buffer* residualBuffer);
-    bool supportsResidual() const { return true; }
 
     void setInputBufferAt(BufferType type, MTL::Buffer* buffer) override;
     MTL::Buffer* getOutputBufferAt(BufferType type) override;
@@ -48,12 +45,13 @@ public:
     void setIsTerminal(bool isTerminal) override;
 
 private:
-    int featureDim_;
+    /* Remove any not needed member variables */
+    int sequenceLength_;
+    int inputSize_;
+    int outputSize_;
     int batchSize_;
     bool isTerminal_;
 
-    MTL::Buffer* residualInputBuffer_;
-    MTL::Buffer* residualOutputErrorBuffer_;
     std::unordered_map<BufferType, MTL::Buffer*> inputBuffers_;
     std::unordered_map<BufferType, MTL::Buffer*> outputBuffers_;
     MTL::ComputePipelineState* forwardPipelineState_;
@@ -61,4 +59,4 @@ private:
     
 };
 
-#endif // RESIDUAL_CONNECTION_LAYER_H
+#endif

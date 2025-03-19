@@ -17,10 +17,8 @@ public:
     void forward(MTL::CommandBuffer* commandBuffer, int batchSize) override;
     void backward(MTL::CommandBuffer* commandBuffer, int batchSize) override;
 
-    void connectForwardConnections(Layer* previousLayer, Layer* inputLayer,
-                                   MTL::Buffer* zeroBuffer) override;
-    void connectBackwardConnections(Layer* prevLayer, Layer* inputLayer,
-                                    MTL::Buffer* zeroBuffer) override;
+    void connectForwardConnections(Layer* previousLayer) override;
+    void connectBackwardConnections(Layer* prevLayer) override;
 
     void setInputBufferAt(BufferType type, MTL::Buffer* buffer) override;
     MTL::Buffer* getOutputBufferAt(BufferType type) override;

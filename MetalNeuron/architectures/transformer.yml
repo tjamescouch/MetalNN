@@ -1,6 +1,10 @@
 name: "Transformer Basic Test"
 
 layers:
+  - type: Input
+    name: "input"
+    output_shape: [10, 256]
+
   - type: MultiHeadAttention
     name: "mha_1"
     input_size: 256
@@ -11,8 +15,8 @@ layers:
 
   - type: LayerNormalization
     name: "norm_1"
-    input_size: 256
-    output_size: 256
+    input_shape: [10, 256]
+    output_shape: [10, 256]
     epsilon: 1e-5
 
   - type: ResidualConnection
@@ -43,8 +47,8 @@ layers:
 
   - type: LayerNormalization
     name: "norm_ffn"
-    input_size: 256
-    output_size: 256
+    input_shape: [10, 256]
+    output_shape: [10, 256]
     epsilon: 1e-5
     
   - type: ResidualConnection
