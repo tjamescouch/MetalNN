@@ -39,7 +39,7 @@ Here's a prioritized, explicit list of layers currently planned for development,
   - [x] Dense (Expansion layer with GELU)
   - [x] Dropout
   - [x] Dense (Projection layer)
-- [ ] **MultiHeadAttentionLayer**: Implements attention mechanism for Transformers.
+- [x] **MultiHeadAttentionLayer**: Implements attention mechanism for Transformers.
 - [ ] **TransformerBlock**: Composite block encapsulating attention, FFN, residuals, and normalization.
 
 ### Stage 2: CNN Layers (Multi-modal support)
