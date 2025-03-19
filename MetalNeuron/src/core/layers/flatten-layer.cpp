@@ -51,6 +51,10 @@ MTL::Buffer* FlattenLayer::getInputBufferAt(BufferType type) { return inputBuffe
 int FlattenLayer::inputSize() const { return inputSize_; }
 int FlattenLayer::outputSize() const { return outputSize_; }
 
+void FlattenLayer::resetErrors() {
+    //Intentionally blank
+}
+
 void FlattenLayer::updateTargetBufferAt(const float* targetData) {
     assert(false && "FlattenLayer cannot be used as a terminal layer with targets.");
 }

@@ -76,6 +76,9 @@ void InputLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
     assert(outputBuffers_[BufferType::Output].size() > 0);
 }
 
+void InputLayer::resetErrors() {
+}
+
 MTL::Buffer* InputLayer::getInputBufferAt(BufferType) {
     return nullptr; // Input layer doesn't propagate error backwards
 }

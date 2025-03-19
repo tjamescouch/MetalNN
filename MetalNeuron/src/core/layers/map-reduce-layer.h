@@ -20,7 +20,8 @@ public:
     
     void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
-
+    
+    void resetErrors() override;
     
     void connectForwardConnections(Layer* previousLayer) override;
     void connectBackwardConnections(Layer* previousLayer) override;

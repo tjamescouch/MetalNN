@@ -89,6 +89,8 @@ public:
     virtual void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) = 0;
     virtual MTL::Buffer* getInputBufferAt(BufferType type) = 0;
     
+    virtual void resetErrors() = 0;
+    
     virtual int inputSize() const = 0;
     virtual int outputSize() const = 0;
     

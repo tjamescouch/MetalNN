@@ -48,6 +48,13 @@ void MapReduceLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::OutgoingErrors].push_back(device->newBuffer(output_dim_ * sizeof(float), MTL::ResourceStorageModeManaged));
 }
 
+void MapReduceLayer::resetErrors() {
+    float* errorsBuffer = static_cast<float*>(inputBuffers_[BufferType::IncomingErrors][0]->contents());
+    memset(errorsBuffer, 0, inputBuffers_[BufferType::IncomingErrors][0]->length());
+    inputBuffers_[BufferType::IncomingErrors][0]->didModifyRange(
+        NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors][0]->length())
+    );
+}
 
 void MapReduceLayer::connectForwardConnections(Layer* previousLayer){
     setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));

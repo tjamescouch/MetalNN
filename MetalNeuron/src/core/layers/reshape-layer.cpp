@@ -38,6 +38,10 @@ void ReshapeLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSize) {
     //Intentionally blank
 }
 
+void ReshapeLayer::resetErrors() {
+    //Intentionally blank
+}
+
 void ReshapeLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
     inputBuffers_[type] = buffer;
 }

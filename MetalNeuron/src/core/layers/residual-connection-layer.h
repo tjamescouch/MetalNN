@@ -21,13 +21,14 @@ public:
     void buildBuffers(MTL::Device* device) override;
     void buildPipeline(MTL::Device* device, MTL::Library* library) override;
 
-    ResidualConnectionLayer* setResidualInput(MTL::Buffer* residualBuffer);
-    bool supportsResidual() const { return true; }
+    ResidualConnectionLayer* setFromLayer(Layer* fromLayer);
 
     void setInputBufferAt(BufferType type, MTL::Buffer* buffer) override;
     MTL::Buffer* getOutputBufferAt(BufferType type) override;
     void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) override;
     MTL::Buffer* getInputBufferAt(BufferType type) override;
+    
+    void resetErrors() override;
 
     int inputSize() const override;
     int outputSize() const override;
@@ -52,7 +53,7 @@ private:
     int batchSize_;
     bool isTerminal_;
 
-    MTL::Buffer* residualInputBuffer_;
+    Layer* fromLayer_;
     MTL::Buffer* residualOutputErrorBuffer_;
     std::unordered_map<BufferType, MTL::Buffer*> inputBuffers_;
     std::unordered_map<BufferType, MTL::Buffer*> outputBuffers_;

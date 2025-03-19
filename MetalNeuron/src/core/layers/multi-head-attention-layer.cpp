@@ -299,7 +299,16 @@ MTL::Buffer* MultiHeadAttentionLayer::getOutputBufferAt(BufferType type) { retur
 void MultiHeadAttentionLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type] = buffer;
 }
+
 MTL::Buffer* MultiHeadAttentionLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
+
+void MultiHeadAttentionLayer::resetErrors() {
+    float* errorsBuffer = static_cast<float*>(inputBuffers_[BufferType::IncomingErrors]->contents());
+    memset(errorsBuffer, 0, inputBuffers_[BufferType::IncomingErrors]->length());
+    inputBuffers_[BufferType::IncomingErrors]->didModifyRange(
+        NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors]->length())
+    );
+}
 
 
 void MultiHeadAttentionLayer::connectForwardConnections(Layer* previousLayer) {

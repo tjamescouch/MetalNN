@@ -224,6 +224,14 @@ int DenseLayer::outputSize() const {
     return outputDim_;
 }
 
+void DenseLayer::resetErrors() {
+    float* errorsBuffer = static_cast<float*>(inputBuffers_[BufferType::IncomingErrors][0]->contents());
+    memset(errorsBuffer, 0, inputBuffers_[BufferType::IncomingErrors][0]->length());
+    inputBuffers_[BufferType::IncomingErrors][0]->didModifyRange(
+        NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors][0]->length())
+    );
+}
+
 void DenseLayer::connectForwardConnections(Layer* previousLayer) {
     setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
 }
@@ -246,15 +254,10 @@ void DenseLayer::loadParameters(std::istream& is) { //FIXME - decode buffer leng
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
 }
 
-void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    inputBuffers_[BufferType::IncomingErrors][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::IncomingErrors][0]->length()));
-}
+void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {}
 
 
-void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    memset(outputBuffers_[BufferType::OutgoingErrors][0]->contents(), 0, outputBuffers_[BufferType::OutgoingErrors][0]->length());
-    outputBuffers_[BufferType::OutgoingErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutgoingErrors][0]->length()));
-}
+void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {}
 
 void DenseLayer::debugLog() {
     Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Debug][0], getName() + " F debug");

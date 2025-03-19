@@ -239,6 +239,14 @@ int BatchNormalizationLayer::outputSize() const {
     return outputDim_;
 }
 
+void BatchNormalizationLayer::resetErrors() {
+    float* errorsBuffer = static_cast<float*>(inputBuffers_[BufferType::IncomingErrors][0]->contents());
+    memset(errorsBuffer, 0, inputBuffers_[BufferType::IncomingErrors][0]->length());
+    inputBuffers_[BufferType::IncomingErrors][0]->didModifyRange(
+        NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors][0]->length())
+    );
+}
+
 void BatchNormalizationLayer::updateTargetBufferAt(const float* targetData) {
     assert(false);
 }

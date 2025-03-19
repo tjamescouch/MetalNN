@@ -218,6 +218,14 @@ void LayerNormalizationLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize
     encoder->endEncoding();
 }
 
+void LayerNormalizationLayer::resetErrors() {
+    float* errorsBuffer = static_cast<float*>(inputBuffers_[BufferType::IncomingErrors][0]->contents());
+    memset(errorsBuffer, 0, inputBuffers_[BufferType::IncomingErrors][0]->length());
+    inputBuffers_[BufferType::IncomingErrors][0]->didModifyRange(
+        NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors][0]->length())
+    );
+}
+
 
 void LayerNormalizationLayer::updateTargetBufferAt(const float* targetData) {
     assert(false);

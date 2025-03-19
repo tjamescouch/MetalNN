@@ -187,8 +187,6 @@ void SelfAttentionLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSiz
     encoder->endEncoding();
 }
 
-
-
 void SelfAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSize) {
     auto encoder = commandBuffer->computeCommandEncoder();
     encoder->setComputePipelineState(backwardPipelineState_);
@@ -237,6 +235,14 @@ void SelfAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSi
     optimizerOutputProjection_->encode(encoder, outputProjection_, inputDim_ * modelDim_, batchSize);
     
     encoder->endEncoding();
+}
+
+void SelfAttentionLayer::resetErrors() {
+    float* errorsBuffer = static_cast<float*>(inputBuffers_[BufferType::IncomingErrors]->contents());
+    memset(errorsBuffer, 0, inputBuffers_[BufferType::IncomingErrors]->length());
+    inputBuffers_[BufferType::IncomingErrors]->didModifyRange(
+        NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors]->length())
+    );
 }
 
 void SelfAttentionLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {

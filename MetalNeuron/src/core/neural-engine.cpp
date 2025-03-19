@@ -205,6 +205,10 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
     
     auto cmdBuf = _pCommandQueue->commandBuffer();
     
+    for (Layer* layer : dynamicLayers_) {
+        layer->resetErrors();
+    }
+
     // Encode backward pass for each layer
     for (auto it = dynamicLayers_.rbegin(); it != dynamicLayers_.rend(); ++it) {
         (*it)->backward(cmdBuf, batchSize);

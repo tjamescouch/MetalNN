@@ -30,5 +30,5 @@ kernel void backward_residual(
 ) {
     // Propagate gradients equally to input and residual inputs
     outputErrors[gid] = inputErrors[gid];
-    residualOutputErrors[gid] = inputErrors[gid];
+    residualOutputErrors[gid] += inputErrors[gid];
 }

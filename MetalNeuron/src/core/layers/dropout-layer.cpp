@@ -177,6 +177,14 @@ MTL::Buffer* DropoutLayer::getInputBufferAt(BufferType type) {
     return inputBuffers_[type][0];
 }
 
+void DropoutLayer::resetErrors() {
+    float* errorsBuffer = static_cast<float*>(inputBuffers_[BufferType::IncomingErrors][0]->contents());
+    memset(errorsBuffer, 0, inputBuffers_[BufferType::IncomingErrors][0]->length());
+    inputBuffers_[BufferType::IncomingErrors][0]->didModifyRange(
+        NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors][0]->length())
+    );
+}
+
 void DropoutLayer::connectForwardConnections(Layer* previousLayer) {
     setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
 }

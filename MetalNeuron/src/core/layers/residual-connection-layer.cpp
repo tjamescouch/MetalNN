@@ -8,15 +8,18 @@
 #include "residual-connection-layer.h"
 #include "logger.h"
 
-ResidualConnectionLayer::ResidualConnectionLayer(int featureDim, int batchSize)
-    : featureDim_(featureDim), batchSize_(batchSize), isTerminal_(false),
-      residualInputBuffer_(nullptr),
-      forwardPipelineState_(nullptr), backwardPipelineState_(nullptr) {}
+ResidualConnectionLayer::ResidualConnectionLayer(int featureDim, int batchSize) :
+featureDim_(featureDim),
+batchSize_(batchSize),
+isTerminal_(false),
+fromLayer_(nullptr),
+forwardPipelineState_(nullptr),
+backwardPipelineState_(nullptr) {}
 
 ResidualConnectionLayer::~ResidualConnectionLayer() {}
 
-ResidualConnectionLayer* ResidualConnectionLayer::setResidualInput(MTL::Buffer* residualBuffer) {
-    residualInputBuffer_ = residualBuffer;
+ResidualConnectionLayer* ResidualConnectionLayer::setFromLayer(Layer* fromLayer) {
+    fromLayer_ = fromLayer;
     
     return this;
 }
@@ -50,7 +53,7 @@ void ResidualConnectionLayer::forward(MTL::CommandBuffer* commandBuffer, int bat
     auto encoder = commandBuffer->computeCommandEncoder();
     encoder->setComputePipelineState(forwardPipelineState_);
     encoder->setBuffer(inputBuffers_[BufferType::Input], 0, 0);
-    encoder->setBuffer(residualInputBuffer_, 0, 1);
+    encoder->setBuffer(fromLayer_->getOutputBufferAt(BufferType::Output), 0, 1);
     encoder->setBuffer(outputBuffers_[BufferType::Output], 0, 2);
 
     MTL::Size gridSize = MTL::Size(batchSize_ * featureDim_, 1, 1);
@@ -65,7 +68,7 @@ void ResidualConnectionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
 
     encoder->setBuffer(inputBuffers_[BufferType::IncomingErrors], 0, 0);   // input error coming from next layer
     encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors], 0, 1); // propagate back to previous layer
-    encoder->setBuffer(residualOutputErrorBuffer_, 0, 2);               // propagate error back to residual source layer
+    encoder->setBuffer(fromLayer_->getInputBufferAt(BufferType::IncomingErrors), 0, 2);               // propagate error back to residual source layer
 
     MTL::Size gridSize = MTL::Size(batchSize_ * featureDim_, 1, 1);
     MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * featureDim_), 1, 1);
@@ -101,6 +104,14 @@ void ResidualConnectionLayer::connectForwardConnections(Layer* previousLayer) {
 void ResidualConnectionLayer::connectBackwardConnections(Layer* prevLayer)
 {
     prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
+}
+
+void ResidualConnectionLayer::resetErrors() {
+    float* errorsBuffer = static_cast<float*>(inputBuffers_[BufferType::IncomingErrors]->contents());
+    memset(errorsBuffer, 0, inputBuffers_[BufferType::IncomingErrors]->length());
+    inputBuffers_[BufferType::IncomingErrors]->didModifyRange(
+        NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors]->length())
+    );
 }
 
 void ResidualConnectionLayer::debugLog() {}

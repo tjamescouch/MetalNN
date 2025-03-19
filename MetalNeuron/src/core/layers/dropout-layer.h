@@ -33,6 +33,8 @@ public:
     MTL::Buffer* getInputBufferAt(BufferType type) override;
     void connectForwardConnections(Layer* previousLayer) override;
     void connectBackwardConnections(Layer* previousLayer) override;
+   
+    void resetErrors() override;
     
     int inputSize() const override { return inputDim_; }
     int outputSize() const override { return featureDim_; }

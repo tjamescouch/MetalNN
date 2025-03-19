@@ -22,6 +22,8 @@ public:
     void buildPipeline(MTL::Device* device, MTL::Library* library) override {};
     void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
+    
+    void resetErrors() override;
 
     int inputSize() const override { return inputDim_; }
     int outputSize() const override { return inputDim_; }

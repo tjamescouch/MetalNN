@@ -22,7 +22,8 @@ public:
     
     void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override;
-    
+
+    void resetErrors() override;
 
     int inputSize() const override;
     int outputSize() const override;

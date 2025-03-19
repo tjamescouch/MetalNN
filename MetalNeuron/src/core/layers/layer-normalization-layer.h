@@ -28,6 +28,8 @@ public:
     void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) override;
     MTL::Buffer* getInputBufferAt(BufferType type) override;
     
+    void resetErrors() override;
+    
     int inputSize() const override { return featureDim_; }
     int outputSize() const override { return featureDim_; }
 
