@@ -163,7 +163,6 @@ void MapReduceLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int ba
 }
 
 void MapReduceLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    memset(outputBuffers_[BufferType::OutgoingErrors][0]->contents(), 0, outputBuffers_[BufferType::OutgoingErrors][0]->length());
 }
 
 void MapReduceLayer::saveParameters(std::ostream& outStream) const {
