@@ -158,8 +158,8 @@
             filePath = "MetalNeuron/src/view-delegate.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "42"
-            endingLineNumber = "42"
+            startingLineNumber = "43"
+            endingLineNumber = "43"
             landmarkName = "ViewDelegate::ViewDelegate(pDevice)"
             landmarkType = "7">
          </BreakpointContent>
@@ -174,8 +174,8 @@
             filePath = "MetalNeuron/src/view-delegate.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "41"
-            endingLineNumber = "41"
+            startingLineNumber = "42"
+            endingLineNumber = "42"
             landmarkName = "ViewDelegate::ViewDelegate(pDevice)"
             landmarkType = "7">
          </BreakpointContent>

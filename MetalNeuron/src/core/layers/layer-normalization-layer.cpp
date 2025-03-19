@@ -112,9 +112,9 @@ void LayerNormalizationLayer::buildBuffers(MTL::Device* device) {
     bufferDebug_ = device->newBuffer(sizeof(float) * 256, MTL::ResourceStorageModeManaged);
 
     // Allocate input and output buffers explicitly (single timestep only)
-    inputBuffers_[BufferType::Input].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
+    inputBuffers_[BufferType::Input].push_back(nullptr);
     outputBuffers_[BufferType::Output].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
-    inputBuffers_[BufferType::IncomingErrors].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
+    inputBuffers_[BufferType::IncomingErrors].push_back(nullptr);
     outputBuffers_[BufferType::OutgoingErrors].push_back(device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged));
 
     // Optimizer buffers for gamma and beta
