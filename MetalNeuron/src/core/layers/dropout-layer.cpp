@@ -160,20 +160,20 @@ void DropoutLayer::generateRandomMask() {
     bufferRandomMask_->didModifyRange(NS::Range(0, bufferRandomMask_->length()));
 }
 
-void DropoutLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void DropoutLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {
     assert(buffer && "Setting input buffer to NULL");
     inputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* DropoutLayer::getOutputBufferAt(BufferType type) {
+MTL::Buffer* DropoutLayer::getOutputBuffer(BufferType type) {
     return outputBuffers_[type][0];
 }
 
-void DropoutLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void DropoutLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* DropoutLayer::getInputBufferAt(BufferType type) {
+MTL::Buffer* DropoutLayer::getInputBuffer(BufferType type) {
     return inputBuffers_[type][0];
 }
 
@@ -186,13 +186,13 @@ void DropoutLayer::resetErrors() {
 }
 
 void DropoutLayer::connectForwardConnections(Layer* previousLayer) {
-    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
+    setInputBuffer(BufferType::Input, previousLayer->getOutputBuffer(BufferType::Output));
 }
 
 void DropoutLayer::connectBackwardConnections(Layer* prevLayer)
 {
-    Logger::log << "dropout output error buffer @" << getOutputBufferAt(BufferType::OutgoingErrors) << std::endl;
-    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
+    Logger::log << "dropout output error buffer @" << getOutputBuffer(BufferType::OutgoingErrors) << std::endl;
+    prevLayer->setInputBuffer(BufferType::IncomingErrors, getOutputBuffer(BufferType::OutgoingErrors));
 }
 
 void DropoutLayer::saveParameters(std::ostream& os) const {

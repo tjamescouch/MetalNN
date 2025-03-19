@@ -256,29 +256,29 @@ void BatchNormalizationLayer::updateTargetBufferAt(const float* targetData, int 
 }
 
 
-void BatchNormalizationLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void BatchNormalizationLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {
     assert(buffer && "Setting input buffer to NULL");
     inputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* BatchNormalizationLayer::getOutputBufferAt(BufferType type) {
+MTL::Buffer* BatchNormalizationLayer::getOutputBuffer(BufferType type) {
     return outputBuffers_[type][0];
 }
 
-void BatchNormalizationLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void BatchNormalizationLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* BatchNormalizationLayer::getInputBufferAt(BufferType type) {
+MTL::Buffer* BatchNormalizationLayer::getInputBuffer(BufferType type) {
     return inputBuffers_[type][0];
 }
 
 void BatchNormalizationLayer::connectForwardConnections(Layer* previousLayer) {
-    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
+    setInputBuffer(BufferType::Input, previousLayer->getOutputBuffer(BufferType::Output));
 }
 
 void BatchNormalizationLayer::connectBackwardConnections(Layer* prevLayer) {
-    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
+    prevLayer->setInputBuffer(BufferType::IncomingErrors, getOutputBuffer(BufferType::OutgoingErrors));
 }
 
 void BatchNormalizationLayer::saveParameters(std::ostream& os) const {

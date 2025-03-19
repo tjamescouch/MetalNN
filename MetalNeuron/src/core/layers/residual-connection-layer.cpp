@@ -53,7 +53,7 @@ void ResidualConnectionLayer::forward(MTL::CommandBuffer* commandBuffer, int bat
     auto encoder = commandBuffer->computeCommandEncoder();
     encoder->setComputePipelineState(forwardPipelineState_);
     encoder->setBuffer(inputBuffers_[BufferType::Input], 0, 0);
-    encoder->setBuffer(fromLayer_->getOutputBufferAt(BufferType::Output), 0, 1);
+    encoder->setBuffer(fromLayer_->getOutputBuffer(BufferType::Output), 0, 1);
     encoder->setBuffer(outputBuffers_[BufferType::Output], 0, 2);
 
     MTL::Size gridSize = MTL::Size(batchSize_ * featureDim_, 1, 1);
@@ -68,7 +68,7 @@ void ResidualConnectionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
 
     encoder->setBuffer(inputBuffers_[BufferType::IncomingErrors], 0, 0);   // input error coming from next layer
     encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors], 0, 1); // propagate back to previous layer
-    encoder->setBuffer(fromLayer_->getInputBufferAt(BufferType::IncomingErrors), 0, 2);               // propagate error back to residual source layer
+    encoder->setBuffer(fromLayer_->getInputBuffer(BufferType::IncomingErrors), 0, 2);               // propagate error back to residual source layer
 
     MTL::Size gridSize = MTL::Size(batchSize_ * featureDim_, 1, 1);
     MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * featureDim_), 1, 1);
@@ -76,15 +76,15 @@ void ResidualConnectionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
     encoder->endEncoding();
 }
 
-void ResidualConnectionLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void ResidualConnectionLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {
     inputBuffers_[type] = buffer;
 }
 
-MTL::Buffer* ResidualConnectionLayer::getOutputBufferAt(BufferType type) { return outputBuffers_[type]; }
-void ResidualConnectionLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+MTL::Buffer* ResidualConnectionLayer::getOutputBuffer(BufferType type) { return outputBuffers_[type]; }
+void ResidualConnectionLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type] = buffer;
 }
-MTL::Buffer* ResidualConnectionLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
+MTL::Buffer* ResidualConnectionLayer::getInputBuffer(BufferType type) { return inputBuffers_[type]; }
 
 int ResidualConnectionLayer::inputSize() const { return featureDim_; }
 int ResidualConnectionLayer::outputSize() const { return featureDim_; }
@@ -98,12 +98,12 @@ void ResidualConnectionLayer::updateTargetBufferAt(const float* targetData, int 
 }
 
 void ResidualConnectionLayer::connectForwardConnections(Layer* previousLayer) {
-    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
+    setInputBuffer(BufferType::Input, previousLayer->getOutputBuffer(BufferType::Output));
 }
 
 void ResidualConnectionLayer::connectBackwardConnections(Layer* prevLayer)
 {
-    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
+    prevLayer->setInputBuffer(BufferType::IncomingErrors, getOutputBuffer(BufferType::OutgoingErrors));
 }
 
 void ResidualConnectionLayer::resetErrors() {

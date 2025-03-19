@@ -236,29 +236,29 @@ void LayerNormalizationLayer::updateTargetBufferAt(const float* targetData, int 
 }
 
 
-void LayerNormalizationLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void LayerNormalizationLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {
     assert(buffer && "Setting input buffer to NULL");
     inputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* LayerNormalizationLayer::getOutputBufferAt(BufferType type) {
+MTL::Buffer* LayerNormalizationLayer::getOutputBuffer(BufferType type) {
     return outputBuffers_[type][0];
 }
 
-void LayerNormalizationLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void LayerNormalizationLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* LayerNormalizationLayer::getInputBufferAt(BufferType type) {
+MTL::Buffer* LayerNormalizationLayer::getInputBuffer(BufferType type) {
     return inputBuffers_[type][0];
 }
 
 void LayerNormalizationLayer::connectForwardConnections(Layer* previousLayer) {
-    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
+    setInputBuffer(BufferType::Input, previousLayer->getOutputBuffer(BufferType::Output));
 }
 
 void LayerNormalizationLayer::connectBackwardConnections(Layer* prevLayer) {
-    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
+    prevLayer->setInputBuffer(BufferType::IncomingErrors, getOutputBuffer(BufferType::OutgoingErrors));
 }
 
 void LayerNormalizationLayer::saveParameters(std::ostream& os) const {

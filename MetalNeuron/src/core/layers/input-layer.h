@@ -30,11 +30,11 @@ public:
     void updateTargetBufferAt(const float* targetData) override {};
     void updateTargetBufferAt(const float* targetData, int batchSize) override {};
 
-    void setInputBufferAt(BufferType type, MTL::Buffer* buffer) override;
-    MTL::Buffer* getOutputBufferAt(BufferType type) override;
+    void setInputBuffer(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBuffer(BufferType type) override;
 
-    void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputBufferAt(BufferType type) override;
+    void setOutputBuffer(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputBuffer(BufferType type) override;
     
     void connectForwardConnections(Layer* previousLayer) override {};
     void connectBackwardConnections(Layer* previousLayer) override {};

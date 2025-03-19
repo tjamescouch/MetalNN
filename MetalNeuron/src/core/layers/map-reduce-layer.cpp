@@ -57,12 +57,12 @@ void MapReduceLayer::resetErrors() {
 }
 
 void MapReduceLayer::connectForwardConnections(Layer* previousLayer){
-    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
+    setInputBuffer(BufferType::Input, previousLayer->getOutputBuffer(BufferType::Output));
 }
 
 void MapReduceLayer::connectBackwardConnections(Layer* prevLayer)
 {
-    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
+    prevLayer->setInputBuffer(BufferType::IncomingErrors, getOutputBuffer(BufferType::OutgoingErrors));
 }
 
 void MapReduceLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -122,19 +122,19 @@ void MapReduceLayer::backward(MTL::CommandBuffer* cmdBuf, int batchSize) {
 }
 
 
-void MapReduceLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void MapReduceLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {
     inputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* MapReduceLayer::getOutputBufferAt(BufferType type) {
+MTL::Buffer* MapReduceLayer::getOutputBuffer(BufferType type) {
     return outputBuffers_[type][0];
 }
 
-void MapReduceLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void MapReduceLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type][0] = buffer;
 }
 
-MTL::Buffer* MapReduceLayer::getInputBufferAt(BufferType type) {
+MTL::Buffer* MapReduceLayer::getInputBuffer(BufferType type) {
     return inputBuffers_[type][0];
 }
 

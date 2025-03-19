@@ -23,10 +23,10 @@ public:
 
     ResidualConnectionLayer* setFromLayer(Layer* fromLayer);
 
-    void setInputBufferAt(BufferType type, MTL::Buffer* buffer) override;
-    MTL::Buffer* getOutputBufferAt(BufferType type) override;
-    void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputBufferAt(BufferType type) override;
+    void setInputBuffer(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBuffer(BufferType type) override;
+    void setOutputBuffer(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputBuffer(BufferType type) override;
     
     void resetErrors() override;
 

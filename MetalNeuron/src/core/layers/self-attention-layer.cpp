@@ -245,25 +245,25 @@ void SelfAttentionLayer::resetErrors() {
     );
 }
 
-void SelfAttentionLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void SelfAttentionLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {
     inputBuffers_[type] = buffer;
 }
 
-MTL::Buffer* SelfAttentionLayer::getOutputBufferAt(BufferType type) { return outputBuffers_[type]; }
+MTL::Buffer* SelfAttentionLayer::getOutputBuffer(BufferType type) { return outputBuffers_[type]; }
 
-void SelfAttentionLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void SelfAttentionLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type] = buffer;
 }
-MTL::Buffer* SelfAttentionLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
+MTL::Buffer* SelfAttentionLayer::getInputBuffer(BufferType type) { return inputBuffers_[type]; }
 
 
 void SelfAttentionLayer::connectForwardConnections(Layer* previousLayer) {
-    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
+    setInputBuffer(BufferType::Input, previousLayer->getOutputBuffer(BufferType::Output));
 }
 
 void SelfAttentionLayer::connectBackwardConnections(Layer* prevLayer)
 {
-    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
+    prevLayer->setInputBuffer(BufferType::IncomingErrors, getOutputBuffer(BufferType::OutgoingErrors));
 }
 
 void SelfAttentionLayer::debugLog() {}
