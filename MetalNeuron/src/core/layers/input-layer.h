@@ -22,17 +22,19 @@ public:
     void buildPipeline(MTL::Device* device, MTL::Library* library) override {};
     void forward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
     void backward(MTL::CommandBuffer* cmdBuf, int batchSize) override {};
+    
+    void resetErrors() override;
 
     int inputSize() const override { return inputDim_; }
     int outputSize() const override { return inputDim_; }
     void updateTargetBufferAt(const float* targetData) override {};
     void updateTargetBufferAt(const float* targetData, int batchSize) override {};
 
-    void setInputBufferAt(BufferType type, MTL::Buffer* buffer) override;
-    MTL::Buffer* getOutputBufferAt(BufferType type) override;
+    void setInputBuffer(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getOutputBuffer(BufferType type) override;
 
-    void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) override;
-    MTL::Buffer* getInputBufferAt(BufferType type) override;
+    void setOutputBuffer(BufferType type, MTL::Buffer* buffer) override;
+    MTL::Buffer* getInputBuffer(BufferType type) override;
     
     void connectForwardConnections(Layer* previousLayer) override {};
     void connectBackwardConnections(Layer* previousLayer) override {};

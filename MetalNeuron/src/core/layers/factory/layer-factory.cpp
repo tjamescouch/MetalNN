@@ -123,7 +123,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         auto from = layerConfig.params.at("from_layer").get_value<std::string>();
         std::cout << "Creating residual connection layer from " << from << "..." << std::endl;
         layer = (new ResidualConnectionLayer(inputSize, batchSize))
-                    ->setResidualInput(layerMap_[from]->getOutputBufferAt(BufferType::Output));
+                    ->setFromLayer(layerMap_[from]);
         
     } else if (layerConfig.type == "MapReduce") {
         std::cout << "Creating MapReduce layer..." << std::endl;

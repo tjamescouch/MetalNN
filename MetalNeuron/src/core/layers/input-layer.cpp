@@ -61,22 +61,25 @@ void InputLayer::updateBufferAt(const float* data, int batchSize) {
     outputBuffers_[BufferType::Output][0]->didModifyRange(NS::Range::Make(0, outputBuffers_[BufferType::Output][0]->length()));
 }
 
-void InputLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void InputLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {
     // Intentionally empty
 }
 
-MTL::Buffer* InputLayer::getOutputBufferAt(BufferType type) {
+MTL::Buffer* InputLayer::getOutputBuffer(BufferType type) {
     assert(outputBuffers_[BufferType::Output].size() > 0);
     return outputBuffers_[type][0];
 }
 
-void InputLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void InputLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
     assert(outputBuffers_[BufferType::Output].size() > 0);
     outputBuffers_[type][0] = buffer;
     assert(outputBuffers_[BufferType::Output].size() > 0);
 }
 
-MTL::Buffer* InputLayer::getInputBufferAt(BufferType) {
+void InputLayer::resetErrors() {
+}
+
+MTL::Buffer* InputLayer::getInputBuffer(BufferType) {
     return nullptr; // Input layer doesn't propagate error backwards
 }
 

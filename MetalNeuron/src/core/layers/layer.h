@@ -84,10 +84,13 @@ public:
     // Record commands for the backward pass.
     virtual void backward(MTL::CommandBuffer* cmdBuf, int batchSize) = 0;
     
-    virtual void setInputBufferAt(BufferType type, MTL::Buffer* buffer) = 0;
-    virtual MTL::Buffer* getOutputBufferAt(BufferType type) = 0;
-    virtual void setOutputBufferAt(BufferType type, MTL::Buffer* buffer) = 0;
-    virtual MTL::Buffer* getInputBufferAt(BufferType type) = 0;
+    virtual void setInputBuffer(BufferType type, MTL::Buffer* buffer) = 0;
+    virtual MTL::Buffer* getInputBuffer(BufferType type) = 0;
+    
+    virtual void setOutputBuffer(BufferType type, MTL::Buffer* buffer) = 0;
+    virtual MTL::Buffer* getOutputBuffer(BufferType type) = 0;
+    
+    virtual void resetErrors() = 0;
     
     virtual int inputSize() const = 0;
     virtual int outputSize() const = 0;

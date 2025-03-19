@@ -290,25 +290,34 @@ void MultiHeadAttentionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
     encoder->endEncoding();
 }
 
-void MultiHeadAttentionLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void MultiHeadAttentionLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {
     inputBuffers_[type] = buffer;
 }
 
-MTL::Buffer* MultiHeadAttentionLayer::getOutputBufferAt(BufferType type) { return outputBuffers_[type]; }
+MTL::Buffer* MultiHeadAttentionLayer::getOutputBuffer(BufferType type) { return outputBuffers_[type]; }
 
-void MultiHeadAttentionLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void MultiHeadAttentionLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type] = buffer;
 }
-MTL::Buffer* MultiHeadAttentionLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
+
+MTL::Buffer* MultiHeadAttentionLayer::getInputBuffer(BufferType type) { return inputBuffers_[type]; }
+
+void MultiHeadAttentionLayer::resetErrors() {
+    float* errorsBuffer = static_cast<float*>(inputBuffers_[BufferType::IncomingErrors]->contents());
+    memset(errorsBuffer, 0, inputBuffers_[BufferType::IncomingErrors]->length());
+    inputBuffers_[BufferType::IncomingErrors]->didModifyRange(
+        NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors]->length())
+    );
+}
 
 
 void MultiHeadAttentionLayer::connectForwardConnections(Layer* previousLayer) {
-    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
+    setInputBuffer(BufferType::Input, previousLayer->getOutputBuffer(BufferType::Output));
 }
 
 void MultiHeadAttentionLayer::connectBackwardConnections(Layer* prevLayer)
 {
-    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
+    prevLayer->setInputBuffer(BufferType::IncomingErrors, getOutputBuffer(BufferType::OutgoingErrors));
 }
 
 void MultiHeadAttentionLayer::debugLog() {

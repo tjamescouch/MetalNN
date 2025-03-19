@@ -38,18 +38,22 @@ void FlattenLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSize) {
     //Intentionally empty
 }
 
-void FlattenLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void FlattenLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {
     inputBuffers_[type] = buffer;
 }
 
-MTL::Buffer* FlattenLayer::getOutputBufferAt(BufferType type) { return outputBuffers_[type]; }
-void FlattenLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+MTL::Buffer* FlattenLayer::getOutputBuffer(BufferType type) { return outputBuffers_[type]; }
+void FlattenLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type] = buffer;
 }
-MTL::Buffer* FlattenLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
+MTL::Buffer* FlattenLayer::getInputBuffer(BufferType type) { return inputBuffers_[type]; }
 
 int FlattenLayer::inputSize() const { return inputSize_; }
 int FlattenLayer::outputSize() const { return outputSize_; }
+
+void FlattenLayer::resetErrors() {
+    //Intentionally blank
+}
 
 void FlattenLayer::updateTargetBufferAt(const float* targetData) {
     assert(false && "FlattenLayer cannot be used as a terminal layer with targets.");
@@ -60,14 +64,14 @@ void FlattenLayer::updateTargetBufferAt(const float* targetData, int batchSize) 
 }
 
 void FlattenLayer::connectForwardConnections(Layer* previousLayer) {
-    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
-    setOutputBufferAt(BufferType::Output, this->getInputBufferAt(BufferType::Input));
+    setInputBuffer(BufferType::Input, previousLayer->getOutputBuffer(BufferType::Output));
+    setOutputBuffer(BufferType::Output, this->getInputBuffer(BufferType::Input));
 }
 
 void FlattenLayer::connectBackwardConnections(Layer* prevLayer)
 {
-    setOutputBufferAt(BufferType::OutgoingErrors, this->getInputBufferAt(BufferType::IncomingErrors));
-    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
+    setOutputBuffer(BufferType::OutgoingErrors, this->getInputBuffer(BufferType::IncomingErrors));
+    prevLayer->setInputBuffer(BufferType::IncomingErrors, getOutputBuffer(BufferType::OutgoingErrors));
 }
 
 void FlattenLayer::debugLog() {}

@@ -205,6 +205,10 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
     
     auto cmdBuf = _pCommandQueue->commandBuffer();
     
+    for (Layer* layer : dynamicLayers_) {
+        layer->resetErrors();
+    }
+
     // Encode backward pass for each layer
     for (auto it = dynamicLayers_.rbegin(); it != dynamicLayers_.rend(); ++it) {
         (*it)->backward(cmdBuf, batchSize);
@@ -255,7 +259,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
     
     computeForward(currentBatchSize, [=, this]() mutable {
         float* predictedData = static_cast<float*>(
-                                                   dynamicLayers_.back()->getOutputBufferAt(BufferType::Output)->contents()
+                                                   dynamicLayers_.back()->getOutputBuffer(BufferType::Output)->contents()
                                                    );
         
         const float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
@@ -312,9 +316,9 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
     computeForward(currentBatchSize, [=, this]() mutable {
         computeBackward(currentBatchSize, [=, this]() mutable {
             
-            assert(dynamicLayers_.back()->getOutputBufferAt(BufferType::Output)->length() >= batch_size * output_dim * sizeof(float));
+            assert(dynamicLayers_.back()->getOutputBuffer(BufferType::Output)->length() >= batch_size * output_dim * sizeof(float));
             float* predictedData = static_cast<float*>(
-                                                       dynamicLayers_.back()->getOutputBufferAt(BufferType::Output)->contents()
+                                                       dynamicLayers_.back()->getOutputBuffer(BufferType::Output)->contents()
                                                        );
             
             const float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);

@@ -38,15 +38,19 @@ void ReshapeLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSize) {
     //Intentionally blank
 }
 
-void ReshapeLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void ReshapeLayer::resetErrors() {
+    //Intentionally blank
+}
+
+void ReshapeLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {
     inputBuffers_[type] = buffer;
 }
 
-MTL::Buffer* ReshapeLayer::getOutputBufferAt(BufferType type) { return outputBuffers_[type]; }
-void ReshapeLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+MTL::Buffer* ReshapeLayer::getOutputBuffer(BufferType type) { return outputBuffers_[type]; }
+void ReshapeLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type] = buffer;
 }
-MTL::Buffer* ReshapeLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
+MTL::Buffer* ReshapeLayer::getInputBuffer(BufferType type) { return inputBuffers_[type]; }
 
 int ReshapeLayer::inputSize() const { return inputSize_; }
 int ReshapeLayer::outputSize() const { return outputSize_; }
@@ -60,14 +64,14 @@ void ReshapeLayer::updateTargetBufferAt(const float* targetData, int batchSize) 
 }
 
 void ReshapeLayer::connectForwardConnections(Layer* previousLayer) {
-    setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
-    setOutputBufferAt(BufferType::Output, this->getInputBufferAt(BufferType::Input));
+    setInputBuffer(BufferType::Input, previousLayer->getOutputBuffer(BufferType::Output));
+    setOutputBuffer(BufferType::Output, this->getInputBuffer(BufferType::Input));
 }
 
 void ReshapeLayer::connectBackwardConnections(Layer* prevLayer)
 {
-    setOutputBufferAt(BufferType::OutgoingErrors, this->getInputBufferAt(BufferType::IncomingErrors));
-    prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
+    setOutputBuffer(BufferType::OutgoingErrors, this->getInputBuffer(BufferType::IncomingErrors));
+    prevLayer->setInputBuffer(BufferType::IncomingErrors, getOutputBuffer(BufferType::OutgoingErrors));
 }
 
 void ReshapeLayer::debugLog() {}
