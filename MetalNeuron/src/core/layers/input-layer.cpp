@@ -21,6 +21,8 @@ batchSize_(batchSize)
     outputBuffers_[BufferType::Output].resize(1, nullptr);
     assert(outputBuffers_[BufferType::Output].size() > 0);
     Logger::log << "Constructor: bufer output ptr: " << outputBuffers_[BufferType::Output][0] << std::endl;
+    
+    inputBuffers_[BufferType::IncomingErrors].resize(1, nullptr);
 }
 
 InputLayer::~InputLayer() {
@@ -62,7 +64,7 @@ void InputLayer::updateBufferAt(const float* data, int batchSize) {
 }
 
 void InputLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {
-    // Intentionally empty
+    inputBuffers_[type][0] = buffer;
 }
 
 MTL::Buffer* InputLayer::getOutputBuffer(BufferType type) {
@@ -79,8 +81,8 @@ void InputLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
 void InputLayer::resetErrors() {
 }
 
-MTL::Buffer* InputLayer::getInputBuffer(BufferType) {
-    return nullptr; // Input layer doesn't propagate error backwards
+MTL::Buffer* InputLayer::getInputBuffer(BufferType type) {
+    return inputBuffers_[type][0];
 }
 
 void InputLayer::saveParameters(std::ostream& os) const {
