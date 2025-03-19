@@ -61,6 +61,11 @@ ModelConfig ModelConfig::loadFromFile(const std::string& filePath) {
     // Load basic fields
     modelConfig.name = config["name"].get_value<std::string>();
     modelConfig.dataset.type = config["dataset"]["type"].get_value<std::string>();
+    int defaultDatasetSize = 1000;
+    if (config["dataset"].contains("dataset_size")) {
+        modelConfig.dataset.dataset_size = config["dataset"]["dataset_size"].get_value_or<int>(defaultDatasetSize);
+    }
+    modelConfig.dataset.dataset_size = modelConfig.dataset.dataset_size > 0 ? modelConfig.dataset.dataset_size : defaultDatasetSize;
     
     if (modelConfig.dataset.type == "mnist") {
         modelConfig.dataset.labels = config["dataset"]["labels"].get_value<std::string>();

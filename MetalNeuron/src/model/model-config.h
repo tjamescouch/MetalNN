@@ -42,6 +42,7 @@ struct ModelDataSet {
     std::string type;
     std::string images;
     std::string labels;
+    uint dataset_size;
 };
 
 

@@ -3,10 +3,10 @@ name: "Single Dense Layer"
 layers:
   - type: Input
     name: "input"
-    output_shape: [1, 512]
+    output_shape: [1, 256]
     
   - type: Dense
-    input_size: 512
+    input_size: 256
     output_size: 512
     activation: linear
     initializer: xavier
@@ -26,6 +26,7 @@ training:
 
 dataset:
   type: "function"
+  dataset_size: 5000
 
 metadata:
   author: "James Couch"

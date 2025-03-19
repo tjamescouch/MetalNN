@@ -12,15 +12,14 @@ std::uniform_int_distribution<int> distribution(0, 200*M_PI);
 
 
 FunctionDataset::FunctionDataset(InputFunction inputFunc, TargetFunction targetFunc,
-                                 int sequenceLength, int inputDim, int outputDim, int datasetSize)
+                                 int inputSequenceLength, int targetSequenceLength, int inputDim, int outputDim, int datasetSize)
 : inputFunc_(inputFunc),
   targetFunc_(targetFunc),
-  sequenceLength_(sequenceLength),
+  inputSequenceLength_(inputSequenceLength),
+  targetSequenceLength_(targetSequenceLength),
   inputDim_(inputDim),
   outputDim_(outputDim),
   datasetSize_(datasetSize),
-  currentInputBuffer_(sequenceLength * inputDim, 0.0f),
-  currentTargetBuffer_(sequenceLength * outputDim, 0.0f),
   inputs_(0),
   targets_(0) {
 }
@@ -58,13 +57,20 @@ void FunctionDataset::loadData(int batchSize) {
 }
 
 void FunctionDataset::generateBatch(double offset, int batchSize) {
-    const int batchDataSize = inputDim_ * batchSize;
-    inputs_.resize(batchDataSize);
-    targets_.resize(batchDataSize);
+    const int inputBatchDataSize = inputDim_ * batchSize * inputSequenceLength_;
+    inputs_.resize(inputBatchDataSize);
     for (int t = 0; t < batchSize; ++t) {
         for (int i = 0; i < inputDim_; ++i) {
             int index = t * inputDim_ + i;
             inputs_[index] = inputFunc_(index, offset + offset_);
+        }
+    }
+    
+    const int targetBatchDataSize = outputDim_ * batchSize * targetSequenceLength_;
+    targets_.resize(targetBatchDataSize);
+    for (int t = 0; t < batchSize; ++t) {
+        for (int i = 0; i < outputDim_; ++i) {
+            int index = t * outputDim_ + i;
             targets_[index] = targetFunc_(index, offset + offset_);
         }
     }
@@ -85,9 +91,9 @@ int FunctionDataset::numSamples() const {
 
 
 const float* FunctionDataset::getInputDataAt(int batchIndex) const {
-    return inputs_.data() + batchIndex * inputDim_;
+    return inputs_.data() + batchIndex * inputDim_ * inputSequenceLength_;
 }
 
 const float* FunctionDataset::getTargetDataAt(int batchIndex) const {
-    return targets_.data() + batchIndex * outputDim_;
+    return targets_.data() + batchIndex * outputDim_ * targetSequenceLength_;
 }
