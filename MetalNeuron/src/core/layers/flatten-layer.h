@@ -12,7 +12,7 @@
 
 class FlattenLayer : public Layer {
 public:
-    FlattenLayer(int featureDim, int batchSize);
+    FlattenLayer(int sequenceLength_, int featureDim, int batchSize);
     ~FlattenLayer();
 
     void forward(MTL::CommandBuffer* commandBuffer, int batchSize) override;

@@ -8,37 +8,25 @@
 #include "reshape-layer.h"
 #include "logger.h"
 
-ReshapeLayer::ReshapeLayer(int featureDim, int batchSize) :
+ReshapeLayer::ReshapeLayer(int sequenceLength, int featureDim, int batchSize) :
+    sequenceLength_(sequenceLength),
     featureDim_(featureDim),
     batchSize_(batchSize),
     isTerminal_(false),
     forwardPipelineState_(nullptr),
-    backwardPipelineState_(nullptr) {}
+    backwardPipelineState_(nullptr) {
+    assert(outputSize() == sequenceLength_ * featureDim_ &&
+           "ReshapeLayer output size mismatch: outputSize must equal sequenceLength * featureDim");
+}
 
 ReshapeLayer::~ReshapeLayer() {}
 
 void ReshapeLayer::buildBuffers(MTL::Device* device) {
-    size_t bufferSize = batchSize_ * featureDim_ * sizeof(float); //FIXME
-    
-    outputBuffers_[BufferType::Output] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
-    outputBuffers_[BufferType::OutgoingErrors] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
-
+    // Explicitly no buffer allocation required, reusing buffers from connected layers
 }
 
 void ReshapeLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
-    NS::Error* error = nullptr;
-    
-    auto forwardFn = library->newFunction(NS::String::string("forward_flatten", NS::UTF8StringEncoding));
-    assert(forwardFn && "Forward function not found.");
-
-    auto backwardFn = library->newFunction(NS::String::string("backward_flatten", NS::UTF8StringEncoding));
-    assert(backwardFn && "Backward function not found.");
-
-    forwardPipelineState_ = device->newComputePipelineState(forwardFn, &error);
-    assert(forwardPipelineState_);
-
-    backwardPipelineState_ = device->newComputePipelineState(backwardFn, &error);
-    assert(backwardPipelineState_);
+    // Explicitly no compute pipeline needed for ReshapeLayer
 }
 
 void ReshapeLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSize) {
@@ -70,7 +58,7 @@ void ReshapeLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
 }
 
 MTL::Buffer* ReshapeLayer::getOutputBufferAt(BufferType type) { return outputBuffers_[type]; }
-void FlattenLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
+void ReshapeLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
     outputBuffers_[type] = buffer;
 }
 MTL::Buffer* ReshapeLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
@@ -87,11 +75,15 @@ void ReshapeLayer::updateTargetBufferAt(const float* targetData, int batchSize) 
 }
 
 void ReshapeLayer::connectForwardConnections(Layer* previousLayer) {
+    assert(previousLayer->outputSize() == sequenceLength_ * featureDim_ &&
+       "ReshapeLayer input size mismatch: previous layer output size must equal sequenceLength * featureDim");
     setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
+    setOutputBufferAt(BufferType::Output, this->getInputBufferAt(BufferType::Input));
 }
 
 void ReshapeLayer::connectBackwardConnections(Layer* prevLayer)
 {
+    setOutputBufferAt(BufferType::OutgoingErrors, this->getInputBufferAt(BufferType::IncomingErrors));
     prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }
 

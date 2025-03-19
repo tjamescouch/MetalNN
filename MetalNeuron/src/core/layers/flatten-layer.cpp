@@ -8,37 +8,25 @@
 #include "flatten-layer.h"
 #include "logger.h"
 
-FlattenLayer::FlattenLayer(int featureDim, int batchSize) :
+FlattenLayer::FlattenLayer(int sequenceLength, int featureDim, int batchSize) :
+    sequenceLength_(sequenceLength),
     featureDim_(featureDim),
     batchSize_(batchSize),
     isTerminal_(false),
     forwardPipelineState_(nullptr),
-    backwardPipelineState_(nullptr) {}
+    backwardPipelineState_(nullptr) {
+    assert(outputSize() == sequenceLength_ * featureDim_ &&
+           "FlattenLayer output size mismatch: outputSize must equal sequenceLength * featureDim");
+}
 
 FlattenLayer::~FlattenLayer() {}
 
 void FlattenLayer::buildBuffers(MTL::Device* device) {
-    size_t bufferSize = batchSize_ * featureDim_ * sizeof(float); //FIXME
-    
-    outputBuffers_[BufferType::Output] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
-    outputBuffers_[BufferType::OutgoingErrors] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
-
+    // Explicitly no buffer allocation required, reusing buffers from connected layers
 }
 
 void FlattenLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
-    NS::Error* error = nullptr;
-    
-    auto forwardFn = library->newFunction(NS::String::string("forward_flatten", NS::UTF8StringEncoding));
-    assert(forwardFn && "Forward function not found.");
-
-    auto backwardFn = library->newFunction(NS::String::string("backward_flatten", NS::UTF8StringEncoding));
-    assert(backwardFn && "Backward function not found.");
-
-    forwardPipelineState_ = device->newComputePipelineState(forwardFn, &error);
-    assert(forwardPipelineState_);
-
-    backwardPipelineState_ = device->newComputePipelineState(backwardFn, &error);
-    assert(backwardPipelineState_);
+    // Explicitly no compute pipeline needed for FlattenLayer
 }
 
 void FlattenLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSize) {
@@ -87,11 +75,15 @@ void FlattenLayer::updateTargetBufferAt(const float* targetData, int batchSize) 
 }
 
 void FlattenLayer::connectForwardConnections(Layer* previousLayer) {
+    assert(previousLayer->outputSize() == sequenceLength_ * featureDim_ &&
+       "FlattenLayer input size mismatch: previous layer output size must equal sequenceLength * featureDim");
     setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
+    setOutputBufferAt(BufferType::Output, this->getInputBufferAt(BufferType::Input));
 }
 
 void FlattenLayer::connectBackwardConnections(Layer* prevLayer)
 {
+    setOutputBufferAt(BufferType::OutgoingErrors, this->getInputBufferAt(BufferType::IncomingErrors));
     prevLayer->setInputBufferAt(BufferType::IncomingErrors, getOutputBufferAt(BufferType::OutgoingErrors));
 }
 

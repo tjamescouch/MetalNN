@@ -24,9 +24,9 @@
 //const char* modelFilename = "single-dense-layer.yml";
 //const char* modelFilename = "self-attention.yml";
 //const char* modelFilename = "multi-head-attention.yml";
-const char* modelFilename = "layer-norm.yml";
+//const char* modelFilename = "layer-norm.yml";
 //const char* modelFilename = "transformer.yml";
-//const char* modelFilename = "sequence-length.yml";
+const char* modelFilename = "sequence-length.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {

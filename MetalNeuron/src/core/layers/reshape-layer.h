@@ -12,7 +12,7 @@
 
 class ReshapeLayer : public Layer {
 public:
-    ReshapeLayer(int featureDim, int batchSize);
+    ReshapeLayer(int sequenceLength, int featureDim, int batchSize);
     ~ReshapeLayer();
 
     void forward(MTL::CommandBuffer* commandBuffer, int batchSize) override;
@@ -46,6 +46,7 @@ public:
 
 private:
     /* Remove any not needed member variables */
+    int sequenceLength_;
     int featureDim_;
     int batchSize_;
     bool isTerminal_;
