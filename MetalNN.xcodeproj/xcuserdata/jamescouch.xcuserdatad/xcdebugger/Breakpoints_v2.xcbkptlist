@@ -32,7 +32,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "173"
             endingLineNumber = "173"
-            landmarkName = "DropoutLayer::setOutputBufferAt(type, buffer)"
+            landmarkName = "DropoutLayer::setOutputBuffer(type, buffer)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -192,7 +192,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "249"
             endingLineNumber = "249"
-            landmarkName = "SelfAttentionLayer::setInputBufferAt(type, buffer)"
+            landmarkName = "SelfAttentionLayer::setInputBuffer(type, buffer)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

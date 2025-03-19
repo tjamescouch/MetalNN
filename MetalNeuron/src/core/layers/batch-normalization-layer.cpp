@@ -307,11 +307,7 @@ void BatchNormalizationLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueu
 }
 
 void BatchNormalizationLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    
     bufferRunningMean_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
     bufferRunningVariance_->didModifyRange(NS::Range(0, sizeof(float) * outputDim_));
-    
-    memset(outputBuffers_[BufferType::OutgoingErrors][0]->contents(), 0, outputBuffers_[BufferType::OutgoingErrors][0]->length());
-    outputBuffers_[BufferType::OutgoingErrors][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::OutgoingErrors][0]->length()));
 }
 
