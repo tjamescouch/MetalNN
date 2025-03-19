@@ -13,6 +13,8 @@
 #include "layer-normalization-layer.h"
 #include "residual-connection-layer.h"
 #include "self-attention-layer.h"
+#include "flatten-layer.h"
+#include "reshape-layer.h"
 #include "map-reduce-layer.h"
 #include "configuration-manager.h"
 
@@ -34,6 +36,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
     int inputSize = 0;
     int outputSize = 0;
     int sequenceLength = 1;  // default for non-sequence layers
+    int outputSequenceLength = 1;  // default for non-sequence layers
 
     // Explicitly handle shapes for sequence-aware layers
     if (layerConfig.params.contains("input_shape")) {
@@ -48,6 +51,7 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
     if (layerConfig.params.contains("output_shape")) {
         int outputShape[2] = {};
         layerConfig.params["output_shape"].get_value_inplace(outputShape);
+        outputSequenceLength = outputShape[0];
         outputSize = outputShape[1];
     } else {
         outputSize = layerConfig.params["output_size"].get_value<int>();
@@ -125,6 +129,14 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         std::cout << "Creating MapReduce layer..." << std::endl;
         auto reductionType = layerConfig.params.at("reduction_type").get_value<std::string>();
         layer = new MapReduceLayer(inputSize, outputSize, parseReductionType(reductionType));
+        
+    } else if (layerConfig.type == "Flatten") {
+        std::cout << "Creating Flatten layer..." << std::endl;
+        layer = new FlattenLayer(sequenceLength, inputSize, outputSize, batchSize);
+        
+    } else if (layerConfig.type == "Reshape") {
+        std::cout << "Creating Reshape layer..." << std::endl;
+        layer = new ReshapeLayer(outputSequenceLength, inputSize, outputSize, batchSize);
         
     } else {
         throw std::invalid_argument("Unsupported layer type");

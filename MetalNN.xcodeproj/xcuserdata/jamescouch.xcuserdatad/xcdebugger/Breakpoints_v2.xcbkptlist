@@ -158,8 +158,8 @@
             filePath = "MetalNeuron/src/view-delegate.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "43"
-            endingLineNumber = "43"
+            startingLineNumber = "44"
+            endingLineNumber = "44"
             landmarkName = "ViewDelegate::ViewDelegate(pDevice)"
             landmarkType = "7">
          </BreakpointContent>
@@ -174,8 +174,8 @@
             filePath = "MetalNeuron/src/view-delegate.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "42"
-            endingLineNumber = "42"
+            startingLineNumber = "43"
+            endingLineNumber = "43"
             landmarkName = "ViewDelegate::ViewDelegate(pDevice)"
             landmarkType = "7">
          </BreakpointContent>
@@ -289,22 +289,6 @@
             startingLineNumber = "328"
             endingLineNumber = "328"
             landmarkName = "MultiHeadAttentionLayer::debugLog()"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "5DF21068-0D99-4A17-8C18-0DFEA96A1B3B"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "MetalNeuron/src/core/layers/factory/layer-factory.cpp"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "34"
-            endingLineNumber = "34"
-            landmarkName = "LayerFactory::createLayer(layerConfig, device, library, isTerminal)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

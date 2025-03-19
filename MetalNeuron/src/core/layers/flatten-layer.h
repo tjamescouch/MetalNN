@@ -12,7 +12,7 @@
 
 class FlattenLayer : public Layer {
 public:
-    FlattenLayer(int sequenceLength_, int featureDim, int batchSize);
+    FlattenLayer(int sequenceLength_, int inputSize, int outputSize, int batchSize);
     ~FlattenLayer();
 
     void forward(MTL::CommandBuffer* commandBuffer, int batchSize) override;
@@ -47,7 +47,8 @@ public:
 private:
     /* Remove any not needed member variables */
     int sequenceLength_;
-    int featureDim_;
+    int inputSize_;
+    int outputSize_;
     int batchSize_;
     bool isTerminal_;
 

@@ -8,15 +8,16 @@
 #include "reshape-layer.h"
 #include "logger.h"
 
-ReshapeLayer::ReshapeLayer(int sequenceLength, int featureDim, int batchSize) :
+ReshapeLayer::ReshapeLayer(int sequenceLength, int inputSize, int outputSize, int batchSize) :
     sequenceLength_(sequenceLength),
-    featureDim_(featureDim),
+    inputSize_(inputSize),
+    outputSize_(outputSize),
     batchSize_(batchSize),
     isTerminal_(false),
     forwardPipelineState_(nullptr),
     backwardPipelineState_(nullptr) {
-    assert(outputSize() == sequenceLength_ * featureDim_ &&
-           "ReshapeLayer output size mismatch: outputSize must equal sequenceLength * featureDim");
+        assert(inputSize_ == sequenceLength_ * outputSize_ &&
+           "ReshapeLayer dimension mismatch: inputSize must equal sequenceLength * outputSize");
 }
 
 ReshapeLayer::~ReshapeLayer() {}
@@ -30,27 +31,11 @@ void ReshapeLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
 }
 
 void ReshapeLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSize) {
-    auto encoder = commandBuffer->computeCommandEncoder();
-    encoder->setComputePipelineState(forwardPipelineState_);
-    
-    /* FIXME - bind buffers */
-
-    MTL::Size gridSize = MTL::Size(batchSize_ * featureDim_, 1, 1);
-    MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * featureDim_), 1, 1);
-    encoder->dispatchThreads(gridSize, threadGroupSize);
-    encoder->endEncoding();
+    //Intentionally blank
 }
 
 void ReshapeLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSize) {
-    auto encoder = commandBuffer->computeCommandEncoder();
-    encoder->setComputePipelineState(backwardPipelineState_);
-
-    /* FIXME - bind buffers */
-
-    MTL::Size gridSize = MTL::Size(batchSize_ * featureDim_, 1, 1);
-    MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * featureDim_), 1, 1);
-    encoder->dispatchThreads(gridSize, threadGroupSize);
-    encoder->endEncoding();
+    //Intentionally blank
 }
 
 void ReshapeLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
@@ -63,8 +48,8 @@ void ReshapeLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
 }
 MTL::Buffer* ReshapeLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
 
-int ReshapeLayer::inputSize() const { return featureDim_; }
-int ReshapeLayer::outputSize() const { return featureDim_; }
+int ReshapeLayer::inputSize() const { return inputSize_; }
+int ReshapeLayer::outputSize() const { return outputSize_; }
 
 void ReshapeLayer::updateTargetBufferAt(const float* targetData) {
     assert(false && "ReshapeLayer cannot be used as a terminal layer with targets.");
@@ -75,8 +60,6 @@ void ReshapeLayer::updateTargetBufferAt(const float* targetData, int batchSize) 
 }
 
 void ReshapeLayer::connectForwardConnections(Layer* previousLayer) {
-    assert(previousLayer->outputSize() == sequenceLength_ * featureDim_ &&
-       "ReshapeLayer input size mismatch: previous layer output size must equal sequenceLength * featureDim");
     setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
     setOutputBufferAt(BufferType::Output, this->getInputBufferAt(BufferType::Input));
 }

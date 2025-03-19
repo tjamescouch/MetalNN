@@ -52,6 +52,7 @@
 				"architectures/ocr-with-batch-normalization.yml",
 				"architectures/ocr-with-dropout.yml",
 				architectures/ocr.yml,
+				architectures/passthru.yml,
 				"architectures/residual-connection.yml",
 				architectures/rnn.yml,
 				"architectures/self-attention.yml",

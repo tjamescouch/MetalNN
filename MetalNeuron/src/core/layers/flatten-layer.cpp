@@ -8,15 +8,16 @@
 #include "flatten-layer.h"
 #include "logger.h"
 
-FlattenLayer::FlattenLayer(int sequenceLength, int featureDim, int batchSize) :
+FlattenLayer::FlattenLayer(int sequenceLength, int inputSize, int outputSize, int batchSize) :
     sequenceLength_(sequenceLength),
-    featureDim_(featureDim),
+    inputSize_(inputSize),
+    outputSize_(outputSize),
     batchSize_(batchSize),
     isTerminal_(false),
     forwardPipelineState_(nullptr),
     backwardPipelineState_(nullptr) {
-    assert(outputSize() == sequenceLength_ * featureDim_ &&
-           "FlattenLayer output size mismatch: outputSize must equal sequenceLength * featureDim");
+    assert(outputSize_ == sequenceLength_ * inputSize &&
+           "FlattenLayer output size mismatch: outputSize must equal sequenceLength * inputSize");
 }
 
 FlattenLayer::~FlattenLayer() {}
@@ -30,27 +31,11 @@ void FlattenLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
 }
 
 void FlattenLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSize) {
-    auto encoder = commandBuffer->computeCommandEncoder();
-    encoder->setComputePipelineState(forwardPipelineState_);
-    
-    /* FIXME - bind buffers */
-
-    MTL::Size gridSize = MTL::Size(batchSize_ * featureDim_, 1, 1);
-    MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * featureDim_), 1, 1);
-    encoder->dispatchThreads(gridSize, threadGroupSize);
-    encoder->endEncoding();
+    //Intentionally empty
 }
 
 void FlattenLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSize) {
-    auto encoder = commandBuffer->computeCommandEncoder();
-    encoder->setComputePipelineState(backwardPipelineState_);
-
-    /* FIXME - bind buffers */
-
-    MTL::Size gridSize = MTL::Size(batchSize_ * featureDim_, 1, 1);
-    MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * featureDim_), 1, 1);
-    encoder->dispatchThreads(gridSize, threadGroupSize);
-    encoder->endEncoding();
+    //Intentionally empty
 }
 
 void FlattenLayer::setInputBufferAt(BufferType type, MTL::Buffer* buffer) {
@@ -63,8 +48,8 @@ void FlattenLayer::setOutputBufferAt(BufferType type, MTL::Buffer* buffer) {
 }
 MTL::Buffer* FlattenLayer::getInputBufferAt(BufferType type) { return inputBuffers_[type]; }
 
-int FlattenLayer::inputSize() const { return featureDim_; }
-int FlattenLayer::outputSize() const { return featureDim_; }
+int FlattenLayer::inputSize() const { return inputSize_; }
+int FlattenLayer::outputSize() const { return outputSize_; }
 
 void FlattenLayer::updateTargetBufferAt(const float* targetData) {
     assert(false && "FlattenLayer cannot be used as a terminal layer with targets.");
@@ -75,8 +60,6 @@ void FlattenLayer::updateTargetBufferAt(const float* targetData, int batchSize) 
 }
 
 void FlattenLayer::connectForwardConnections(Layer* previousLayer) {
-    assert(previousLayer->outputSize() == sequenceLength_ * featureDim_ &&
-       "FlattenLayer input size mismatch: previous layer output size must equal sequenceLength * featureDim");
     setInputBufferAt(BufferType::Input, previousLayer->getOutputBufferAt(BufferType::Output));
     setOutputBufferAt(BufferType::Output, this->getInputBufferAt(BufferType::Input));
 }
