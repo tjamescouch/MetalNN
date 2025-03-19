@@ -1,6 +1,10 @@
 name: "Dense Layer with MapReduce"
 
 layers:
+  - type: Input
+    name: "input"
+    output_shape: [1, 128]
+    
   - type: Dense
     input_size: 128
     output_size: 64

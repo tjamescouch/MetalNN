@@ -1,6 +1,10 @@
 name: "Multi-head Attention Test"
 
 layers:
+  - type: Input
+    name: "input"
+    output_shape: [10, 256]
+    
   - type: MultiHeadAttention
     input_size: 256
     output_size: 256

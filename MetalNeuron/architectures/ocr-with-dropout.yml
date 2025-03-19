@@ -1,6 +1,10 @@
 name: "OCR"
 
 layers:
+  - type: Input
+    name: "input"
+    output_shape: [1, 784]
+    
   - type: Dense
     input_size: 784
     output_size: 512

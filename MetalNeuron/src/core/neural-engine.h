@@ -53,7 +53,6 @@ public:
     
 private:
     void buildComputePipeline();
-    void buildBuffers();
     
     DataManager* _pDataManager;
     

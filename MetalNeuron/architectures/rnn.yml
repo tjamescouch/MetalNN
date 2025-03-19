@@ -1,6 +1,10 @@
 name: "RNN"
 
 layers:
+  - type: Input
+    name: "input"
+    output_shape: [1, 512]
+    
   - type: RNN
     input_size: 512
     output_size: 512

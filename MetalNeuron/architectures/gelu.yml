@@ -1,6 +1,10 @@
 name: "Residual Connection with LayerNorm and GELU"
 
 layers:
+  - type: Input
+    name: "input"
+    output_shape: [1, 256]
+    
   - type: Dense
     name: "input_dense"
     input_size: 256

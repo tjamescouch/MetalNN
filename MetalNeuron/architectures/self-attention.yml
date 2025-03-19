@@ -1,6 +1,10 @@
 name: "Self Attention Test"
 
 layers:
+  - type: Input
+    name: "input"
+    output_shape: [1, 256]
+    
   - type: SelfAttention
     input_size: 256
     output_size: 256

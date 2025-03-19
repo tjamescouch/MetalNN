@@ -120,7 +120,7 @@ void NeuralEngine::createDynamicLayers(ModelConfig& config) {
             throw;
         }
         
-        buildBuffers();
+        areBuffersBuilt = true;
     });
 }
 
@@ -160,16 +160,6 @@ void NeuralEngine::buildComputePipeline() {
     }
     
     assert(_pComputeLibrary && "Compute library creation failed.");
-}
-
-void NeuralEngine::buildBuffers() {
-    _pDataManager->loadNextBatch(batch_size);
-    
-    Dataset* currentDataset = _pDataManager->getCurrentDataset();
-    const float* inputData = currentDataset->getInputDataAt(0);
-    dynamic_cast<InputLayer*>(dynamicLayers_[0])->updateBufferAt(inputData, batch_size);
-    
-    areBuffersBuilt = true;
 }
 
 void NeuralEngine::computeForward(int batchSize, std::function<void()> onComplete) {
