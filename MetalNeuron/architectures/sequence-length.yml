@@ -25,8 +25,8 @@ layers:
     
   - type: Dense
     name: "dense"
-    input_size: 256
-    output_size: 1024
+    input_size: 2560
+    output_size: 2560
     activation: gelu
     initializer: he
     
@@ -34,6 +34,13 @@ layers:
     name: "reshape"
     input_size: 2560
     output_shape: [10, 256]
+    
+  - type: Dense
+    name: "final_dense"
+    input_size: 256
+    output_size: 256
+    activation: linear
+    initializer: xavier
 
 training:
   optimizer:

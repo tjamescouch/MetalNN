@@ -27,7 +27,7 @@ void ResidualConnectionLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::Output] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::OutgoingErrors] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
 
-    residualOutputErrorBuffer_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
+    residualOutputErrorBuffer_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged); //FIXME - what does this do? it seems unconnected to other layers
 }
 
 void ResidualConnectionLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
