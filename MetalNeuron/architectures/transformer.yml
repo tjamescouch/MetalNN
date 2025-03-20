@@ -34,7 +34,7 @@ layers:
     input_size: 40
     output_size: 80
     activation: tanh
-    initializer: he
+    initializer: xavier
 
   - type: Reshape
     name: "reshape"
@@ -86,7 +86,7 @@ layers:
     input_size: 40
     output_size: 40
     activation: tanh
-    initializer: he
+    initializer: xavier
 
   - type: ResidualConnection
     input_size: 40
@@ -98,7 +98,7 @@ layers:
     input_size: 40
     output_size: 4
     activation: tanh
-    initializer: he
+    initializer: xavier
 
 training:
   optimizer:
