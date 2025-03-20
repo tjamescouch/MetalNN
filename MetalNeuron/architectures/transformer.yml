@@ -3,104 +3,114 @@ name: "Transformer Basic Test"
 layers:
   - type: Input
     name: "input"
-    output_shape: [10, 256]
+    output_shape: [10, 4]
 
   - type: MultiHeadAttention
     name: "mha_1"
-    input_shape: [10, 256]
-    output_shape: [10, 256]
+    input_shape: [10, 4]
+    output_shape: [10, 4]
     num_heads: 2
     initializer: xavier
 
   - type: LayerNormalization
     name: "norm_1"
-    input_shape: [10, 256]
-    output_shape: [10, 256]
+    input_shape: [10, 4]
+    output_shape: [10, 4]
     epsilon: 1e-5
 
   - type: ResidualConnection
-    input_shape: [10, 256]
-    output_shape: [10, 256]
+    input_shape: [10, 4]
+    output_shape: [10, 4]
     name: "residual_connection1"
     from_layer: "input"
     
   - type: Flatten
     name: "flatten"
-    input_shape: [10, 256]
-    output_size: 2560
+    input_shape: [10, 4]
+    output_size: 40
 
   - type: Dense
     name: "dense_ffn_expand"
-    input_size: 2560
-    output_size: 10240
-    activation: gelu
+    input_size: 40
+    output_size: 80
+    activation: tanh
     initializer: he
+
+  - type: Reshape
+    name: "reshape"
+    input_size: 80
+    output_shape: [10, 8]
 
   - type: Dropout
     name: "dropout_1"
     rate: 0.1
-    input_size: 10240
-    output_size: 10240
+    input_shape: [10, 8]
+    output_shape: [10, 8]
+
+  - type: Flatten
+    name: "flatten2"
+    input_shape: [10, 8]
+    output_size: 80
 
   - type: Dense
     name: "dense_ffn_reduce"
-    input_size: 10240
-    output_size: 2560
+    input_size: 80
+    output_size: 40
     activation: linear
     initializer: xavier
 
   - type: Reshape
     name: "reshape"
-    input_size: 2560
-    output_shape: [10, 256]
+    input_size: 40
+    output_shape: [10, 4]
 
   - type: LayerNormalization
     name: "norm_ffn"
-    input_shape: [10, 256]
-    output_shape: [10, 256]
+    input_shape: [10, 4]
+    output_shape: [10, 4]
     epsilon: 1e-5
     
   - type: ResidualConnection
     name: "residual_connection2"
-    input_shape: [10, 256]
-    output_shape: [10, 256]
+    input_shape: [10, 4]
+    output_shape: [10, 4]
     from_layer: "input"
         
   - type: Flatten
     name: "flatten2"
-    input_shape: [10, 256]
-    output_size: 2560
+    input_shape: [10, 4]
+    output_size: 40
 
   - type: Dense
     name: "penultimate_dense"
-    input_size: 2560
-    output_size: 2560
-    activation: linear
-    initializer: xavier
+    input_size: 40
+    output_size: 40
+    activation: tanh
+    initializer: he
 
   - type: ResidualConnection
-    input_size: 2560
-    output_size: 2560
+    input_size: 40
+    output_size: 40
     from_layer: "mha_1"
 
   - type: Dense
     name: "final_dense"
-    input_size: 2560
-    output_size: 256
+    input_size: 40
+    output_size: 4
     activation: tanh
     initializer: he
 
 training:
   optimizer:
     type: adam
-    learning_rate: 0.0001
+    learning_rate: 0.0002
     accumulation_interval: 4
     parameters:
       beta1: 0.9
       beta2: 0.999
       epsilon: 1e-8
 
-  epochs: 5
+  epochs: 1
   batch_size: 2
 
 dataset:

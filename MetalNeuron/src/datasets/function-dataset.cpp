@@ -51,27 +51,41 @@ void FunctionDataset::loadData(int batchSize) {
     if (isTraining) {
         shuffleIndices();
         generateBatch(offset_, batchSize);
-    }else {
-        generateBatch(offset_++, batchSize);
+    } else {
+        generateBatch(offset_, batchSize);
+        offset_ += inputSequenceLength_; // explicitly increment offset for continuous movement
     }
 }
 
-void FunctionDataset::generateBatch(double offset, int batchSize) {
-    const int inputBatchDataSize = inputDim_ * batchSize * inputSequenceLength_;
+void FunctionDataset::generateBatch(double baseOffset, int batchSize) {
+    const int inputBatchDataSize = batchSize * inputSequenceLength_ * inputDim_;
     inputs_.resize(inputBatchDataSize);
-    for (int t = 0; t < batchSize; ++t) {
-        for (int i = 0; i < inputDim_; ++i) {
-            int index = t * inputDim_ + i;
-            inputs_[index] = inputFunc_(index, offset + offset_);
-        }
-    }
-    
-    const int targetBatchDataSize = outputDim_ * batchSize * targetSequenceLength_;
+
+    const int targetBatchDataSize = batchSize * targetSequenceLength_ * outputDim_;
     targets_.resize(targetBatchDataSize);
-    for (int t = 0; t < batchSize; ++t) {
-        for (int i = 0; i < outputDim_; ++i) {
-            int index = t * outputDim_ + i;
-            targets_[index] = targetFunc_(index, offset + offset_);
+
+    bool isTraining = TrainingManager::instance().isTraining();
+
+    for (int batchIdx = 0; batchIdx < batchSize; ++batchIdx) {
+        // Explicitly set stable offset during evaluation to prevent flutter
+        double sampleOffset = isTraining ? baseOffset + batchIdx * inputSequenceLength_ : baseOffset;
+
+        // Generate inputs explicitly per timestep
+        for (int seqIdx = 0; seqIdx < inputSequenceLength_; ++seqIdx) {
+            for (int dim = 0; dim < inputDim_; ++dim) {
+                int inputIndex = batchIdx * (inputSequenceLength_ * inputDim_) 
+                                 + seqIdx * inputDim_ + dim;
+                inputs_[inputIndex] = inputFunc_(dim, sampleOffset + seqIdx);
+            }
+        }
+
+        // Generate targets explicitly aligned to input sequences
+        for (int seqIdx = 0; seqIdx < targetSequenceLength_; ++seqIdx) {
+            for (int dim = 0; dim < outputDim_; ++dim) {
+                int targetIndex = batchIdx * (targetSequenceLength_ * outputDim_)
+                                  + seqIdx * outputDim_ + dim;
+                targets_[targetIndex] = targetFunc_(dim, sampleOffset + inputSequenceLength_ + seqIdx);
+            }
         }
     }
 }
