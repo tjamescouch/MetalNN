@@ -12,7 +12,7 @@
 
 class ResidualConnectionLayer : public Layer {
 public:
-    ResidualConnectionLayer(int featureDim, int batchSize);
+    ResidualConnectionLayer(int featureDim, int sequenceLength, int batchSize);
     ~ResidualConnectionLayer();
 
     void forward(MTL::CommandBuffer* commandBuffer, int batchSize) override;
@@ -49,12 +49,12 @@ public:
     void setIsTerminal(bool isTerminal) override;
 
 private:
+    int sequenceLength_;
     int featureDim_;
     int batchSize_;
     bool isTerminal_;
 
     Layer* fromLayer_;
-    MTL::Buffer* residualOutputErrorBuffer_;
     std::unordered_map<BufferType, MTL::Buffer*> inputBuffers_;
     std::unordered_map<BufferType, MTL::Buffer*> outputBuffers_;
     MTL::ComputePipelineState* forwardPipelineState_;

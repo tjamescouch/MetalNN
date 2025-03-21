@@ -29,6 +29,6 @@ kernel void backward_residual(
     uint gid                                  [[thread_position_in_grid]]
 ) {
     // Propagate gradients equally to input and residual inputs
-    outputErrors[gid] = inputErrors[gid];
+    outputErrors[gid] += inputErrors[gid];
     residualOutputErrors[gid] += inputErrors[gid];
 }
