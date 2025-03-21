@@ -12,7 +12,7 @@
 
 class ResidualConnectionLayer : public Layer {
 public:
-    ResidualConnectionLayer(int featureDim, int sequenceLength, int batchSize);
+    ResidualConnectionLayer(int featureDim, int sequenceLength, int batchSize, float residualScale);
     ~ResidualConnectionLayer();
 
     void forward(MTL::CommandBuffer* commandBuffer, int batchSize) override;
@@ -53,6 +53,7 @@ private:
     int featureDim_;
     int batchSize_;
     bool isTerminal_;
+    float residualScale_;
 
     Layer* fromLayer_;
     std::unordered_map<BufferType, MTL::Buffer*> inputBuffers_;
