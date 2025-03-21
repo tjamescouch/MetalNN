@@ -8,9 +8,11 @@
 #include "residual-connection-layer.h"
 #include "logger.h"
 
-ResidualConnectionLayer::ResidualConnectionLayer(int featureDim, int batchSize) :
+ResidualConnectionLayer::ResidualConnectionLayer(int featureDim, int sequenceLength, int batchSize, float residualScale) :
 featureDim_(featureDim),
+sequenceLength_(sequenceLength),
 batchSize_(batchSize),
+residualScale_(residualScale),
 isTerminal_(false),
 fromLayer_(nullptr),
 forwardPipelineState_(nullptr),
@@ -25,12 +27,10 @@ ResidualConnectionLayer* ResidualConnectionLayer::setFromLayer(Layer* fromLayer)
 }
 
 void ResidualConnectionLayer::buildBuffers(MTL::Device* device) {
-    size_t bufferSize = batchSize_ * featureDim_ * sizeof(float);
+    size_t bufferSize = batchSize_ * featureDim_ * sequenceLength_ * sizeof(float);
     
     outputBuffers_[BufferType::Output] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::OutgoingErrors] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
-
-    residualOutputErrorBuffer_ = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged); //FIXME - what does this do? it seems unconnected to other layers
 }
 
 void ResidualConnectionLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -55,9 +55,10 @@ void ResidualConnectionLayer::forward(MTL::CommandBuffer* commandBuffer, int bat
     encoder->setBuffer(inputBuffers_[BufferType::Input], 0, 0);
     encoder->setBuffer(fromLayer_->getOutputBuffer(BufferType::Output), 0, 1);
     encoder->setBuffer(outputBuffers_[BufferType::Output], 0, 2);
+    encoder->setBytes(&residualScale_, sizeof(float), 3);
 
-    MTL::Size gridSize = MTL::Size(batchSize_ * featureDim_, 1, 1);
-    MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * featureDim_), 1, 1);
+    MTL::Size gridSize = MTL::Size(batchSize_ * sequenceLength_ * featureDim_, 1, 1);
+    MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * sequenceLength_ * featureDim_), 1, 1);
     encoder->dispatchThreads(gridSize, threadGroupSize);
     encoder->endEncoding();
 }
@@ -69,9 +70,10 @@ void ResidualConnectionLayer::backward(MTL::CommandBuffer* commandBuffer, int ba
     encoder->setBuffer(inputBuffers_[BufferType::IncomingErrors], 0, 0);   // input error coming from next layer
     encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors], 0, 1); // propagate back to previous layer
     encoder->setBuffer(fromLayer_->getInputBuffer(BufferType::IncomingErrors), 0, 2);               // propagate error back to residual source layer
+    encoder->setBytes(&residualScale_, sizeof(float), 3);
 
-    MTL::Size gridSize = MTL::Size(batchSize_ * featureDim_, 1, 1);
-    MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * featureDim_), 1, 1);
+    MTL::Size gridSize = MTL::Size(batchSize_ * sequenceLength_ * featureDim_, 1, 1);
+    MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * sequenceLength_ * featureDim_), 1, 1);
     encoder->dispatchThreads(gridSize, threadGroupSize);
     encoder->endEncoding();
 }

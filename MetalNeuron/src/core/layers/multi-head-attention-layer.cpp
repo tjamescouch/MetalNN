@@ -321,33 +321,33 @@ void MultiHeadAttentionLayer::connectBackwardConnections(Layer* prevLayer)
 }
 
 void MultiHeadAttentionLayer::debugLog() {
-    Logger::instance().assertBufferContentsAreValid(optimizerWeightsQ_->gradientBuffer(), getName() + " grad optimizerWeightsQ_");
-    Logger::instance().assertBufferContentsAreValid(optimizerWeightsK_->gradientBuffer(), getName() + " grad optimizerWeightsK_");
-    Logger::instance().assertBufferContentsAreValid(optimizerWeightsV_->gradientBuffer(), getName() + " grad optimizerWeightsV_");
-    Logger::instance().assertBufferContentsAreValid(optimizerOutputProjection_->gradientBuffer(), getName() + " grad optimizerOutputProjection_");
+    Logger::instance().assertBufferContentsAreValid(optimizerWeightsQ_->gradientBuffer(), getName() + " D grad optimizerWeightsQ_");
+    Logger::instance().assertBufferContentsAreValid(optimizerWeightsK_->gradientBuffer(), getName() + " D grad optimizerWeightsK_");
+    Logger::instance().assertBufferContentsAreValid(optimizerWeightsV_->gradientBuffer(), getName() + " D grad optimizerWeightsV_");
+    Logger::instance().assertBufferContentsAreValid(optimizerOutputProjection_->gradientBuffer(), getName() + " D grad optimizerOutputProjection_");
     
-    Logger::instance().assertBufferContentsAreValid(weightsQ_, getName() + " weightsQ_");
-    Logger::instance().assertBufferContentsAreValid(weightsK_, getName() + " weightsK_");
-    Logger::instance().assertBufferContentsAreValid(weightsV_, getName() + " weightsV_");
+    Logger::instance().assertBufferContentsAreValid(weightsQ_, getName() + " D weightsQ_");
+    Logger::instance().assertBufferContentsAreValid(weightsK_, getName() + " D weightsK_");
+    Logger::instance().assertBufferContentsAreValid(weightsV_, getName() + " D weightsV_");
     
-    Logger::instance().assertBufferContentsAreValid(outputProjection_, getName() + " outputProjection_");
+    Logger::instance().assertBufferContentsAreValid(outputProjection_, getName() + " D outputProjection_");
     
     
-    Logger::instance().assertBufferContentsAreValid(bufferK_, getName() + " bufferK_");
-    Logger::instance().assertBufferContentsAreValid(bufferV_, getName() + " bufferV_");
+    Logger::instance().assertBufferContentsAreValid(bufferK_, getName() + " D bufferK_");
+    Logger::instance().assertBufferContentsAreValid(bufferV_, getName() + " D bufferV_");
     
-    Logger::instance().assertBufferContentsAreValid(bufferQ_, getName() + " bufferQ_");
+    Logger::instance().assertBufferContentsAreValid(bufferQ_, getName() + " D bufferQ_");
     
     Logger::instance().assertBufferContentsAreValid(inputBuffers_[BufferType::Input], getName() + " input");
     Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName() + " output");
 }
 
 void MultiHeadAttentionLayer::onForwardComplete(MTL::CommandQueue*, int) {
-    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName());
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName() + " F output");
 }
 
 void MultiHeadAttentionLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
-    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName());
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName() + " B output");
 }
 
 void MultiHeadAttentionLayer::saveParameters(std::ostream&) const {}

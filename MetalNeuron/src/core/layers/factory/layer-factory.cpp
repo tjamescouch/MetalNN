@@ -126,8 +126,11 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         
     } else if (layerConfig.type == "ResidualConnection") {
         auto from = layerConfig.params.at("from_layer").get_value<std::string>();
+        float scale = layerConfig.params["scale"].get_value_or<float>(1);
+        scale = scale > 0 ? scale : 1;
+        
         Logger::log << "Creating residual connection layer from " << from << "..." << std::endl;
-        layer = (new ResidualConnectionLayer(inputSize, batchSize))
+        layer = (new ResidualConnectionLayer(inputSize, sequenceLength, batchSize, scale))
                     ->setFromLayer(layerMap_[from]);
         
     } else if (layerConfig.type == "MapReduce") {

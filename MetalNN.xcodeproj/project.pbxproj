@@ -59,6 +59,7 @@
 				"architectures/sequence-length.yml",
 				"architectures/simple-ocr.yml",
 				"architectures/single-dense-layer.yml",
+				"architectures/transformer-complete.yml",
 				architectures/transformer.yml,
 				datasets/mnist/LICENSE.txt,
 				"datasets/mnist/t10k-images-idx3-ubyte",
