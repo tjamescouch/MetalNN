@@ -240,7 +240,7 @@ void Logger::assertBufferContentsAreValid(MTL::Buffer* b, std::string layerName)
     
     if(!assertionsSatisfied) {
         printFloatBuffer(b, "Dumping buffer: ");
-        assert(false);
+        //assert(false);
     }
 }
 

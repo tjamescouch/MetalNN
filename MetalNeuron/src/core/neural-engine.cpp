@@ -219,8 +219,8 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
         dispatch_semaphore_signal(_semaphore);
         
 #ifdef DEBUG_NETWORK
-        for (auto& layer : dynamicLayers_) {
-            layer->debugLog();
+        for (auto it = dynamicLayers_.rbegin(); it != dynamicLayers_.rend(); ++it) {
+            (*it)->debugLog();
         }
 #endif
         

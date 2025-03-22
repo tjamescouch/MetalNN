@@ -278,8 +278,9 @@ void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batch
 
 void DenseLayer::debugLog() {
     Logger::instance().assertBufferContentsAreValid(inputBuffers_[BufferType::Targets][0], getName() + " F targets");
-    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Debug][0], getName() + " F debug");
+    Logger::instance().assertBufferContentsAreValid(optimizerWeights_->gradientBuffer(), getName() + " F weights gradients");
     Logger::instance().assertBufferContentsAreValid(optimizerBiases_->gradientBuffer(), getName() + " F bias gradients");
     Logger::instance().assertBufferContentsAreValid(inputBuffers_[BufferType::Input][0], getName() + " F input");
     Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output][0], getName() + " F output");
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Debug][0], getName() + " F debug");
 }

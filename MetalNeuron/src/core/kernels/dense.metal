@@ -10,8 +10,8 @@ float activate_derivative(const float y, const uint act);
 
 // Clamping thresholds
 constant float max_abs_sum = 1000.0f;
-constant float threshold    = 0.1f;
-
+constant float threshold    = 1.f;
+constant float epsilon = 1.0e-5f;
 
 kernel void forward_dense_layer(
     device const float* h         [[buffer(0)]],  // Input activations
@@ -80,8 +80,9 @@ kernel void forward_dense_layer(
                 sumExp += shared_y[sample_offset + i];
             }
             // Normalize
+            float denominator = abs(sumExp) > epsilon ? sumExp : epsilon;
             for (uint i = 0; i < output_dim; ++i) {
-                shared_y[sample_offset + i] /= sumExp;
+                shared_y[sample_offset + i] /= denominator;
             }
         }
 
@@ -141,7 +142,6 @@ kernel void learn_non_terminal_dense_layer(
     float delta = raw_error * dAct;
 
     // Clamp to avoid numerical blow-up
-   // delta = isnan(delta) ? 0.0f : delta;
     delta = clamp(delta, -threshold, threshold);
 
     // Save partial delta in outputError (i.e., error from this layer's viewpoint)
@@ -210,7 +210,6 @@ kernel void learn_terminal_dense_layer(
         delta = raw_error * dAct;
     }
 
-    //delta = isnan(delta) ? 0.0f : delta;
     delta = clamp(delta, -threshold, threshold);
     sample_error[neuron_id] = delta;
 

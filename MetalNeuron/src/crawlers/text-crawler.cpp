@@ -45,10 +45,20 @@ void TextCrawler::loadFile(const std::string& filepath) {
 
     std::stringstream buffer;
     buffer << file.rdbuf();
-    currentFileContent_ = buffer.str();
+    std::string unfilteredContent = buffer.str();
+
+    currentFileContent_.clear();
+    currentFileContent_.reserve(unfilteredContent.size());
+
+    // explicitly filter only allowed characters (ASCII 32-126, space, newline)
+    for (char c : unfilteredContent) {
+        if ((c >= 32 && c < 127) || c == ' ' || c == '\n') {
+            currentFileContent_ += c;
+        }
+    }
 
     assert(currentFileContent_.size() >= sequenceLength_ &&
-           "Loaded file is too small for the sequence length.");
+           "Loaded file is too small for the sequence length after filtering.");
 
     resetDistribution();
     currentSampleCount_ = 0;

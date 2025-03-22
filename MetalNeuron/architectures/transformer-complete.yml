@@ -45,8 +45,8 @@ layers:
     name: "dense_ffn_expand"
     input_size: 2560
     output_size: 5120
-    activation: gelu
-    initializer: xavier
+    activation: relu
+    initializer: he
 
   - type: Dense
     name: "dense_ffn_reduce"
@@ -102,12 +102,12 @@ training:
       epsilon: 1e-8
 
   epochs: 5
-  batch_size: 1
+  batch_size: 2
 
 dataset:
   type: "text"
   dataset_size: 100000
-  sequence_length: 10
+  sequence_length: 20
   samples_per_file: 5000
   corpus_directory: "./enwiki20201020"
   tokenizer:
