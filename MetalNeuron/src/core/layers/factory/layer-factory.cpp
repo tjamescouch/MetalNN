@@ -12,6 +12,7 @@
 #include "batch-normalization-layer.h"
 #include "layer-normalization-layer.h"
 #include "residual-connection-layer.h"
+#include "embedding-layer.h"
 #include "self-attention-layer.h"
 #include "flatten-layer.h"
 #include "reshape-layer.h"
@@ -34,6 +35,8 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         "layer_" + std::to_string(layerIdCounter_++)
     );
     layerConfig.params["name"] = layerName;
+    
+    auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
     
     Logger::log << "Configuring layer" << layerName << std::endl;
 
@@ -72,7 +75,17 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
 
     Layer* layer = nullptr;
 
-    if (layerConfig.type == "Input") {
+    if (layerConfig.type == "Embedding") {
+        Logger::log << "Creating embedding layer..." << std::endl;
+
+        int vocabSize = layerConfig.params.at("vocab_size").get_value<int>();
+        int embeddingDim = layerConfig.params.at("embedding_dim").get_value<int>();
+        int sequenceLength = layerConfig.params.at("input_size").get_value<int>();
+        assert(sequenceLength == outputSequenceLength);
+
+        layer = (new EmbeddingLayer(vocabSize, embeddingDim, sequenceLength, outputSize, batchSize))->setInitializer(initializer)->setLearningRate(learningRate);
+
+    } else if (layerConfig.type == "Input") {
         Logger::log << "Creating input layer..." << std::endl;
 
         // Extract the explicit output shape for the InputLayer
@@ -86,7 +99,6 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
     } else if (layerConfig.type == "Dense") {
         Logger::log << "Creating dense layer..." << std::endl;
         auto activationStr = layerConfig.params.at("activation").get_value<std::string>();
-        auto initializer = layerConfig.params["initializer"].get_value_or<std::string>("xavier");
 
         ActivationFunction activation = parseActivation(activationStr);
         layer = (new DenseLayer(inputSize, outputSize, 1, activation, batchSize))

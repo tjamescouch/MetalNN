@@ -11,10 +11,19 @@
 #include "common.h"
 #include "logger.h"
 
-DenseLayer::DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activation, int batchSize)
-: inputDim_(inputDim), outputDim_(outputDim), sequenceLength_(1), activation_(activation),
-bufferWeights_(nullptr), bufferBias_(nullptr), isTerminal_(false),
-forwardPipelineState_(nullptr), backwardPipelineState_(nullptr), learningRate_(0.001), batchSize_(batchSize)
+DenseLayer::DenseLayer(int inputDim, int outputDim, int _unused, ActivationFunction activation, int batchSize) :
+inputDim_(inputDim),
+outputDim_(outputDim),
+sequenceLength_(1),
+activation_(activation),
+bufferWeights_(nullptr),
+bufferBias_(nullptr),
+isTerminal_(false),
+initializer_("xavier"),
+forwardPipelineState_(nullptr),
+backwardPipelineState_(nullptr),
+learningRate_(0.001),
+batchSize_(batchSize)
 {
     inputBuffers_[BufferType::Input].resize(sequenceLength_, nullptr);
     inputBuffers_[BufferType::IncomingErrors].resize(sequenceLength_, nullptr);
