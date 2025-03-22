@@ -1,25 +1,21 @@
 //
-//  data-manger.cpp
+//  dataset-factory.cpp
 //  MetalNeuron
 //
-//  Created by James Couch on 2025-03-02.
+//  Created by James Couch on 2025-03-21.
 //
-#include <stdexcept>
 
-#include "data-manager.h"
-#include <cassert>
-#include "math-lib.h"
-#include "function-dataset.h"
+#include "dataset-factory.h"
 #include "mnist-dataset.h"
+#include "function-dataset.h"
+#include "model-config.h"
+#include <stdexcept>
+#include "math-lib.h"
 
-
-DataManager::DataManager()
-: dataset_(nullptr) {
-}
-
-DataManager* DataManager::configure(ModelConfig* pConfig) {
+// Explicitly creates dataset based on model configuration
+Dataset* DatasetFactory::createDataset(const ModelConfig* pConfig) {
     if (pConfig->dataset.type == "mnist") {
-        dataset_ = new MNISTDataset(
+        return new MNISTDataset(
                                     pConfig->dataset.images,
                                     pConfig->dataset.labels
                                     );
@@ -41,7 +37,7 @@ DataManager* DataManager::configure(ModelConfig* pConfig) {
             outputDim = pConfig->layers.back().params.at("output_size").get_value<int>();
         }
 
-        dataset_ = new FunctionDataset(mathlib::inputFunc, mathlib::targetFunc,
+        return new FunctionDataset(mathlib::inputFunc, mathlib::targetFunc,
                                        inputSequenceLength,
                                        targetSequenceLength,
                                        featureDim,
@@ -50,48 +46,4 @@ DataManager* DataManager::configure(ModelConfig* pConfig) {
     } else {
         throw std::runtime_error("Unsupported dataset type: " + pConfig->dataset.type);
     }
-    
-    return this;
-}
-
-DataManager::~DataManager() {
-    if (dataset_) {
-        delete dataset_;
-        dataset_ = nullptr;
-    }
-}
-
-void DataManager::setDataset(Dataset* dataset) {
-    if (dataset_) {
-        delete dataset_;
-    }
-    dataset_ = dataset;
-}
-
-Dataset* DataManager::getCurrentDataset() const {
-    if (!dataset_) {
-        throw std::runtime_error("Dataset has not been set.");
-    }
-    return dataset_;
-}
-
-void DataManager::initialize(int batchSize, std::function<void()> callback) {
-    if (!dataset_) {
-        throw std::runtime_error("Cannot initialize DataManager: no dataset set.");
-    }
-    
-    dataset_->loadData(batchSize);
-    callback();
-}
-
-int DataManager::inputDim() const {
-    return dataset_->inputDim();
-}
-
-int DataManager::outputDim() const {
-    return dataset_->outputDim();
-}
-
-void DataManager::loadNextBatch(int currentBatchSize) {
-    dataset_->loadNextBatch(currentBatchSize);
 }
