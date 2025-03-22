@@ -8,17 +8,21 @@
 #include "dataset-factory.h"
 #include "mnist-dataset.h"
 #include "function-dataset.h"
+#include "text-crawler.h"
+#include "tokenized-dataset.h"
+#include "character-tokenizer.h"
 #include "model-config.h"
 #include <stdexcept>
 #include "math-lib.h"
+#include <memory>
 
 // Explicitly creates dataset based on model configuration
 Dataset* DatasetFactory::createDataset(const ModelConfig* pConfig) {
     if (pConfig->dataset.type == "mnist") {
         return new MNISTDataset(
-                                    pConfig->dataset.images,
-                                    pConfig->dataset.labels
-                                    );
+            pConfig->dataset.images,
+            pConfig->dataset.labels
+        );
     } else if (pConfig->dataset.type == "function") {
         int inputShape[2] = {};
         pConfig->layers.front().params.at("output_shape").get_value_inplace(inputShape);
@@ -38,11 +42,27 @@ Dataset* DatasetFactory::createDataset(const ModelConfig* pConfig) {
         }
 
         return new FunctionDataset(mathlib::inputFunc, mathlib::targetFunc,
-                                       inputSequenceLength,
-                                       targetSequenceLength,
-                                       featureDim,
-                                       outputDim,
-                                       datasetSize);
+                                   inputSequenceLength,
+                                   targetSequenceLength,
+                                   featureDim,
+                                   outputDim,
+                                   datasetSize);
+    } else if (pConfig->dataset.type == "text") {
+        // Extract parameters explicitly from YAML
+        const std::string& corpusDirectory = pConfig->dataset.corpus_directory;
+        int sequenceLength = pConfig->dataset.sequence_length;
+        int samplesPerFile = pConfig->dataset.samples_per_file;
+        int batchSize = pConfig->training.batch_size;
+
+        auto crawler = std::make_unique<TextCrawler>(corpusDirectory, sequenceLength, samplesPerFile);
+
+        if (pConfig->dataset.tokenizer.type == "character") {
+            auto tokenizer = std::make_unique<CharacterTokenizer>();
+
+            return new TokenizedDataset(crawler.release(), tokenizer.release(), sequenceLength, batchSize);
+        } else {
+            throw std::runtime_error("Unsupported tokenizer type: " + pConfig->dataset.tokenizer.type);
+        }
     } else {
         throw std::runtime_error("Unsupported dataset type: " + pConfig->dataset.type);
     }

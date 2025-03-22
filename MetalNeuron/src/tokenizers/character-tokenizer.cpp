@@ -8,6 +8,8 @@
 #include "character-tokenizer.h"
 #include <stdexcept>
 #include <set>
+#include "logger.h"
+#include <iostream>
 
 // Constructor explicitly builds vocabulary
 CharacterTokenizer::CharacterTokenizer() {
@@ -24,11 +26,15 @@ void CharacterTokenizer::buildVocabulary() {
         charset.insert(static_cast<char>(c));
     }
     charset.insert('\n');  // explicitly include newline
-
+    
     int idx = 0;
     for (char c : charset) {
         char2idx_[c] = idx++;
         idx2char_.push_back(c);
+    }
+    
+    while (idx2char_.size() < 128) {
+        idx2char_.push_back(' ');
     }
 }
 
@@ -37,14 +43,19 @@ std::vector<int> CharacterTokenizer::tokenize(const std::string& text) const {
     std::vector<int> tokens;
     tokens.reserve(text.size());
 
+    Logger::log << "Tokenizing text: " << text << std::endl;
+    
     for (char c : text) {
         auto it = char2idx_.find(c);
         if (it != char2idx_.end()) {
             tokens.push_back(it->second);
         } else {
-            throw std::runtime_error(std::string("Character not in vocabulary: ") + c);
+            Logger::log << "Character not in vocabulary: " << c << std::endl;
+            
+            tokens.push_back(char2idx_.find(' ')->second);
         }
     }
+    
     return tokens;
 }
 

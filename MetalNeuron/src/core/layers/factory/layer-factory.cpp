@@ -88,14 +88,8 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
     } else if (layerConfig.type == "Input") {
         Logger::log << "Creating input layer..." << std::endl;
 
-        // Extract the explicit output shape for the InputLayer
-        int outputShape[2] = {};
-        layerConfig.params["output_shape"].get_value_inplace(outputShape);
-        int sequenceLength = outputShape[0];
-        int featureDim = outputShape[1];
-
         // Instantiate the InputLayer explicitly with sequence awareness
-        layer = new InputLayer(sequenceLength, featureDim, batchSize);
+        layer = new InputLayer(outputSequenceLength, outputSize, batchSize);
     } else if (layerConfig.type == "Dense") {
         Logger::log << "Creating dense layer..." << std::endl;
         auto activationStr = layerConfig.params.at("activation").get_value<std::string>();

@@ -17,13 +17,15 @@ public:
 
     void loadData(int batchSize) override;
     int numSamples() const override;
+    int inputDim() const override;
+    int outputDim() const override;
+    void loadNextBatch(int currentBatchSize) override;
+    float calculateLoss(const float* predictions, int outputDim, const float* targets) override;
     
 
 private:
+    void oneHotEncode(std::vector<float>& buffer, int index, int vocabSize, int tokenID);
     void shuffleIndices();
-    void loadNextBatch();
-    float calculateLoss(const float* predictions, const float* targets, int batchSize) const;
-    
     void preprocessBatch(); // explicitly tokenize raw sequences into numeric batches
 
     TextCrawler* textCrawler_;        // explicitly raw text provider

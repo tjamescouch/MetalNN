@@ -6,20 +6,31 @@
 //
 
 #include "text-crawler.h"
+#include <filesystem>
+namespace fs = std::filesystem;
 #include <fstream>
 #include <sstream>
 #include <cassert>
 
-// Constructor explicitly initializes crawler parameters
-TextCrawler::TextCrawler(const std::vector<std::string>& filepaths,
+// Constructor explicitly initializes crawler parameters from directory
+TextCrawler::TextCrawler(const std::string& corpusDirectory,
                          size_t sequenceLength,
                          size_t samplesPerFile)
-    : filepaths_(filepaths),
-      sequenceLength_(sequenceLength),
+    : sequenceLength_(sequenceLength),
       samplesPerFile_(samplesPerFile),
       currentSampleCount_(0),
       generator_(std::random_device{}()) {
-    assert(!filepaths_.empty() && "Filepaths cannot be empty.");
+    assert(fs::exists(corpusDirectory) && "Corpus directory does not exist.");
+    assert(fs::is_directory(corpusDirectory) && "Provided path is not a directory.");
+
+    // explicitly list files in directory (non-recursive)
+    for (const auto& entry : fs::directory_iterator(corpusDirectory)) {
+        if (entry.is_regular_file()) {
+            filepaths_.push_back(entry.path().string());
+        }
+    }
+
+    assert(!filepaths_.empty() && "No valid files found in the directory.");
     loadNextFile();
 }
 

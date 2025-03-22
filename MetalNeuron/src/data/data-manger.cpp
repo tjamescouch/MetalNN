@@ -42,7 +42,7 @@ void DataManager::initialize(int batchSize, std::function<void()> callback) {
         throw std::runtime_error("Cannot initialize DataManager: no dataset set.");
     }
     
-    dataset_->loadData(batchSize);
+    //dataset_->loadData(batchSize);
     callback();
 }
 

@@ -138,6 +138,14 @@ void DenseLayer::updateTargetBufferAt(const float* targetData) {
 void DenseLayer::updateTargetBufferAt(const float* targetData, int _batchSize) {
     memcpy(inputBuffers_[BufferType::Targets][0]->contents(), targetData, batchSize_ * outputDim_ * sizeof(float));
     inputBuffers_[BufferType::Targets][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][0]->length()));
+    /*
+    Logger::log << "targetData = [";
+    for (int i = 0; i < 128; i++) {
+        Logger::log << targetData[i] << " ";
+    }
+    Logger::log << std::endl;
+    
+    Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Output][0], "logits");*/
 }
 
 void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {

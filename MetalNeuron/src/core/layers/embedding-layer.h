@@ -53,7 +53,7 @@ public:
 private:
     float learningRate_;
     int sequenceLength_;
-    int embeddingDim_;
+    uint embeddingDim_;
     int batchSize_;
     bool isTerminal_;
     MTL::Buffer* embeddingsBuffer_;

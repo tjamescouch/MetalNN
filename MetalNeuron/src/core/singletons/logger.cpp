@@ -238,11 +238,10 @@ void Logger::assertBufferContentsAreValid(MTL::Buffer* b, std::string layerName)
         //log << "Warning in layer " << layerName << " : large values found" << std::endl;
     }
     
-    /*
     if(!assertionsSatisfied) {
         printFloatBuffer(b, "Dumping buffer: ");
         assert(false);
-    }*/
+    }
 }
 
 void Logger::printFloatBuffer(MTL::Buffer* b, std::string message, int maxElements) {
@@ -273,7 +272,7 @@ void Logger::count(MTL::Buffer* b, std::string message, std::function<bool(float
 }
 
 void Logger::printFloatBuffer(MTL::Buffer* b, std::string message) {
-    this->printFloatBuffer(b, message, INFINITY);
+    this->printFloatBuffer(b, message, 500);
 }
 
 void Logger::printFloatBufferL2Norm(MTL::Buffer* b, std::string message) {

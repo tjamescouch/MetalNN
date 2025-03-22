@@ -37,16 +37,22 @@ void EmbeddingLayer::buildBuffers(MTL::Device* device) {
     size_t bufferSize = batchSize_ * embeddingDim_ * sequenceLength_ * sizeof(float);
     
     outputBuffers_[BufferType::Output] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
+    
+    Logger::log << "embedding output buffer size exp=" << bufferSize << " act=" << outputBuffers_[BufferType::Output]->length() << std::endl;
+    
     outputBuffers_[BufferType::OutgoingErrors] = device->newBuffer(bufferSize, MTL::ResourceStorageModeManaged);
     
-    embeddingsBuffer_ = device->newBuffer(vocabSize_ * embeddingDim_ * sizeof(float), MTL::ResourceStorageModeManaged);    
+    int embeddingsSize = vocabSize_ * embeddingDim_ * sizeof(float);
+    embeddingsBuffer_ = device->newBuffer(embeddingsSize, MTL::ResourceStorageModeManaged);
     float* w = static_cast<float*>(embeddingsBuffer_->contents());
     if (initializer_ == "he") {
-        WeightInitializer::initializeHe(w, embeddingDim_, embeddingDim_);
+        WeightInitializer::initializeHe(w, vocabSize_, embeddingDim_);
     } else {
-        WeightInitializer::initializeXavier(w, embeddingDim_, embeddingDim_);
+        WeightInitializer::initializeXavier(w, vocabSize_, embeddingDim_);
     }
     embeddingsBuffer_->didModifyRange(NS::Range(0, embeddingsBuffer_->length()));
+    
+    optimizerEmbeddings_->buildBuffers(device, embeddingsSize);
 }
 
 void EmbeddingLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -74,6 +80,7 @@ void EmbeddingLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     float epsilon = optimizerConfig.epsilon;
     
     optimizerEmbeddings_ = std::make_unique<AdamOptimizer>(learningRate, beta1, beta2, epsilon, accumulation_interval);
+    optimizerEmbeddings_->buildPipeline(device, library);
 }
 
 void EmbeddingLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSize) {
@@ -88,8 +95,6 @@ void EmbeddingLayer::forward(MTL::CommandBuffer* commandBuffer, int batchSize) {
     MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * sequenceLength_), 1, 1);
     encoder->dispatchThreads(gridSize, threadGroupSize);
     
-    optimizerEmbeddings_->encode(encoder, embeddingsBuffer_, embeddingDim_, batchSize);
-    
     encoder->endEncoding();
 }
 
@@ -100,11 +105,14 @@ void EmbeddingLayer::backward(MTL::CommandBuffer* commandBuffer, int batchSize) 
     encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors], 0, 0);
     encoder->setBuffer(inputBuffers_[BufferType::Input], 0, 1);
     encoder->setBuffer(optimizerEmbeddings_->gradientBuffer(), 0, 2);
-    encoder->setBytes(&embeddingDim_, sizeof(int), 3);
+    encoder->setBytes(&embeddingDim_, sizeof(uint), 3);
 
     MTL::Size gridSize = MTL::Size(batchSize_ * sequenceLength_, 1, 1);
     MTL::Size threadGroupSize = MTL::Size(std::min(1024, batchSize_ * sequenceLength_), 1, 1);
     encoder->dispatchThreads(gridSize, threadGroupSize);
+    
+    optimizerEmbeddings_->encode(encoder, embeddingsBuffer_, embeddingDim_, batchSize);
+    
     encoder->endEncoding();
 }
 
@@ -146,14 +154,24 @@ void EmbeddingLayer::resetErrors() {
     );
 }
 
-void EmbeddingLayer::debugLog() {}
+void EmbeddingLayer::debugLog() {
+    //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Output], getName() + " D output", 100);
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName() + " D output");
+    
+    /*
+    Logger::instance().assertBufferContentsAreValid(inputBuffers_[BufferType::Targets], getName() + " D targets");
+    Logger::instance().assertBufferContentsAreValid(embeddingsBuffer_, getName() + " D embeddings");
+    Logger::instance().assertBufferContentsAreValid(optimizerEmbeddings_->gradientBuffer(), getName() + " D embeddings gradients");
+    Logger::instance().assertBufferContentsAreValid(inputBuffers_[BufferType::Input], getName() + " D input");
+    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName() + " D output");
+    */
+    //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Output], "D Embedding output");
+}
 
 void EmbeddingLayer::onForwardComplete(MTL::CommandQueue*, int) {
-    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName());
 }
 
 void EmbeddingLayer::onBackwardComplete(MTL::CommandQueue*, int) {
-    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output], getName());
 }
 
 void EmbeddingLayer::saveParameters(std::ostream&) const {}

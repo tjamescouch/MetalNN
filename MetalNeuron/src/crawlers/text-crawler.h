@@ -13,7 +13,7 @@
 
 class TextCrawler {
 public:
-    explicit TextCrawler(const std::vector<std::string>& filepaths,
+    explicit TextCrawler(const std::string& corpusDirectory,
                          size_t sequenceLength,
                          size_t samplesPerFile);
     ~TextCrawler();
@@ -27,7 +27,7 @@ public:
 private:
     void loadFile(const std::string& filepath); // explicitly load a single file
 
-    std::vector<std::string> filepaths_; // all file paths explicitly
+    std::vector<std::string> filepaths_; // all file paths explicitly loaded from directory
     std::string currentFileContent_;     // explicitly current loaded file content
     size_t sequenceLength_;              // explicitly desired sequence length
     size_t samplesPerFile_;              // explicitly how many samples per file
