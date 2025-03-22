@@ -144,7 +144,6 @@ void EmbeddingLayer::resetErrors() {
     inputBuffers_[BufferType::IncomingErrors]->didModifyRange(
         NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors]->length())
     );
-    // embeddingsGradientBuffer_ is explicitly reset by the optimizer.
 }
 
 void EmbeddingLayer::debugLog() {}
