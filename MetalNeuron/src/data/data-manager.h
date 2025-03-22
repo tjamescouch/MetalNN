@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <string>
+#include <memory> // explicitly include for unique_ptr
 
 #include "dataset.h"
 #include "model-config.h"
@@ -11,7 +12,7 @@ public:
     DataManager();
     ~DataManager();
 
-    void setDataset(Dataset* dataset);
+    void setDataset(std::unique_ptr<Dataset> dataset); // explicitly updated parameter
     Dataset* getCurrentDataset() const;
 
     DataManager* configure(ModelConfig* pConfig);
@@ -22,7 +23,6 @@ public:
     void loadNextBatch(int currentBatchSize);
 
 private:
-    Dataset* dataset_;
+    std::unique_ptr<Dataset> dataset_; // explicitly manage dataset lifetime safely
     int sampleIndex_ = 0;
-
 };

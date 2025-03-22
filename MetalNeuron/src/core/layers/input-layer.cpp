@@ -61,6 +61,8 @@ void InputLayer::updateBufferAt(const float* data, int batchSize) {
     
     memcpy(outputBuffers_[BufferType::Output][0]->contents(), data, sequenceLength_ * inputDim_ * batchSize * sizeof(float));
     outputBuffers_[BufferType::Output][0]->didModifyRange(NS::Range::Make(0, outputBuffers_[BufferType::Output][0]->length()));
+    
+    //Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Output][0], "output of input layer");
 }
 
 void InputLayer::setInputBuffer(BufferType type, MTL::Buffer* buffer) {

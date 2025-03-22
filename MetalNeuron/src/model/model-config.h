@@ -38,11 +38,23 @@ struct TrainingConfig {
     int batch_size;
 };
 
+struct ModelTokenizer {
+    std::string type;
+    struct Parameters {
+        int vocab_size;
+        int embedding_dim;
+    } parameters;
+};
+
 struct ModelDataSet {
     std::string type;
     std::string images;
     std::string labels;
     uint dataset_size;
+    ModelTokenizer tokenizer; // explicitly added tokenizer struct
+    std::string corpus_directory;  // explicitly added for text datasets
+    int sequence_length;           // explicitly added for text datasets
+    int samples_per_file;          // explicitly added for text datasets
 };
 
 

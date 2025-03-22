@@ -41,7 +41,6 @@ kernel void adam_kernel(
     float update = learning_rate * (m_hat / (sqrt(v_hat) + epsilon));
 
     // Optional clamp to prevent extreme updates
-    //update = isnan(update) ? 0.0f : update;
     update = clamp(update, -1e3f, 1e3f);
 
     if (apply_updates) {

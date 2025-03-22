@@ -10,8 +10,8 @@ float activate_derivative(const float y, const uint act);
 
 // Clamping thresholds
 constant float max_abs_sum = 1000.0f;
-constant float threshold    = 1.0f;
-
+constant float threshold    = 1.f;
+constant float epsilon = 1.0e-5f;
 
 kernel void forward_dense_layer(
     device const float* h         [[buffer(0)]],  // Input activations
@@ -80,8 +80,9 @@ kernel void forward_dense_layer(
                 sumExp += shared_y[sample_offset + i];
             }
             // Normalize
+            float denominator = abs(sumExp) > epsilon ? sumExp : epsilon;
             for (uint i = 0; i < output_dim; ++i) {
-                shared_y[sample_offset + i] /= sumExp;
+                shared_y[sample_offset + i] /= denominator;
             }
         }
 

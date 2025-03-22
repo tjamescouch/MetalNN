@@ -71,6 +71,16 @@ ModelConfig ModelConfig::loadFromFile(const std::string& filePath) {
         modelConfig.dataset.labels = config["dataset"]["labels"].get_value<std::string>();
         modelConfig.dataset.images = config["dataset"]["images"].get_value<std::string>();
     }
+
+    if (modelConfig.dataset.type == "text") {
+        modelConfig.dataset.corpus_directory = config["dataset"]["corpus_directory"].get_value<std::string>();
+        modelConfig.dataset.sequence_length = config["dataset"]["sequence_length"].get_value<int>();
+        modelConfig.dataset.samples_per_file = config["dataset"]["samples_per_file"].get_value<int>();
+        const auto tokenizerNode = config["dataset"]["tokenizer"];
+        modelConfig.dataset.tokenizer.type = tokenizerNode["type"].get_value<std::string>();
+        modelConfig.dataset.tokenizer.parameters.vocab_size = tokenizerNode["parameters"]["vocab_size"].get_value<int>();
+        modelConfig.dataset.tokenizer.parameters.embedding_dim = tokenizerNode["parameters"]["embedding_dim"].get_value<int>();
+    }
     
     bool isFirstLayer = true;
     // Load layers

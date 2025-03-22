@@ -146,7 +146,7 @@ void NeuralEngine::connectDynamicLayers(ModelConfig& config) {
     }
     dynamicLayers_.back()->setIsTerminal(true);
     
-    dynamic_cast<InputLayer*>(dynamicLayers_[0])->updateBufferAt(_pDataManager->getCurrentDataset()->getInputDataAt(0), batch_size);
+    //dynamic_cast<InputLayer*>(dynamicLayers_[0])->updateBufferAt(_pDataManager->getCurrentDataset()->getInputDataAt(0), batch_size);
     
     for (size_t i = 1; i < dynamicLayers_.size(); ++i) {
         dynamicLayers_[i]->connectForwardConnections(dynamicLayers_[i - 1]);
@@ -219,8 +219,8 @@ void NeuralEngine::computeBackward(int batchSize, std::function<void()> onComple
         dispatch_semaphore_signal(_semaphore);
         
 #ifdef DEBUG_NETWORK
-        for (auto& layer : dynamicLayers_) {
-            layer->debugLog();
+        for (auto it = dynamicLayers_.rbegin(); it != dynamicLayers_.rend(); ++it) {
+            (*it)->debugLog();
         }
 #endif
         
@@ -258,9 +258,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
     dynamicLayers_.back()->updateTargetBufferAt(tgtBuffer, currentBatchSize);
     
     computeForward(currentBatchSize, [=, this]() mutable {
-        float* predictedData = static_cast<float*>(
-                                                   dynamicLayers_.back()->getOutputBuffer(BufferType::Output)->contents()
-                                                   );
+        float* predictedData = static_cast<float*>(dynamicLayers_.back()->getOutputBuffer(BufferType::Output)->contents());
         
         const float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
         
@@ -317,9 +315,7 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
         computeBackward(currentBatchSize, [=, this]() mutable {
             
             assert(dynamicLayers_.back()->getOutputBuffer(BufferType::Output)->length() >= batch_size * output_dim * sizeof(float));
-            float* predictedData = static_cast<float*>(
-                                                       dynamicLayers_.back()->getOutputBuffer(BufferType::Output)->contents()
-                                                       );
+            float* predictedData = static_cast<float*>(dynamicLayers_.back()->getOutputBuffer(BufferType::Output)->contents());
             
             const float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
             
