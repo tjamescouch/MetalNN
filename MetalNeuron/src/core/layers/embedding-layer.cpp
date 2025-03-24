@@ -74,12 +74,11 @@ void EmbeddingLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     auto optimizerConfig = pConfig->training.optimizer;
     
     uint accumulation_interval = optimizerConfig.accumulation_interval;
-    float learningRate = optimizerConfig.learning_rate;
     float beta1 = optimizerConfig.beta1;
     float beta2 = optimizerConfig.beta2;
     float epsilon = optimizerConfig.epsilon;
     
-    optimizerEmbeddings_ = std::make_unique<AdamOptimizer>(learningRate, beta1, beta2, epsilon, accumulation_interval);
+    optimizerEmbeddings_ = std::make_unique<AdamOptimizer>(learningRate_, beta1, beta2, epsilon, accumulation_interval);
     optimizerEmbeddings_->buildPipeline(device, library);
 }
 

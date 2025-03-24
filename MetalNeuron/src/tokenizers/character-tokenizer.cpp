@@ -22,8 +22,8 @@ CharacterTokenizer::~CharacterTokenizer() {}
 void CharacterTokenizer::buildVocabulary() {
     // Explicitly build ASCII character vocabulary (can be customized)
     std::set<char> charset;
-    for (int c = 32; c < 127; ++c) { // printable ASCII explicitly
-        charset.insert(static_cast<char>(c));
+    for (char c = 32; c < 127; ++c) { // printable ASCII explicitly
+        charset.insert(c);
     }
     charset.insert('\n');  // explicitly include newline
     
@@ -34,7 +34,7 @@ void CharacterTokenizer::buildVocabulary() {
     }
     
     while (idx2char_.size() < 128) {
-        idx2char_.push_back(' ');
+        idx2char_.push_back('?');
     }
 }
 

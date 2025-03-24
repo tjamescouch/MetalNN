@@ -12,16 +12,16 @@ layers:
     input_size: 20
     output_shape: [20, 128]
 
-#  - type: PositionalEncoding
-#    name: "positional_encoding"
-#    input_shape: [10, 128]
-#    output_shape: [10, 128]
+  - type: PositionalEncoding
+    name: "positional_encoding"
+    input_shape: [20, 128]
+    output_shape: [20, 128]
 
   - type: MultiHeadAttention
     name: "mha_1"
     input_shape: [20, 128]
     output_shape: [20, 128]
-    num_heads: 1
+    num_heads: 4
     initializer: xavier
 
   - type: LayerNormalization
@@ -81,8 +81,8 @@ layers:
     name: "penultimate_dense"
     input_size: 2560
     output_size: 1024
-    activation: gelu
-    initializer: xavier
+    activation: relu
+    initializer: he
 
   - type: Dense
     name: "classification_head"
@@ -95,18 +95,18 @@ training:
   optimizer:
     type: adam
     learning_rate: 0.001
-    accumulation_interval: 4
+    accumulation_interval: 1
     parameters:
       beta1: 0.9
       beta2: 0.999
       epsilon: 1e-8
 
   epochs: 5
-  batch_size: 2
+  batch_size: 1
 
 dataset:
   type: "text"
-  dataset_size: 100000
+  dataset_size: 1000
   sequence_length: 20
   samples_per_file: 5000
   corpus_directory: "./enwiki20201020"

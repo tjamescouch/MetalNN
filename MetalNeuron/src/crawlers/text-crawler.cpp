@@ -5,6 +5,7 @@
 //  Created by James Couch on 2025-03-21.
 //
 
+#include "logger.h"
 #include "text-crawler.h"
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -79,8 +80,8 @@ std::string TextCrawler::getRandomSequence() {
 
     size_t randomIndex = distribution_(generator_);
     currentSampleCount_++;
-
-    return currentFileContent_.substr(randomIndex, sequenceLength_);
+    
+    return currentFileContent_.substr(randomIndex, sequenceLength_ + 1);
 }
 
 // Explicitly returns current loaded file size

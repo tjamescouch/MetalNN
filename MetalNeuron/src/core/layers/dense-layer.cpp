@@ -138,14 +138,6 @@ void DenseLayer::updateTargetBufferAt(const float* targetData) {
 void DenseLayer::updateTargetBufferAt(const float* targetData, int _batchSize) {
     memcpy(inputBuffers_[BufferType::Targets][0]->contents(), targetData, batchSize_ * outputDim_ * sizeof(float));
     inputBuffers_[BufferType::Targets][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Targets][0]->length()));
-    /*
-    Logger::log << "targetData = [";
-    for (int i = 0; i < 128; i++) {
-        Logger::log << targetData[i] << " ";
-    }
-    Logger::log << std::endl;
-    
-    Logger::instance().printFloatBuffer(outputBuffers_[BufferType::Output][0], "logits");*/
 }
 
 void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
@@ -179,7 +171,6 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
 }
 
 void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
-    
     uint activationRaw = static_cast<uint>(activation_);
     uint bs = (uint)batchSize_;
     decay_ *= decayRate_;
@@ -216,9 +207,9 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     
     encoder->endEncoding();
     
-    inputBuffers_[BufferType::Input][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][0]->length()));
-    bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
-    bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
+    //inputBuffers_[BufferType::Input][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][0]->length()));
+    //bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
+    //bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
 }
 
 void DenseLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
@@ -276,11 +267,4 @@ void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchS
 
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {}
 
-void DenseLayer::debugLog() {
-    Logger::instance().assertBufferContentsAreValid(inputBuffers_[BufferType::Targets][0], getName() + " F targets");
-    Logger::instance().assertBufferContentsAreValid(optimizerWeights_->gradientBuffer(), getName() + " F weights gradients");
-    Logger::instance().assertBufferContentsAreValid(optimizerBiases_->gradientBuffer(), getName() + " F bias gradients");
-    Logger::instance().assertBufferContentsAreValid(inputBuffers_[BufferType::Input][0], getName() + " F input");
-    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Output][0], getName() + " F output");
-    Logger::instance().assertBufferContentsAreValid(outputBuffers_[BufferType::Debug][0], getName() + " F debug");
-}
+void DenseLayer::debugLog() {}

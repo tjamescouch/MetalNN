@@ -20,11 +20,12 @@ public:
     int inputDim() const override;
     int outputDim() const override;
     void loadNextBatch(int currentBatchSize) override;
-    float calculateLoss(const float* predictions, int outputDim, const float* targets) override;
+    float calculateLoss(const float* predictions, int outputDim, const float* targets, int currentBatchSize) override;
     
 
 private:
     void oneHotEncode(std::vector<float>& buffer, int index, int vocabSize, int tokenID);
+    int logitDecode(const float* vector, int index, int vocabSize);
     void shuffleIndices();
     void preprocessBatch(); // explicitly tokenize raw sequences into numeric batches
 
