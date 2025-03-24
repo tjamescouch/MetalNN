@@ -207,6 +207,11 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 11);
     encoder->setBuffer(optimizerBiases_->gradientBuffer(), 0, 12);
     
+    
+    inputBuffers_[BufferType::Input][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][0]->length()));
+    bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
+    bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
+    
     uint gridSize = batchSize_ * outputDim_;
     uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
     
@@ -219,9 +224,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     
     encoder->endEncoding();
     
-    inputBuffers_[BufferType::Input][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][0]->length()));
-    bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
-    bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
+
 }
 
 void DenseLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
