@@ -242,10 +242,10 @@ int DenseLayer::outputSize() const {
 }
 
 void DenseLayer::resetErrors() {
-    float* errorsBuffer = static_cast<float*>(inputBuffers_[BufferType::IncomingErrors][0]->contents());
-    memset(errorsBuffer, 0, inputBuffers_[BufferType::IncomingErrors][0]->length());
-    inputBuffers_[BufferType::IncomingErrors][0]->didModifyRange(
-        NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors][0]->length())
+    float* errorsBuffer = static_cast<float*>(outputBuffers_[BufferType::OutgoingErrors][0]->contents());
+    memset(errorsBuffer, 0, outputBuffers_[BufferType::OutgoingErrors][0]->length());
+    outputBuffers_[BufferType::OutgoingErrors][0]->didModifyRange(
+        NS::Range::Make(0, outputBuffers_[BufferType::OutgoingErrors][0]->length())
     );
 }
 
