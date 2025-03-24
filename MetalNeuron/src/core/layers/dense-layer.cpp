@@ -44,10 +44,12 @@ DenseLayer::~DenseLayer() {
 }
 
 void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
-    auto forwardFunc = library->newFunction(NS::String::string("forward_dense_layer", NS::UTF8StringEncoding));
+    auto forwardFunc = library->newFunction(NS::String::string(activation_ == ActivationFunction::Softmax ? "forward_dense_softmax_layer" : "forward_dense_layer", NS::UTF8StringEncoding));
     assert(forwardFunc && "Forward function not found.");
     
-    auto backwardFunc = library->newFunction(NS::String::string(isTerminal_ ? "learn_terminal_dense_layer" : "learn_non_terminal_dense_layer", NS::UTF8StringEncoding));
+    auto backwardFunc = library->newFunction(NS::String::string(activation_ == ActivationFunction::Softmax ? (isTerminal_ ? "learn_terminal_dense_softmax_layer" : "learn_non_terminal_dense_softmax_layer")
+                                                                : (isTerminal_ ? "learn_terminal_dense_layer" : "learn_non_terminal_dense_layer"),
+                                                                NS::UTF8StringEncoding));
     assert(backwardFunc && "Backward function not found.");
     
     NS::Error* error = nullptr;
@@ -101,7 +103,7 @@ void DenseLayer::buildBuffers(MTL::Device* device) {
     outputBuffers_[BufferType::OutgoingErrors].resize(sequenceLength_);
     outputBuffers_[BufferType::Debug].resize(sequenceLength_);
     
-
+    
     outputBuffers_[BufferType::Delta][0] = device->newBuffer(outputDim_ * batchSize_ * sizeof(float), MTL::ResourceStorageModeManaged);
     outputBuffers_[BufferType::Delta][0]->didModifyRange(NS::Range(0, outputBuffers_[BufferType::Delta][0]->length()));
     
@@ -158,16 +160,19 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     encoder->setBytes(&bs, sizeof(uint), 7);
     encoder->setBuffer(outputBuffers_[BufferType::Debug][0], 0, 8);
     
+    
+    
+    
     uint gridSize = batchSize_ * outputDim_;
     uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
-    
     MTL::Size threadgroupSize(threadsPerThreadgroup, 1, 1);
     MTL::Size threadgroups((gridSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
     encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
+    
     encoder->endEncoding();
     
     inputBuffers_[BufferType::Input][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][0]->length()));
-
+    
 }
 
 void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
@@ -195,21 +200,33 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 11);
     encoder->setBuffer(optimizerBiases_->gradientBuffer(), 0, 12);
     
-    uint gridSize = batchSize_ * outputDim_;
-    uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
-    
-    MTL::Size threadgroupSize(threadsPerThreadgroup, 1, 1);
-    MTL::Size threadgroups((gridSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
-    encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
+    if (isTerminal_) {
+        // 1) Define your tile sizes:
+        static const uint TILE_W = 16;
+        static const uint TILE_H = 16;
+        
+        // 2) Compute how many threadgroups in each dimension
+        uint groupCountX = (inputDim_  + TILE_W - 1) / TILE_W;
+        uint groupCountY = (outputDim_ + TILE_H - 1) / TILE_H;
+        
+        // 3) Create the threadgroup size and grid size
+        MTL::Size threadgroupSize(TILE_W, TILE_H, 1);
+        MTL::Size threadgroups(groupCountX, groupCountY, 1);
+        
+        // 4) Dispatch
+        encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
+    } else {
+        uint gridSize = batchSize_ * outputDim_;
+        uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
+        MTL::Size threadgroupSize(threadsPerThreadgroup, 1, 1);
+        MTL::Size threadgroups((gridSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
+        encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
+    }
     
     optimizerWeights_->encode(encoder, bufferWeights_, inputDim_ * outputDim_, bs);
     optimizerBiases_->encode(encoder, bufferBias_, outputDim_, bs);
     
     encoder->endEncoding();
-    
-    //inputBuffers_[BufferType::Input][0]->didModifyRange(NS::Range(0, inputBuffers_[BufferType::Input][0]->length()));
-    //bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
-    //bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
 }
 
 void DenseLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
@@ -236,8 +253,8 @@ void DenseLayer::resetErrors() {
     float* errorsBuffer = static_cast<float*>(inputBuffers_[BufferType::IncomingErrors][0]->contents());
     memset(errorsBuffer, 0, inputBuffers_[BufferType::IncomingErrors][0]->length());
     inputBuffers_[BufferType::IncomingErrors][0]->didModifyRange(
-        NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors][0]->length())
-    );
+                                                                 NS::Range::Make(0, inputBuffers_[BufferType::IncomingErrors][0]->length())
+                                                                 );
 }
 
 void DenseLayer::connectForwardConnections(Layer* previousLayer) {

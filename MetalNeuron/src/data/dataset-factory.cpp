@@ -5,6 +5,7 @@
 //  Created by James Couch on 2025-03-21.
 //
 
+#include "logger.h"
 #include "dataset-factory.h"
 #include "mnist-dataset.h"
 #include "function-dataset.h"
@@ -19,11 +20,15 @@
 // Explicitly creates dataset based on model configuration
 Dataset* DatasetFactory::createDataset(const ModelConfig* pConfig) {
     if (pConfig->dataset.type == "mnist") {
+        Logger::log << "creating MNIST dataset" << std::endl;
+        
         return new MNISTDataset(
             pConfig->dataset.images,
             pConfig->dataset.labels
         );
     } else if (pConfig->dataset.type == "function") {
+        Logger::log << "creating function dataset" << std::endl;
+        
         int inputShape[2] = {};
         pConfig->layers.front().params.at("output_shape").get_value_inplace(inputShape);
         int inputSequenceLength = inputShape[0];
@@ -48,6 +53,8 @@ Dataset* DatasetFactory::createDataset(const ModelConfig* pConfig) {
                                    outputDim,
                                    datasetSize);
     } else if (pConfig->dataset.type == "text") {
+        Logger::log << "creating text dataset" << std::endl;
+        
         // Extract parameters explicitly from YAML
         const std::string& corpusDirectory = pConfig->dataset.corpus_directory;
         int sequenceLength = pConfig->dataset.sequence_length;
