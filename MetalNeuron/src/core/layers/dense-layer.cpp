@@ -47,7 +47,10 @@ void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
     auto forwardFunc = library->newFunction(NS::String::string("forward_dense_layer", NS::UTF8StringEncoding));
     assert(forwardFunc && "Forward function not found.");
     
-    auto backwardFunc = library->newFunction(NS::String::string(isTerminal_ ? "learn_terminal_dense_layer" : "learn_non_terminal_dense_layer", NS::UTF8StringEncoding));
+    auto backwardFunc = library->newFunction(NS::String::string(
+                                        (activation_ == ActivationFunction::Softmax) ? (isTerminal_ ? "learn_terminal_dense_softmax_layer" : "learn_non_terminal_dense_softmax_layer") :
+                                                                                     (isTerminal_ ? "learn_terminal_dense_layer" : "learn_non_terminal_dense_layer"), NS::UTF8StringEncoding)
+                                     );
     assert(backwardFunc && "Backward function not found.");
     
     NS::Error* error = nullptr;

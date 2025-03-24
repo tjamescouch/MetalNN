@@ -170,7 +170,6 @@ kernel void learn_non_terminal_dense_layer(
 }
 
 
-
 kernel void learn_terminal_dense_layer(
     device const float* h                [[buffer(0)]],  // final layer input activations
     device const float* W                [[buffer(1)]],  // weights (no direct updates)
