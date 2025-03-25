@@ -51,14 +51,14 @@ DenseLayer::~DenseLayer() {
 }
 
 void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
-    auto computeDeltasFunc = library->newFunction(NS::String::string("compute_deltas", NS::UTF8StringEncoding));
+    auto computeDeltasFunc = library->newFunction(NS::String::string((activation_ == ActivationFunction::Softmax) ? "compute_softmax_deltas" : "compute_deltas", NS::UTF8StringEncoding));
     assert(computeDeltasFunc && "compute deltas function not found.");
     
     auto forwardFunc = library->newFunction(NS::String::string("forward_dense_layer", NS::UTF8StringEncoding));
     assert(forwardFunc && "Forward function not found.");
     
     auto backwardFunc = library->newFunction(NS::String::string(
-                                        (activation_ == ActivationFunction::Softmax) ? (isTerminal_ ? "learn_terminal_dense_softmax_layer" : "learn_non_terminal_dense_softmax_layer") :
+                                        (activation_ == ActivationFunction::Softmax) ? (isTerminal_ ? "accumulate_softmax_gradients" : "learn_non_terminal_dense_softmax_layer") :
                                                                                      (isTerminal_ ? "accumulate_partial_gradients" : "learn_non_terminal_dense_layer"), NS::UTF8StringEncoding)
                                      );
     assert(backwardFunc && "Backward function not found.");
@@ -217,7 +217,10 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     if (isTerminal_ && activation_ != ActivationFunction::Softmax) {
         this->backwardComputeDeltas(encoder, _batchSize);
         this->backwardAccumulateGradients(encoder, _batchSize);
-    } else {
+    } else if (isTerminal_ && activation_ == ActivationFunction::Softmax) {
+        this->backwardComputeSoftmaxDeltas(encoder, _batchSize);
+        this->backwardAccumulateSoftmaxGradients(encoder, _batchSize);
+    } {
 
         encoder->setComputePipelineState(backwardPipelineState_);
         
@@ -282,6 +285,51 @@ void DenseLayer::backwardAccumulateGradients(MTL::ComputeCommandEncoder *encoder
     encoder->setBytes(&inputDim_, sizeof(uint), 3);
     encoder->setBytes(&outputDim_, sizeof(uint), 4);
     encoder->setBytes(&_batchSize, sizeof(uint), 5);
+    
+    
+    const uint TILE_W = 16;
+    const uint TILE_H = 16;
+
+    uint groupCountX = (inputDim_ + TILE_W - 1) / TILE_W;
+    uint groupCountY = (outputDim_ + TILE_H - 1) / TILE_H;
+
+    MTL::Size threadsPerGroup(TILE_W, TILE_H, 1);
+    MTL::Size numThreadgroups(groupCountX, groupCountY, 1);
+
+    encoder->dispatchThreadgroups(numThreadgroups, threadsPerGroup);
+}
+
+
+void DenseLayer::backwardComputeSoftmaxDeltas(MTL::ComputeCommandEncoder *encoder, int _batchSize) {
+    uint activationRaw = static_cast<uint>(activation_);
+
+    encoder->setComputePipelineState(computeDeltasPipelineState_);
+    encoder->setBuffer(outputBuffers_[BufferType::Output][0], 0, 0);
+    encoder->setBuffer(inputBuffers_[BufferType::Targets][0], 0, 1);
+    encoder->setBuffer(bufferDeltaScratch_, 0, 2);
+    encoder->setBytes(&outputDim_, sizeof(uint), 3);
+    encoder->setBytes(&activationRaw, sizeof(uint), 4);
+    encoder->setBytes(&_batchSize, sizeof(uint), 5);
+    
+    
+    uint gridSize = _batchSize * outputDim_;
+    uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
+    MTL::Size threadgroupSize(threadsPerThreadgroup, 1, 1);
+    MTL::Size threadgroups((gridSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
+    encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
+    
+}
+
+void DenseLayer::backwardAccumulateSoftmaxGradients(MTL::ComputeCommandEncoder *encoder, int _batchSize) {
+    encoder->setComputePipelineState(backwardPipelineState_);
+    
+    encoder->setBuffer(inputBuffers_[BufferType::Input][0], 0, 0);
+    encoder->setBuffer(bufferDeltaScratch_, 0, 1);
+    encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 2);
+    encoder->setBuffer(optimizerBiases_->gradientBuffer(), 0, 3);
+    encoder->setBytes(&inputDim_, sizeof(uint), 4);
+    encoder->setBytes(&outputDim_, sizeof(uint), 5);
+    encoder->setBytes(&_batchSize, sizeof(uint), 6);
     
     
     const uint TILE_W = 16;

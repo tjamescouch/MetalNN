@@ -161,7 +161,7 @@ kernel void learn_non_terminal_dense_softmax_layer(
     atomic_fetch_add_explicit(pGradientsB, delta, memory_order_relaxed);
 }
 
-
+/*
 kernel void learn_terminal_dense_softmax_layer(
                                        device const float* h                [[buffer(0)]],  // final layer input activations
                                        device const float* W                [[buffer(1)]],  // weights (no direct updates)
@@ -213,4 +213,64 @@ kernel void learn_terminal_dense_softmax_layer(
     }
     
     atomic_fetch_add_explicit(&gradientsB[neuron_id], delta, memory_order_relaxed);
+}*/
+
+
+kernel void compute_softmax_deltas(
+    device const float* y_hat         [[buffer(0)]],
+    device const float* y             [[buffer(1)]],
+    device float*       deltaScratch  [[buffer(2)]],
+    constant uint&      output_dim    [[buffer(3)]],
+    constant uint&      batch_size    [[buffer(4)]],
+    uint gid                          [[thread_position_in_grid]]
+)
+{
+    uint sample_id = gid / output_dim;
+    uint neuron_id = gid % output_dim;
+
+    if (sample_id >= batch_size || neuron_id >= output_dim) return;
+
+    float pred = y_hat[sample_id * output_dim + neuron_id];
+    float target = y[sample_id * output_dim + neuron_id];
+
+    float delta = pred - target; // explicit simplified delta for softmax + cross-entropy
+
+    deltaScratch[sample_id * output_dim + neuron_id] = delta;
+}
+
+kernel void accumulate_softmax_gradients(
+    device const float* h                 [[buffer(0)]],
+    device const float* deltaScratch      [[buffer(1)]],
+    device atomic_float* gradientWeights  [[buffer(2)]],
+    device atomic_float* gradientBiases   [[buffer(3)]],
+    constant uint& input_dim              [[buffer(4)]],
+    constant uint& output_dim             [[buffer(5)]],
+    constant uint& batch_size             [[buffer(6)]],
+    uint2 gid                             [[thread_position_in_grid]]
+)
+{
+    uint input_idx = gid.x;
+    uint output_idx = gid.y;
+
+    if (input_idx >= input_dim || output_idx >= output_dim) return;
+
+    float gradW = 0.0f;
+    float gradB = 0.0f;
+
+    for (uint s = 0; s < batch_size; s++) {
+        float delta = deltaScratch[s * output_dim + output_idx];
+        float input = h[s * input_dim + input_idx];
+
+        gradW += input * delta;
+        if (input_idx == 0) {
+            gradB += delta; // bias gradient only once per output neuron
+        }
+    }
+
+    uint gradW_idx = input_idx * output_dim + output_idx;
+    atomic_fetch_add_explicit(&gradientWeights[gradW_idx], gradW, memory_order_relaxed);
+
+    if (input_idx == 0) {
+        atomic_fetch_add_explicit(&gradientBiases[output_idx], gradB, memory_order_relaxed);
+    }
 }

@@ -53,6 +53,8 @@ public:
 private:
     void backwardAccumulateGradients(MTL::ComputeCommandEncoder* encoder, int batchSize);
     void backwardComputeDeltas(MTL::ComputeCommandEncoder* encoder, int batchSize);
+    void backwardAccumulateSoftmaxGradients(MTL::ComputeCommandEncoder* encoder, int batchSize);
+    void backwardComputeSoftmaxDeltas(MTL::ComputeCommandEncoder* encoder, int batchSize);
     
     uint inputDim_;
     uint outputDim_;
