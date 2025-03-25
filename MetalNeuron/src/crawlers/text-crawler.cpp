@@ -80,7 +80,7 @@ std::string TextCrawler::getRandomSequence() {
     size_t randomIndex = distribution_(generator_);
     currentSampleCount_++;
 
-    return currentFileContent_.substr(randomIndex, sequenceLength_);
+    return currentFileContent_.substr(randomIndex, sequenceLength_ + 1);
 }
 
 // Explicitly returns current loaded file size

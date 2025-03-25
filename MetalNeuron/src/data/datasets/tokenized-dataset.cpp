@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cassert>
 #include <numeric>
+#include "logger.h"
 
 // Constructor explicitly initializes members and loads initial batch
 TokenizedDataset::TokenizedDataset(TextCrawler* textCrawler, Tokenizer* tokenizer,
@@ -15,7 +16,7 @@ TokenizedDataset::~TokenizedDataset() {}
 
 // explicitly number of total samples (here infinite, but return large fixed value)
 int TokenizedDataset::numSamples() const {
-    return 1000000; // large explicit number for continuous training
+    return 1000; // large explicit number for continuous training
 }
 
 int TokenizedDataset::getDatasetSize() const {
@@ -43,19 +44,19 @@ void TokenizedDataset::loadData(int batchSize) {
         std::string sequence = textCrawler_->getRandomSequence();
         std::vector<int> tokenIds = tokenizer_->tokenize(sequence);
         
-        assert(tokenIds.size() == sequenceLength_);
+        assert(tokenIds.size() == sequenceLength_ + 1);
         
         inputData_[i].resize(0);
         targetData_[i].resize(0);
         
-        for (int iToken = 0; iToken < tokenIds.size() - 1; iToken++){
+        int iToken = 0;
+        for (iToken = 0; iToken < tokenIds.size() - 1; iToken++){
             int token = tokenIds[iToken];
-            int nextToken = tokenIds[iToken+1];
             
             inputData_[i].push_back(token);    // inputs explicitly all tokens except last
-            targetData_[i].push_back(nextToken);   // targets explicitly next token predictions
         }
-        
+
+        targetData_[i].push_back(tokenIds[iToken]);   // targets explicitly next token predictions
     }
     
     preprocessBatch();
@@ -71,6 +72,10 @@ void TokenizedDataset::shuffleIndices() {
 // explicitly prepares flattened buffers for neural network consumption
 void TokenizedDataset::preprocessBatch() {
     int vocabSize = (int)tokenizer_->vocabSize();
+    
+    flattenedInputBuffer_.resize(0);
+    flattenedTargetBuffer_.resize(0);
+    
     flattenedInputBuffer_.resize(batchSize_ * (sequenceLength_ - 1));
     flattenedTargetBuffer_.resize(batchSize_ * (sequenceLength_ - 1) * vocabSize);
     std::fill(flattenedTargetBuffer_.begin(), flattenedTargetBuffer_.end(), 0.0f);
@@ -81,10 +86,8 @@ void TokenizedDataset::preprocessBatch() {
                   flattenedInputBuffer_.begin() + i * (sequenceLength_ - 1));
 
         // explicitly one-hot encode targets
-        for (int j = 0; j < sequenceLength_ - 1; ++j) {
-            int tokenID = targetData_[i][j];
-            oneHotEncode(flattenedTargetBuffer_, (i * (sequenceLength_ - 1) + j), vocabSize, tokenID);
-        }
+        int tokenID = targetData_[i][0];
+        oneHotEncode(flattenedTargetBuffer_, (i * (sequenceLength_ - 1)), vocabSize, tokenID);
     }
 }
 
@@ -93,20 +96,39 @@ void TokenizedDataset::loadNextBatch(int currentBatchSize) {
     loadData(currentBatchSize);
 }
 
-float TokenizedDataset::calculateLoss(const float* predictions, int outputDim, const float* targets) {
+float TokenizedDataset::calculateLoss(const float* predictions, int outputDim, const float* targets, int batchSize) {
     float loss = 0.0f;
-    //int totalElements = batchSize_ * (sequenceLength_ - 1);
+    int dim = this->outputDim();
+    
+    for (int batch = 0; batch < batchSize; ++batch) {
+        int predictedTokenId = logitDecode(predictions, batch, dim);
+        int targetTokenId = logitDecode(targets, batch, dim);
+        
+        Logger::log << "Batch " << batch << " prediction token ID: " << predictedTokenId << std::endl;
+        
+        std::string predictedToken = tokenizer_->detokenize({predictedTokenId});
+        std::string targetToken = tokenizer_->detokenize({targetTokenId});
+        
+        predictedToken = predictedToken == "\n" ? "\\n" : predictedToken;
+        targetToken = targetToken == "\n" ? "\\n" : targetToken;
+        
+        if (predictedToken == targetToken) {
+            Logger::log << "💎 value: " << predictedToken << std::endl;
+        } else {
+            Logger::log << "❌ predicted: " << predictedToken << std::endl;
+            Logger::log << "❌ target: " << targetToken << std::endl;
+        }
 
-    //for (int i = 0; i < totalElements; ++i) {
-        for (int j = 0; j < outputDim; ++j) {
-            int index =  j;
+        // Cross-entropy loss calculation explicitly across vocab dimension
+        for (int j = 0; j < dim; ++j) {
+            int index = batch * dim + j;
             float pred = predictions[index];
             float target = targets[index];
-            loss += -(target * logf(pred + 1e-9f)); // explicit CrossEntropy loss calculation
+            loss += -(target * logf(pred + 1e-9f));
         }
-    //}
-
-    return loss;
+    }
+    
+    return loss / static_cast<float>(batchSize);
 }
 
 int TokenizedDataset::inputDim() const {
@@ -122,4 +144,20 @@ int TokenizedDataset::outputDim() const {
 void TokenizedDataset::oneHotEncode(std::vector<float>& buffer, int index, int vocabSize, int tokenID) {
     int offset = index * vocabSize;
     buffer[offset + tokenID] = 1.0f;
+}
+
+int TokenizedDataset::logitDecode(const float* vector, int index, int vocabSize) {
+    int offset = index * vocabSize;
+    int maxTokenID = 0;
+    float maxValue = 0.0f;
+
+    for (int tokenID = 0; tokenID < vocabSize; ++tokenID) {
+        float value = (vector[offset + tokenID]);
+        if (value > maxValue) {
+            maxTokenID = tokenID;
+            maxValue = value;
+        }
+    }
+
+    return maxTokenID;
 }
