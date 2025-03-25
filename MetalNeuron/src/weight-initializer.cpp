@@ -38,3 +38,9 @@ void WeightInitializer::initializeBias(float* buffer, int dim, float scale) {
         assert(!isnan(buffer[i]));
     }
 }
+
+void WeightInitializer::initializeZeros(float* buffer, int dim) {
+    for (int i = 0; i < dim; ++i) {
+        buffer[i] = 0.0f;
+    }
+}

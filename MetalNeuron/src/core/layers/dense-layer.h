@@ -51,12 +51,15 @@ public:
     DenseLayer* setInitializer(std::string initializer) { initializer_ = initializer; return this; }
     
 private:
-    int inputDim_;
-    int outputDim_;
-    int sequenceLength_;
+    void backwardAccumulateGradients(MTL::ComputeCommandEncoder* encoder, int batchSize);
+    void backwardComputeDeltas(MTL::ComputeCommandEncoder* encoder, int batchSize);
+    
+    uint inputDim_;
+    uint outputDim_;
+    uint sequenceLength_;
     bool isTerminal_;
     float learningRate_;
-    int batchSize_;
+    uint batchSize_;
     float decayRate_ = 1.0f;
     float decay_ = 1.0f;
     
@@ -67,11 +70,15 @@ private:
     
     MTL::Buffer* bufferWeights_;
     MTL::Buffer* bufferBias_;
+    MTL::Buffer* bufferGradientScratch_;
+    MTL::Buffer* bufferDeltaScratch_;
+
     
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> inputBuffers_;
     std::unordered_map<BufferType, std::vector<MTL::Buffer*>> outputBuffers_;
     
     
+    MTL::ComputePipelineState* computeDeltasPipelineState_;
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
     

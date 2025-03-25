@@ -136,57 +136,64 @@ kernel void learn_non_terminal_dense_layer(
 }
 
 
-kernel void learn_terminal_dense_layer(
-                                       device const float* h                [[buffer(0)]],  // final layer input activations
-                                       device const float* W                [[buffer(1)]],  // weights (no direct updates)
-                                       device const float* b                [[buffer(2)]],  // biases (no direct updates)
-                                       device const float* y_hat            [[buffer(3)]],  // predicted outputs
-                                       device const float* y                [[buffer(4)]],  // targets
-                                       device float*       error            [[buffer(5)]],  // partial error (this final layer's delta)
-                                       constant uint&      input_dim        [[buffer(6)]],
-                                       constant uint&      output_dim       [[buffer(7)]],
-                                       constant uint&      activation       [[buffer(8)]],
-                                       device float*       prevLayerErrors  [[buffer(9)]], // error to previous layer
-                                       constant uint&      batch_size       [[buffer(10)]],
-                                       device atomic_float* gradientsW      [[buffer(11)]], // weights gradients buffer
-                                       device atomic_float* gradientsB      [[buffer(12)]], // bias gradients buffer
-                                       uint tid                             [[thread_position_in_threadgroup]],
-                                       uint gid                             [[thread_position_in_grid]]
-                                       )
+kernel void compute_deltas(
+    device const float* y_hat        [[buffer(0)]],  // Predicted outputs
+    device const float* y            [[buffer(1)]],  // Targets
+    device float*       deltaScratchBuffer [[buffer(2)]], // clearly named scratch buffer
+    constant uint&      output_dim   [[buffer(3)]],
+    constant uint&      activation   [[buffer(4)]],
+    constant uint&      batch_size   [[buffer(5)]],
+    uint gid                         [[thread_position_in_grid]]
+)
 {
     uint sample_id = gid / output_dim;
     uint neuron_id = gid % output_dim;
-    
+
     if (sample_id >= batch_size || neuron_id >= output_dim) return;
-    
-    const device float* sample_h     = h     + (sample_id * input_dim);
-    const device float* sample_y_hat = y_hat + (sample_id * output_dim);
-    const device float* sample_y     = y     + (sample_id * output_dim);
-    device float*       sample_error = error + (sample_id * output_dim);
-    device float*       sample_prevE = prevLayerErrors + (sample_id * input_dim);
-    
-    float raw_error = sample_y_hat[neuron_id] - sample_y[neuron_id];
-    
-    float dAct = activate_derivative(sample_y_hat[neuron_id], activation);
-    float delta = raw_error * dAct;
-    
-    
+
+    float pred = y_hat[sample_id * output_dim + neuron_id];
+    float target = y[sample_id * output_dim + neuron_id];
+
+    float raw_error = pred - target;
+    float delta = activate_derivative(pred, activation) * raw_error;
+
+    // Clamp delta explicitly to ensure numeric stability
     delta = clamp(delta, -threshold, threshold);
-    sample_error[neuron_id] = delta;
-    
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    
-    for (uint i = 0; i < input_dim; i++) {
-        float grad = sample_h[i] * delta;
-        grad = clamp(grad, -threshold, threshold);
-        
-        uint gradWIdx = i * output_dim + neuron_id;
-        atomic_fetch_add_explicit(&gradientsW[gradWIdx], grad, memory_order_relaxed);
-        
-        float weightVal = W[i * output_dim + neuron_id];
-        float prevErrTerm = weightVal * delta;
-        atomic_fetch_add_explicit((device atomic_float*)&sample_prevE[i], prevErrTerm, memory_order_relaxed);
+
+    deltaScratchBuffer[sample_id * output_dim + neuron_id] = delta;
+}
+
+kernel void accumulate_partial_gradients(
+    device const float* h                      [[buffer(0)]],  // Inputs (batch_size × input_dim)
+    device const float* deltaScratchBuffer     [[buffer(1)]],  // Deltas (batch_size × output_dim)
+    device float*       gradientScratchBuffer  [[buffer(2)]],  // Gradients (input_dim × output_dim), temporary
+    constant uint&      input_dim              [[buffer(3)]],
+    constant uint&      output_dim             [[buffer(4)]],
+    constant uint&      batch_size             [[buffer(5)]],
+    uint2               gid                    [[thread_position_in_grid]],
+    uint2               tid                    [[thread_position_in_threadgroup]],
+    uint2               threads_per_group      [[threads_per_threadgroup]]
+)
+{
+    // Global indices explicitly
+    uint input_idx  = gid.x; // input dimension index
+    uint output_idx = gid.y; // output dimension index
+
+    if (input_idx >= input_dim || output_idx >= output_dim) return;
+
+    // Partial gradient sum explicitly for this thread
+    float partial_gradient = 0.0f;
+
+    // Accumulate gradients explicitly over all samples
+    for (uint s = 0; s < batch_size; ++s) {
+        float h_val = h[s * input_dim + input_idx];
+        float delta_val = deltaScratchBuffer[s * output_dim + output_idx];
+        partial_gradient += h_val * delta_val;
     }
-    
-    atomic_fetch_add_explicit(&gradientsB[neuron_id], delta, memory_order_relaxed);
+
+    // Index explicitly into gradient scratch buffer
+    uint gradient_idx = input_idx * output_dim + output_idx;
+
+    // Write explicitly into global gradient scratch buffer (no atomic needed if one thread per weight)
+    gradientScratchBuffer[gradient_idx] = partial_gradient;
 }
