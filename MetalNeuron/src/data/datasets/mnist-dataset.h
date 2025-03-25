@@ -6,7 +6,7 @@
 
 class MNISTDataset : public Dataset {
 public:
-    MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename);
+    MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename, int batchSize);
     ~MNISTDataset() override;
 
     // Overrides from Dataset interface

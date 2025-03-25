@@ -21,7 +21,8 @@ Dataset* DatasetFactory::createDataset(const ModelConfig* pConfig) {
     if (pConfig->dataset.type == "mnist") {
         return new MNISTDataset(
             pConfig->dataset.images,
-            pConfig->dataset.labels
+            pConfig->dataset.labels,
+            pConfig->training.batch_size
         );
     } else if (pConfig->dataset.type == "function") {
         int inputShape[2] = {};

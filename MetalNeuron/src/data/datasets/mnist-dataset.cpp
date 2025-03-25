@@ -13,8 +13,8 @@
 #include <cassert>
 #include <mach-o/dyld.h>
 
-MNISTDataset::MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename):
-currentSampleIndex_(0), batchedInputData_(nullptr), batchedTargetData_(nullptr)
+MNISTDataset::MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename, int batchSize):
+currentSampleIndex_(0), batchedInputData_(nullptr), batchedTargetData_(nullptr), batchSize_(batchSize)
 {
     namespace fs = std::filesystem;
 
@@ -39,6 +39,7 @@ currentSampleIndex_(0), batchedInputData_(nullptr), batchedTargetData_(nullptr)
 
     loadImages(imagesPath.string());
     loadLabels(labelsPath.string());
+    loadData(batchSize_);
 }
 
 MNISTDataset::~MNISTDataset() {

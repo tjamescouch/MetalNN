@@ -260,12 +260,14 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
     computeForward(currentBatchSize, [=, this]() mutable {
         float* predictedData = static_cast<float*>(dynamicLayers_.back()->getOutputBuffer(BufferType::Output)->contents());
         
-        float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, tgtBuffer, currentBatchSize);
+        const float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
+        
+        float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData, currentBatchSize);
         
         for (int i = 0; i < currentBatchSize; ++i) {
             Logger::instance().logAnalytics(
                 predictedData + i * output_dim * terminalSequenceLength_, output_dim * terminalSequenceLength_,
-                tgtBuffer + i * output_dim * terminalSequenceLength_, output_dim * terminalSequenceLength_,
+                targetData + i * output_dim * terminalSequenceLength_, output_dim * terminalSequenceLength_,
                 terminalSequenceLength_
             );
         }
@@ -314,14 +316,16 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
             
             assert(dynamicLayers_.back()->getOutputBuffer(BufferType::Output)->length() >= batch_size * output_dim * sizeof(float));
             float* predictedData = static_cast<float*>(dynamicLayers_.back()->getOutputBuffer(BufferType::Output)->contents());
-                        
-            float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, tgtBuffer, currentBatchSize);
+            
+            const float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
+            
+            float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData, currentBatchSize);
             //assert(!isnan(batchLoss));
             
             for (int i = 0; i < currentBatchSize; ++i) {
                 Logger::instance().logAnalytics(
                     predictedData + i * output_dim * terminalSequenceLength_, output_dim * terminalSequenceLength_,
-                    tgtBuffer + i * output_dim * terminalSequenceLength_, output_dim * terminalSequenceLength_,
+                    targetData + i * output_dim * terminalSequenceLength_, output_dim * terminalSequenceLength_,
                     terminalSequenceLength_
                 );
             }

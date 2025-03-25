@@ -17,7 +17,7 @@
 //const char* modelFilename = "ocr-with-dropout.yml";
 //const char* modelFilename = "ocr-with-batch-normalization.yml";
 //const char* modelFilename = "ocr-complete.yml";
-//const char* modelFilename = "feed-forward.yml";
+const char* modelFilename = "feed-forward.yml";
 //const char* modelFilename = "residual-connection.yml";
 //const char* modelFilename = "gelu.yml";
 //const char* modelFilename = "multi-dense-layer.yml";
@@ -27,7 +27,7 @@
 //const char* modelFilename = "layer-norm.yml";
 //const char* modelFilename = "sequence-length.yml";
 //const char* modelFilename = "passthru.yml";
-const char* modelFilename = "transformer-complete.yml";
+//const char* modelFilename = "transformer-complete.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {
