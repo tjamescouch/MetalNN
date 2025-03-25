@@ -12,10 +12,10 @@ layers:
     input_size: 20
     output_shape: [20, 128]
 
-#  - type: PositionalEncoding
-#    name: "positional_encoding"
-#    input_shape: [10, 128]
-#    output_shape: [10, 128]
+  - type: PositionalEncoding
+    name: "positional_encoding"
+    input_shape: [10, 128]
+    output_shape: [10, 128]
 
   - type: MultiHeadAttention
     name: "mha_1"

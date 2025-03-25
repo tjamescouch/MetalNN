@@ -214,7 +214,7 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
     bufferWeights_->didModifyRange(NS::Range(0, bufferWeights_->length()));
     bufferBias_->didModifyRange(NS::Range(0, bufferBias_->length()));
     
-    if (isTerminal_) {
+    if (isTerminal_ && activation_ != ActivationFunction::Softmax) {
         this->backwardComputeDeltas(encoder, _batchSize);
         this->backwardAccumulateGradients(encoder, _batchSize);
     } else {
