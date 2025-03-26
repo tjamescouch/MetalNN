@@ -51,11 +51,8 @@ public:
     DenseLayer* setInitializer(std::string initializer) { initializer_ = initializer; return this; }
     
 private:
-    void backwardAccumulateGradients(MTL::ComputeCommandEncoder* encoder, int batchSize);
-    void backwardComputeDeltas(MTL::ComputeCommandEncoder* encoder, int batchSize);
-    void backwardAccumulateSoftmaxGradients(MTL::ComputeCommandEncoder* encoder, int batchSize);
-    void backwardComputeSoftmaxDeltas(MTL::ComputeCommandEncoder* encoder, int batchSize);
-    void backwardPropagateErrors(MTL::ComputeCommandEncoder* encoder, int batchSize);
+    void backwardTerminalSoftmax(MTL::ComputeCommandEncoder* encoder, int batchSize);
+    void backwardTerminalNonSoftmax(MTL::ComputeCommandEncoder* encoder, int batchSize);
     
     uint inputDim_;
     uint outputDim_;

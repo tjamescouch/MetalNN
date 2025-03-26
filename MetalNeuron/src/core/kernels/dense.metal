@@ -12,7 +12,7 @@ float activate_derivative(const float y, const uint act);
 constant float max_abs_sum = 1000.0f;
 constant float threshold    = 1.f;
 
-kernel void forward_dense_layer(
+kernel void forward_non_softmax_dense_layer(
                                 device const float* h         [[buffer(0)]],  // Input activations
                                 device       float* y         [[buffer(1)]],  // Output activations
                                 device const float* W         [[buffer(2)]],  // Weights
@@ -69,7 +69,7 @@ kernel void forward_dense_layer(
 
 
 
-kernel void learn_non_terminal_dense_layer(
+kernel void backward_non_terminal_non_softmax_dense_layer(
                                            device const float* h                [[buffer(0)]],  // input activations
                                            device float*       W                [[buffer(1)]],  // weights
                                            device const float* b                [[buffer(2)]],  // biases
@@ -135,105 +135,3 @@ kernel void learn_non_terminal_dense_layer(
     atomic_fetch_add_explicit(pGradientsB, delta, memory_order_relaxed);
 }
 
-
-kernel void compute_deltas(
-    device const float* y_hat        [[buffer(0)]],  // Predicted outputs
-    device const float* y            [[buffer(1)]],  // Targets
-    device float*       deltaScratchBuffer [[buffer(2)]], // clearly named scratch buffer
-    constant uint&      output_dim   [[buffer(3)]],
-    constant uint&      activation   [[buffer(4)]],
-    constant uint&      batch_size   [[buffer(5)]],
-    uint gid                         [[thread_position_in_grid]]
-)
-{
-    uint sample_id = gid / output_dim;
-    uint neuron_id = gid % output_dim;
-
-    if (sample_id >= batch_size || neuron_id >= output_dim) return;
-
-    float pred = y_hat[sample_id * output_dim + neuron_id];
-    float target = y[sample_id * output_dim + neuron_id];
-
-    float raw_error = pred - target;
-    float delta = activate_derivative(pred, activation) * raw_error;
-
-    // Clamp delta explicitly to ensure numeric stability
-    delta = clamp(delta, -threshold, threshold);
-
-    deltaScratchBuffer[sample_id * output_dim + neuron_id] = delta;
-}
-
-kernel void accumulate_partial_gradients(
-    device const float* h                      [[buffer(0)]],  // Inputs (batch_size × input_dim)
-    device const float* deltaScratchBuffer     [[buffer(1)]],  // Deltas (batch_size × output_dim)
-    device float*       gradientScratchBuffer  [[buffer(2)]],  // Gradients (input_dim × output_dim), temporary
-    constant uint&      input_dim              [[buffer(3)]],
-    constant uint&      output_dim             [[buffer(4)]],
-    constant uint&      batch_size             [[buffer(5)]],
-    uint2               gid                    [[thread_position_in_grid]],
-    uint2               tid                    [[thread_position_in_threadgroup]],
-    uint2               threads_per_group      [[threads_per_threadgroup]]
-)
-{
-    // Global indices explicitly
-    uint input_idx  = gid.x; // input dimension index
-    uint output_idx = gid.y; // output dimension index
-
-    if (input_idx >= input_dim || output_idx >= output_dim) return;
-
-    // Partial gradient sum explicitly for this thread
-    float partial_gradient = 0.0f;
-
-    // Accumulate gradients explicitly over all samples
-    for (uint s = 0; s < batch_size; ++s) {
-        float h_val = h[s * input_dim + input_idx];
-        float delta_val = deltaScratchBuffer[s * output_dim + output_idx];
-        partial_gradient += h_val * delta_val;
-    }
-
-    // Index explicitly into gradient scratch buffer
-    uint gradient_idx = input_idx * output_dim + output_idx;
-
-    // Write explicitly into global gradient scratch buffer (no atomic needed if one thread per weight)
-    gradientScratchBuffer[gradient_idx] = partial_gradient;
-}
-
-#define TILE_H 16u
-
-
-kernel void propagate_terminal_errors_to_previous(
-    device const float* deltaTerminal     [[buffer(0)]],
-    device const float* terminalWeights   [[buffer(1)]],
-    device float*       previousErrors    [[buffer(2)]],
-    constant uint& input_dim              [[buffer(3)]],
-    constant uint& output_dim             [[buffer(4)]],
-    constant uint& batch_size             [[buffer(5)]],
-    uint2 gid                              [[thread_position_in_grid]]
-)
-{
-    uint sample_id = gid.x; // Use x for sample_id
-    uint input_neuron = gid.y; // Use y for input_neuron
-
-    if (sample_id >= batch_size || input_neuron >= input_dim) return;
-
-    // Use threadgroup shared memory for accumulating errors
-    threadgroup float shared_error[TILE_H] = {0.0f};
-
-    // Accumulate error for this sample across all output neurons
-    for (uint j = 0; j < output_dim; j++) {
-        float weight = terminalWeights[input_neuron * output_dim + j];
-        float delta = deltaTerminal[sample_id * output_dim + j];
-        shared_error[gid.y] += weight * delta; // Accumulate in shared memory
-    }
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    // Write the accumulated error to the previousErrors buffer
-    if (gid.x == 0) {
-        float total_error = 0.0f;
-        for (uint i = 0; i < TILE_H; i++) {
-            total_error += shared_error[i];
-        }
-        previousErrors[sample_id * input_dim + input_neuron] = total_error;
-    }
-}

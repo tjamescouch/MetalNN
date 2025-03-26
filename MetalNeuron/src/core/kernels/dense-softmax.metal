@@ -13,7 +13,7 @@ constant float max_abs_sum = 1000.0f;
 constant float threshold    = 1.f;
 constant float epsilon = 1.0e-5f;
 
-kernel void forward_dense_softmax_layer(
+kernel void forward_softmax_dense_layer(
                                 device const float* h         [[buffer(0)]],  // Input activations
                                 device       float* y         [[buffer(1)]],  // Output activations
                                 device const float* W         [[buffer(2)]],  // Weights
@@ -95,7 +95,7 @@ kernel void forward_dense_softmax_layer(
 
 
 
-kernel void learn_non_terminal_dense_softmax_layer(
+kernel void backward_non_terminal_softmax_dense_layer(
                                            device const float* h                [[buffer(0)]],  // input activations
                                            device float*       W                [[buffer(1)]],  // weights
                                            device const float* b                [[buffer(2)]],  // biases
@@ -161,117 +161,79 @@ kernel void learn_non_terminal_dense_softmax_layer(
     atomic_fetch_add_explicit(pGradientsB, delta, memory_order_relaxed);
 }
 
-//Deprecated
-kernel void learn_terminal_dense_softmax_layer(
-                                       device const float* h                [[buffer(0)]],  // final layer input activations
-                                       device const float* W                [[buffer(1)]],  // weights (no direct updates)
-                                       device const float* b                [[buffer(2)]],  // biases (no direct updates)
-                                       device const float* y_hat            [[buffer(3)]],  // predicted outputs
-                                       device const float* y                [[buffer(4)]],  // targets
-                                       device float*       error            [[buffer(5)]],  // partial error (this final layer's delta)
-                                       constant uint&      input_dim        [[buffer(6)]],
-                                       constant uint&      output_dim       [[buffer(7)]],
-                                       constant uint&      activation       [[buffer(8)]],
-                                       device float*       prevLayerErrors  [[buffer(9)]], // error to previous layer
-                                       constant uint&      batch_size       [[buffer(10)]],
-                                       device atomic_float* gradientsW      [[buffer(11)]], // weights gradients buffer
-                                       device atomic_float* gradientsB      [[buffer(12)]], // bias gradients buffer
-                                       uint tid                             [[thread_position_in_threadgroup]],
-                                       uint gid                             [[thread_position_in_grid]]
-                                       )
-{
-    uint sample_id = gid / output_dim;
-    uint neuron_id = gid % output_dim;
-    
-    if (sample_id >= batch_size || neuron_id >= output_dim) return;
-    
-    const device float* sample_h     = h     + (sample_id * input_dim);
-    const device float* sample_y_hat = y_hat + (sample_id * output_dim);
-    const device float* sample_y     = y     + (sample_id * output_dim);
-    device float*       sample_error = error + (sample_id * output_dim);
-    device float*       sample_prevE = prevLayerErrors + (sample_id * input_dim);
-    
-    float raw_error = sample_y_hat[neuron_id] - sample_y[neuron_id];
-    
-    float delta = raw_error;
+kernel void backward_terminal_softmax_dense_layer(
+    device const float* inputs             [[buffer(0)]],  // h: Input activations
+    device const float* weights            [[buffer(1)]],  // Weights matrix
+    device const float* predictions        [[buffer(2)]],  // Predictions (y_hat)
+    device const float* targets            [[buffer(3)]],  // Targets (y)
+    device atomic_float* gradientWeights   [[buffer(4)]],  // Gradients for weights
+    device atomic_float* gradientBiases    [[buffer(5)]],  // Gradients for biases
+    device float* errorsPreviousLayer      [[buffer(6)]],  // Errors for the previous layer
+    constant uint& input_dim               [[buffer(7)]],
+    constant uint& output_dim              [[buffer(8)]],
+    constant uint& batch_size              [[buffer(9)]],
+    uint2 gid                              [[thread_position_in_grid]],
+    uint2 tid                              [[thread_position_in_threadgroup]]
+) {
+    const uint TILE_W = 16;
+    const uint TILE_H = 16;
 
-    delta = clamp(delta, -threshold, threshold);
-    sample_error[neuron_id] = delta;
-    
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    
-    for (uint i = 0; i < input_dim; i++) {
-        float grad = sample_h[i] * delta;
-        grad = clamp(grad, -threshold, threshold);
-        
-        uint gradWIdx = i * output_dim + neuron_id;
-        atomic_fetch_add_explicit(&gradientsW[gradWIdx], grad, memory_order_relaxed);
-        
-        float weightVal = W[i * output_dim + neuron_id];
-        float prevErrTerm = weightVal * delta;
-        atomic_fetch_add_explicit((device atomic_float*)&sample_prevE[i], prevErrTerm, memory_order_relaxed);
-    }
-    
-    atomic_fetch_add_explicit(&gradientsB[neuron_id], delta, memory_order_relaxed);
-}
-
-
-kernel void compute_softmax_deltas(
-    device const float* y_hat         [[buffer(0)]],
-    device const float* y             [[buffer(1)]],
-    device float*       deltaScratch  [[buffer(2)]],
-    constant uint&      output_dim    [[buffer(3)]],
-    constant uint&      batch_size    [[buffer(4)]],
-    uint gid                          [[thread_position_in_grid]]
-)
-{
-    uint sample_id = gid / output_dim;
-    uint neuron_id = gid % output_dim;
-
-    if (sample_id >= batch_size || neuron_id >= output_dim) return;
-
-    float pred = y_hat[sample_id * output_dim + neuron_id];
-    float target = y[sample_id * output_dim + neuron_id];
-
-    float delta = pred - target; // explicit simplified delta for softmax + cross-entropy
-
-    deltaScratch[sample_id * output_dim + neuron_id] = delta;
-}
-
-kernel void accumulate_softmax_gradients(
-    device const float* h                 [[buffer(0)]],
-    device const float* deltaScratch      [[buffer(1)]],
-    device atomic_float* gradientWeights  [[buffer(2)]],
-    device atomic_float* gradientBiases   [[buffer(3)]],
-    constant uint& input_dim              [[buffer(4)]],
-    constant uint& output_dim             [[buffer(5)]],
-    constant uint& batch_size             [[buffer(6)]],
- device float*       prevLayerErrors  [[buffer(7)]], // error to previous layer
-    uint2 gid                             [[thread_position_in_grid]]
-)
-{
     uint input_idx = gid.x;
-    uint output_idx = gid.y;
+    uint sample_idx = gid.y;
 
-    if (input_idx >= input_dim || output_idx >= output_dim) return;
+    if (input_idx >= input_dim || sample_idx >= batch_size) return;
 
-    float gradW = 0.0f;
-    float gradB = 0.0f;
+    // Threadgroup memory to accumulate gradients efficiently
+    threadgroup float gradW_shared[TILE_W][TILE_H];
+    threadgroup float gradB_shared[TILE_H];
+    threadgroup float error_shared[TILE_W];
 
-    for (uint s = 0; s < batch_size; s++) {
-        float delta = deltaScratch[s * output_dim + output_idx];
-        float input = h[s * input_dim + input_idx];
+    float inputVal = inputs[sample_idx * input_dim + input_idx];
 
-        gradW += input * delta;
-        if (input_idx == 0) {
-            gradB += delta; // bias gradient only once per output neuron
-        }
+    // Initialize shared memory explicitly
+    gradW_shared[tid.x][tid.y] = 0.0f;
+    if (tid.x == 0) gradB_shared[tid.y] = 0.0f;
+    error_shared[tid.x] = 0.0f;
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    // Compute deltas and partial gradient explicitly
+    for (uint output_idx = tid.y; output_idx < output_dim; output_idx += TILE_H) {
+        float pred = predictions[sample_idx * output_dim + output_idx];
+        float target = targets[sample_idx * output_dim + output_idx];
+
+        // Softmax delta explicitly simplified
+        float delta = pred - target;
+
+        // Accumulate partial gradients explicitly
+        gradW_shared[tid.x][tid.y] += inputVal * delta;
+        if (tid.x == 0) gradB_shared[tid.y] += delta;
+
+        // Accumulate previous layer error explicitly
+        float weight = weights[input_idx * output_dim + output_idx];
+        error_shared[tid.x] += weight * delta;
     }
 
-    uint gradW_idx = input_idx * output_dim + output_idx;
-    atomic_fetch_add_explicit(&gradientWeights[gradW_idx], gradW, memory_order_relaxed);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    if (input_idx == 0) {
-        atomic_fetch_add_explicit(&gradientBiases[output_idx], gradB, memory_order_relaxed);
+    // Write accumulated gradients to global memory explicitly
+    if (tid.x < input_dim) {
+        float gradW_total = 0.0f;
+        for (uint k = 0; k < TILE_H; k++) {
+            gradW_total += gradW_shared[tid.x][k];
+        }
+        uint globalGradWIdx = input_idx * output_dim + tid.y;
+        atomic_fetch_add_explicit(&gradientWeights[globalGradWIdx], gradW_total, memory_order_relaxed);
+    }
+
+    if (tid.x == 0 && tid.y < output_dim) {
+        atomic_fetch_add_explicit(&gradientBiases[tid.y], gradB_shared[tid.y], memory_order_relaxed);
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    // Write errors to previous layer explicitly
+    if (tid.y == 0) {
+        errorsPreviousLayer[sample_idx * input_dim + input_idx] = error_shared[tid.x];
     }
 }

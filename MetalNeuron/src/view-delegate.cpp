@@ -12,7 +12,7 @@
 #include <mach-o/dyld.h>
 #include "configuration-manager.h"
 
-//const char* modelFilename = "ocr.yml";
+const char* modelFilename = "ocr.yml";
 //const char* modelFilename = "simple-ocr.yml";
 //const char* modelFilename = "ocr-with-dropout.yml";
 //const char* modelFilename = "ocr-with-batch-normalization.yml";
@@ -27,7 +27,7 @@
 //const char* modelFilename = "layer-norm.yml";
 //const char* modelFilename = "sequence-length.yml";
 //const char* modelFilename = "passthru.yml";
-const char* modelFilename = "transformer-complete.yml";
+//const char* modelFilename = "transformer-complete.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {
