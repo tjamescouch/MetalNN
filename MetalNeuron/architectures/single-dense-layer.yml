@@ -8,14 +8,15 @@ layers:
   - type: Dense
     input_size: 256
     output_size: 512
-    activation: linear
+    activation: tanh
     initializer: xavier
 
 
 training:
   optimizer:
     type: adam
-    learning_rate: 0.001
+    learning_rate: 0.0001
+    accumulation_interval: 4
     parameters:
       beta1: 0.9
       beta2: 0.999

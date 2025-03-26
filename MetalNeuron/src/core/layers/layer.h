@@ -69,7 +69,7 @@ enum class BufferType : unsigned int {
     Activation,
     OutgoingErrors,
     IncomingErrors,
-    Delta
+    Delta,
 };
 
 class Layer {

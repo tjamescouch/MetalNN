@@ -6,7 +6,7 @@
 
 class MNISTDataset : public Dataset {
 public:
-    MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename);
+    MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename, int batchSize);
     ~MNISTDataset() override;
 
     // Overrides from Dataset interface
@@ -15,7 +15,7 @@ public:
     const float* getInputDataAt(int batchIndex) const override;
     const float* getTargetDataAt(int batchIndex) const override;
     
-    float calculateLoss(const float* predictedData, int outputDim, const float* targetData) override;
+    float calculateLoss(const float* predictedData, int outputDim, const float* targetData, int currentBatchSize) override;
 
     int getDatasetSize() const override;
 

@@ -13,6 +13,7 @@
 #include "layer-normalization-layer.h"
 #include "residual-connection-layer.h"
 #include "embedding-layer.h"
+#include "positional-encoding-layer.h"
 #include "self-attention-layer.h"
 #include "flatten-layer.h"
 #include "reshape-layer.h"
@@ -152,6 +153,10 @@ Layer* LayerFactory::createLayer(LayerConfig& layerConfig,
         Logger::log << "Creating Reshape layer..." << std::endl;
         layer = new ReshapeLayer(outputSequenceLength, inputSize, outputSize, batchSize);
         
+    } else if (layerConfig.type == "PositionalEncoding") {
+        Logger::log << "Creating PositionalEncoding layer..." << std::endl;
+        assert(outputSequenceLength == sequenceLength);
+        layer = new PositionalEncodingLayer(inputSize, sequenceLength, outputSize, batchSize);
     } else {
         throw std::invalid_argument("Unsupported layer type");
     }

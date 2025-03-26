@@ -13,8 +13,8 @@
 #include <cassert>
 #include <mach-o/dyld.h>
 
-MNISTDataset::MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename):
-currentSampleIndex_(0), batchedInputData_(nullptr), batchedTargetData_(nullptr)
+MNISTDataset::MNISTDataset(const std::string& imagesFilename, const std::string& labelsFilename, int batchSize):
+currentSampleIndex_(0), batchedInputData_(nullptr), batchedTargetData_(nullptr), batchSize_(batchSize)
 {
     namespace fs = std::filesystem;
 
@@ -39,6 +39,7 @@ currentSampleIndex_(0), batchedInputData_(nullptr), batchedTargetData_(nullptr)
 
     loadImages(imagesPath.string());
     loadLabels(labelsPath.string());
+    loadData(batchSize_);
 }
 
 MNISTDataset::~MNISTDataset() {
@@ -138,7 +139,7 @@ void MNISTDataset::loadLabels(const std::string& labelsPath) {
     }
 }
 
-float MNISTDataset::calculateLoss(const float* predictedData, int outputDim, const float* targetData) {
+float MNISTDataset::calculateLoss(const float* predictedData, int outputDim, const float* targetData, int currentBatchSize) {
     const float epsilon = 1e-10f;
     float loss = 0.0f;
     
@@ -176,11 +177,11 @@ void MNISTDataset::loadNextBatch(int currentBatchSize) {
     pageOffset_ += currentBatchSize;
 }
 
-const float* MNISTDataset::getInputDataAt(int batchIndex) const {
+const float* MNISTDataset::getInputDataAt(int _batchIndex) const {
     assert(batchedInputData_);
 
     size_t numImages = inputs_.size();
-    int ib0 = batchIndex * batchSize_;
+    int ib0 = pageOffset_;
     const int imageSize = inputDim();
 
     for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {
@@ -190,11 +191,11 @@ const float* MNISTDataset::getInputDataAt(int batchIndex) const {
     return batchedInputData_;
 }
 
-const float* MNISTDataset::getTargetDataAt(int batchIndex) const {
+const float* MNISTDataset::getTargetDataAt(int _batchIndex) const {
     assert(batchedTargetData_);
 
     size_t numTargets = targets_.size();
-    int ib0 = batchIndex * batchSize_;
+    int ib0 = pageOffset_;
     const int targetSize = outputDim();
 
     for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {

@@ -262,7 +262,7 @@ void NeuralEngine::computeForwardBatches(uint32_t totalSamples, int batchesRemai
         
         const float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
         
-        float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData);
+        float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData, currentBatchSize);
         
         for (int i = 0; i < currentBatchSize; ++i) {
             Logger::instance().logAnalytics(
@@ -319,7 +319,7 @@ void NeuralEngine::computeBackwardBatches(uint32_t totalSamples, int batchesRema
             
             const float* targetData = _pDataManager->getCurrentDataset()->getTargetDataAt(0);
             
-            float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData);
+            float totalBatchLoss = _pDataManager->getCurrentDataset()->calculateLoss(predictedData, output_dim * currentBatchSize, targetData, currentBatchSize);
             //assert(!isnan(batchLoss));
             
             for (int i = 0; i < currentBatchSize; ++i) {

@@ -3,25 +3,19 @@ name: "Feed Forward NN"
 layers:
   - type: Input
     name: "input"
-    output_shape: [1, 256]
+    output_shape: [1, 2560]
     
   - type: Dense
-    name: Dense1
-    input_size: 256
-    output_size: 1024  # Expansion to higher dimension
-    activation: gelu
+    name: "dense_ffn_expand"
+    input_size: 2560
+    output_size: 5120
+    activation: relu
     initializer: he
 
-  - type: Dropout
-    name: Dropout
-    rate: 0.1
-    input_size: 1024
-    output_size: 1024
-
   - type: Dense
-    name: Dense2
-    input_size: 1024
-    output_size: 256   # Projection back to original dimension
+    name: "dense_ffn_reduce"
+    input_size: 5120
+    output_size: 2560
     activation: linear
     initializer: xavier
 
