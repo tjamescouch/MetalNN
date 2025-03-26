@@ -53,6 +53,7 @@ public:
 private:
     void backwardTerminalSoftmax(MTL::ComputeCommandEncoder* encoder, int batchSize);
     void backwardTerminalNonSoftmax(MTL::ComputeCommandEncoder* encoder, int batchSize);
+    void backwardNonTerminalNonSoftmax(MTL::ComputeCommandEncoder* encoder, int batchSize);
     
     uint inputDim_;
     uint outputDim_;

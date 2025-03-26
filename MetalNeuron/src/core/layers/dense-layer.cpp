@@ -37,17 +37,39 @@ batchSize_(batchSize)
 }
 
 DenseLayer::~DenseLayer() {
+    // Ensure uniqueness before release explicitly
     for (auto ob : outputBuffers_) {
-        ob.second[0]->release();
+        if (ob.second[0]) {
+            ob.second[0]->release();
+            ob.second[0] = nullptr;
+        }
+    }
+
+    if (bufferDeltaScratch_) {
+        bufferDeltaScratch_->release();
+        bufferDeltaScratch_ = nullptr;
+    }
+    if (bufferGradientScratch_) {
+        bufferGradientScratch_->release();
+        bufferGradientScratch_ = nullptr;
     }
     
-    if (bufferDeltaScratch_) bufferDeltaScratch_->release();
-    if (bufferGradientScratch_) bufferGradientScratch_->release();
-    
-    if (bufferWeights_) bufferWeights_->release();
-    if (bufferBias_) bufferBias_->release();
-    if (forwardPipelineState_) forwardPipelineState_->release();
-    if (backwardPipelineState_) backwardPipelineState_->release();
+    if (bufferWeights_) {
+        bufferWeights_->release();
+        bufferWeights_ = nullptr;
+    }
+    if (bufferBias_) {
+        bufferBias_->release();
+        bufferBias_ = nullptr;
+    }
+    if (forwardPipelineState_) {
+        forwardPipelineState_->release();
+        forwardPipelineState_ = nullptr;
+    }
+    if (backwardPipelineState_) {
+        backwardPipelineState_->release();
+        backwardPipelineState_ = nullptr;
+    }
 }
 
 void DenseLayer::buildPipeline(MTL::Device* device, MTL::Library* library) {
@@ -210,30 +232,10 @@ void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
         this->backwardTerminalNonSoftmax(encoder, _batchSize);
     } else if (isTerminal_ && activation_ == ActivationFunction::Softmax) {
         this->backwardTerminalSoftmax(encoder, _batchSize);
+    } else if (activation_!=ActivationFunction::Softmax) {
+        this->backwardNonTerminalNonSoftmax(encoder, _batchSize);
     } else {
-        encoder->setComputePipelineState(backwardPipelineState_);
-        
-        // Binding buffers
-        encoder->setBuffer(inputBuffers_[BufferType::Input][0], 0, 0);
-        encoder->setBuffer(bufferWeights_, 0, 1);
-        encoder->setBuffer(bufferBias_, 0, 2);
-        encoder->setBuffer(outputBuffers_[BufferType::Output][0], 0, 3);
-        encoder->setBuffer(isTerminal_ ? inputBuffers_[BufferType::Targets][0] : inputBuffers_[BufferType::IncomingErrors][0], 0, 4);
-        encoder->setBuffer(outputBuffers_[BufferType::Delta][0], 0, 5);
-        encoder->setBytes(&input_dim, sizeof(uint), 6);
-        encoder->setBytes(&output_dim, sizeof(uint), 7);
-        encoder->setBytes(&activationRaw, sizeof(uint), 8);
-        encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors][0], 0, 9);
-        encoder->setBytes(&bs, sizeof(uint), 10);
-        encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 11);
-        encoder->setBuffer(optimizerBiases_->gradientBuffer(), 0, 12);
-
-        uint gridSize = batchSize_ * outputDim_;
-        uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
-        
-        MTL::Size threadgroupSize(threadsPerThreadgroup, 1, 1);
-        MTL::Size threadgroups((gridSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
-        encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
+        assert(false && "unsupported layer configuration");
     }
     
     optimizerWeights_->encode(encoder, bufferWeights_, inputDim_ * outputDim_, bs);
@@ -273,26 +275,61 @@ void DenseLayer::backwardTerminalSoftmax(MTL::ComputeCommandEncoder *encoder, in
 }
 
 void DenseLayer::backwardTerminalNonSoftmax(MTL::ComputeCommandEncoder *encoder, int _batchSize) {
+    uint activationRaw = static_cast<uint>(activation_);
+
     encoder->setComputePipelineState(backwardPipelineState_);
     
     encoder->setBuffer(inputBuffers_[BufferType::Input][0], 0, 0);
-    encoder->setBuffer(bufferDeltaScratch_, 0, 1);
-    encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 2);
-    encoder->setBytes(&inputDim_, sizeof(uint), 3);
-    encoder->setBytes(&outputDim_, sizeof(uint), 4);
-    encoder->setBytes(&_batchSize, sizeof(uint), 5);
+    encoder->setBuffer(bufferWeights_, 0, 1);
+    encoder->setBuffer(outputBuffers_[BufferType::Output][0], 0, 2);
+    encoder->setBuffer(inputBuffers_[BufferType::Targets][0], 0, 3);
+    encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 4);
+    encoder->setBuffer(optimizerBiases_->gradientBuffer(), 0, 5);
+    encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors][0], 0, 6);
     
+    encoder->setBytes(&inputDim_, sizeof(uint), 7);
+    encoder->setBytes(&outputDim_, sizeof(uint), 8);
+    encoder->setBytes(&batchSize_, sizeof(uint), 9);
+    encoder->setBytes(&activationRaw, sizeof(uint), 10);
     
     const uint TILE_W = 16;
     const uint TILE_H = 16;
 
-    uint groupCountX = (inputDim_ + TILE_W - 1) / TILE_W;
-    uint groupCountY = (outputDim_ + TILE_H - 1) / TILE_H;
+    uint groupCountX = (outputDim_ + TILE_W - 1) / TILE_W;
+    uint groupCountY = (batchSize_ + TILE_H - 1) / TILE_H;
 
     MTL::Size threadsPerGroup(TILE_W, TILE_H, 1);
     MTL::Size numThreadgroups(groupCountX, groupCountY, 1);
 
     encoder->dispatchThreadgroups(numThreadgroups, threadsPerGroup);
+}
+
+void DenseLayer::backwardNonTerminalNonSoftmax(MTL::ComputeCommandEncoder *encoder, int _batchSize) {
+    uint activationRaw = static_cast<uint>(activation_);
+
+    encoder->setComputePipelineState(backwardPipelineState_);
+    
+    // Binding buffers
+    encoder->setBuffer(inputBuffers_[BufferType::Input][0], 0, 0);
+    encoder->setBuffer(bufferWeights_, 0, 1);
+    encoder->setBuffer(bufferBias_, 0, 2);
+    encoder->setBuffer(outputBuffers_[BufferType::Output][0], 0, 3);
+    encoder->setBuffer(isTerminal_ ? inputBuffers_[BufferType::Targets][0] : inputBuffers_[BufferType::IncomingErrors][0], 0, 4);
+    encoder->setBuffer(outputBuffers_[BufferType::Delta][0], 0, 5);
+    encoder->setBytes(&inputDim_, sizeof(uint), 6);
+    encoder->setBytes(&outputDim_, sizeof(uint), 7);
+    encoder->setBytes(&activationRaw, sizeof(uint), 8);
+    encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors][0], 0, 9);
+    encoder->setBytes(&batchSize_, sizeof(uint), 10);
+    encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 11);
+    encoder->setBuffer(optimizerBiases_->gradientBuffer(), 0, 12);
+
+    uint gridSize = batchSize_ * outputDim_;
+    uint threadsPerThreadgroup = std::min<uint>(1024, gridSize);
+    
+    MTL::Size threadgroupSize(threadsPerThreadgroup, 1, 1);
+    MTL::Size threadgroups((gridSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
+    encoder->dispatchThreadgroups(threadgroups, threadgroupSize);
 }
 
 void DenseLayer::setOutputBuffer(BufferType type, MTL::Buffer* buffer) {
@@ -348,10 +385,9 @@ void DenseLayer::loadParameters(std::istream& is) { //FIXME - decode buffer leng
 void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {}
 
 
-void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {}
+void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {
+    
+}
 
 void DenseLayer::debugLog() {
-    //Logger::instance().printFloatBuffer(bufferWeights_, getName() + " W");
-    //Logger::instance().printFloatBuffer(bufferBias_, getName() + " b");
-    //Logger::instance().printFloatBuffer(optimizerWeights_->gradientBuffer(), getName() + " gradients W");
 }

@@ -27,7 +27,9 @@ batchSize_(batchSize)
 
 InputLayer::~InputLayer() {
     for (auto ob : outputBuffers_) {
-        ob.second[0]->release();
+        if (ob.second[0]) {
+            ob.second[0]->release();
+        }
     }
 }
 
