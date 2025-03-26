@@ -161,82 +161,103 @@ kernel void backward_non_terminal_softmax_dense_layer(
     atomic_fetch_add_explicit(pGradientsB, delta, memory_order_relaxed);
 }
 
-kernel void backward_terminal_softmax_dense_layer(
-    device const float* inputs             [[buffer(0)]],  // Input activations (h)
-    device const float* weights            [[buffer(1)]],  // Weights matrix
-    device const float* predictions        [[buffer(2)]],  // Predictions (y_hat)
-    device const float* targets            [[buffer(3)]],  // Targets (y)
-    device atomic_float* gradientWeights   [[buffer(4)]],  // Gradients for weights
-    device atomic_float* gradientBiases    [[buffer(5)]],  // Gradients for biases
-    device float* errorsPreviousLayer      [[buffer(6)]],  // Errors for previous layer
-    constant uint& input_dim               [[buffer(7)]],
-    constant uint& output_dim              [[buffer(8)]],
-    constant uint& batch_size              [[buffer(9)]],
-    uint2 gid                              [[thread_position_in_grid]],
-    uint2 tid                              [[thread_position_in_threadgroup]]
-) {
-    const uint TILE_W = 16;
-    const uint TILE_H = 16;
+// You may tune this constant to trade off register usage vs. fewer atomic operations.
+constant uint CHUNK_SIZE = 128;
 
-    uint input_idx = gid.x;
+// This kernel is a drop-in replacement for a terminal dense layer with a softmax output.
+// We assume cross-entropy loss, so the backprop delta for each output neuron is:
+//   delta_j = (pred_j - target_j)
+kernel void backward_terminal_softmax_dense_layer(
+    device const float*      inputs             [[buffer(0)]],  // [batch_size * input_dim]
+    device const float*      weights            [[buffer(1)]],  // [input_dim * output_dim]
+    device const float*      predictions        [[buffer(2)]],  // [batch_size * output_dim]
+    device const float*      targets            [[buffer(3)]],  // [batch_size * output_dim]
+    device atomic_float*     gradientWeights    [[buffer(4)]],  // [input_dim * output_dim]
+    device atomic_float*     gradientBiases     [[buffer(5)]],  // [output_dim]
+    device float*            errorsPreviousLayer [[buffer(6)]], // [batch_size * input_dim]
+    constant uint&           input_dim          [[buffer(7)]],
+    constant uint&           output_dim         [[buffer(8)]],
+    constant uint&           batch_size         [[buffer(9)]],
+    // Even though softmax doesn't need an activation ID, we keep the signature consistent
+    // in case your framework expects it:
+    uint2 gid                                 [[thread_position_in_grid]],
+    uint2 tid                                 [[thread_position_in_threadgroup]]
+)
+{
+    // Each thread handles a single (input_idx, sample_idx) pair
+    uint input_idx  = gid.x;
     uint sample_idx = gid.y;
 
-    if (input_idx >= input_dim || sample_idx >= batch_size) return;
+    // Bounds check
+    if (input_idx >= input_dim || sample_idx >= batch_size) {
+        return;
+    }
 
-    // Threadgroup memory for accumulation
-    threadgroup float gradW_shared[TILE_W][TILE_H];
-    threadgroup float gradB_shared[TILE_H];
-    threadgroup float error_shared[TILE_W];
-
-    // Initialize local sums explicitly
-    float gradW_sum = 0.0f;
-    float gradB_sum = 0.0f;
-    float error_sum = 0.0f;
-
+    // Load the input activation for this thread’s (sample, input)
     float inputVal = inputs[sample_idx * input_dim + input_idx];
 
-    // Compute deltas and local sums explicitly
-    for (uint output_idx = tid.y; output_idx < output_dim; output_idx += TILE_H) {
-        float pred = predictions[sample_idx * output_dim + output_idx];
-        float target = targets[sample_idx * output_dim + output_idx];
+    // We'll accumulate partial gradients in chunks to reduce the number of atomic operations.
+    // We'll also accumulate the error to backprop to the previous layer in a running variable.
+    float errorLocal = 0.0f;
 
-        float delta = pred - target;
+    // Loop over output neurons in chunks of CHUNK_SIZE
+    for (uint chunkStart = 0; chunkStart < output_dim; chunkStart += CHUNK_SIZE)
+    {
+        uint chunkEnd = min(chunkStart + CHUNK_SIZE, output_dim);
+        uint chunkLen = chunkEnd - chunkStart;
 
-        gradW_sum += inputVal * delta;
-        if (tid.x == 0) {
-            gradB_sum += delta;
+        // Private arrays to store partial sums for dW and dB
+        float gradWLocal[CHUNK_SIZE];
+        float gradBLocal[CHUNK_SIZE];
+
+        // Initialize accumulators for this chunk
+        for (uint i = 0; i < chunkLen; i++) {
+            gradWLocal[i] = 0.0f;
+            gradBLocal[i] = 0.0f;
         }
 
-        float weight = weights[input_idx * output_dim + output_idx];
-        error_sum += weight * delta;
-    }
+        // Accumulate partial gradients within the chunk
+        for (uint out = chunkStart; out < chunkEnd; out++)
+        {
+            // Compute index within the chunk
+            uint localIdx = out - chunkStart;
 
-    // Store computed sums explicitly into shared memory once
-    gradW_shared[tid.x][tid.y] = gradW_sum;
-    if (tid.x == 0) {
-        gradB_shared[tid.y] = gradB_sum;
-    }
-    error_shared[tid.x] = error_sum;
+            // Retrieve predictions and targets
+            float pred   = predictions[sample_idx * output_dim + out];
+            float target = targets[sample_idx * output_dim + out];
 
-    threadgroup_barrier(mem_flags::mem_threadgroup);
+            // For softmax + cross-entropy, delta = (y_hat - y)
+            float delta = (pred - target);
 
-    // Explicitly write gradients back to global memory correctly
-    if (tid.y == 0 && input_idx < input_dim) {
-        for (uint output_idx = 0; output_idx < output_dim; ++output_idx) {
-            float gradW_total = gradW_shared[tid.x][output_idx % TILE_H];
-            uint globalGradWIdx = input_idx * output_dim + output_idx;
-            atomic_fetch_add_explicit(&gradientWeights[globalGradWIdx], gradW_total, memory_order_relaxed);
+            // Accumulate gradient wrt. weight = inputVal * delta
+            gradWLocal[localIdx] += (inputVal * delta);
+
+            // Accumulate gradient wrt. bias = delta
+            gradBLocal[localIdx] += delta;
+
+            // Accumulate error for backprop to previous layer
+            float w = weights[input_idx * output_dim + out];
+            errorLocal += (w * delta);
+        }
+
+        // Write partial sums to global memory using atomic adds
+        for (uint i = 0; i < chunkLen; i++)
+        {
+            uint outIdx = chunkStart + i;
+
+            // Gradient wrt. weight
+            uint globalWIdx = (input_idx * output_dim) + outIdx;
+            atomic_fetch_add_explicit(&gradientWeights[globalWIdx],
+                                      gradWLocal[i],
+                                      memory_order_relaxed);
+
+            // Gradient wrt. bias
+            atomic_fetch_add_explicit(&gradientBiases[outIdx],
+                                      gradBLocal[i],
+                                      memory_order_relaxed);
         }
     }
 
-    if (tid.x == 0 && tid.y < output_dim) {
-        atomic_fetch_add_explicit(&gradientBiases[tid.y], gradB_shared[tid.y], memory_order_relaxed);
-    }
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    // Explicitly write errors to previous layer correctly
-    if (tid.y == 0) {
-        errorsPreviousLayer[sample_idx * input_dim + input_idx] = error_shared[tid.x];
-    }
+    // Write the accumulated error to propagate back to the previous layer
+    errorsPreviousLayer[sample_idx * input_dim + input_idx] = errorLocal;
 }
