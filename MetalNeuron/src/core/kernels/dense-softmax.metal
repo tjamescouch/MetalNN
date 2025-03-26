@@ -161,7 +161,7 @@ kernel void learn_non_terminal_dense_softmax_layer(
     atomic_fetch_add_explicit(pGradientsB, delta, memory_order_relaxed);
 }
 
-/*
+//Deprecated
 kernel void learn_terminal_dense_softmax_layer(
                                        device const float* h                [[buffer(0)]],  // final layer input activations
                                        device const float* W                [[buffer(1)]],  // weights (no direct updates)
@@ -213,7 +213,7 @@ kernel void learn_terminal_dense_softmax_layer(
     }
     
     atomic_fetch_add_explicit(&gradientsB[neuron_id], delta, memory_order_relaxed);
-}*/
+}
 
 
 kernel void compute_softmax_deltas(
@@ -246,6 +246,7 @@ kernel void accumulate_softmax_gradients(
     constant uint& input_dim              [[buffer(4)]],
     constant uint& output_dim             [[buffer(5)]],
     constant uint& batch_size             [[buffer(6)]],
+ device float*       prevLayerErrors  [[buffer(7)]], // error to previous layer
     uint2 gid                             [[thread_position_in_grid]]
 )
 {

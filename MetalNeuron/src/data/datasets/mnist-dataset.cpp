@@ -177,11 +177,11 @@ void MNISTDataset::loadNextBatch(int currentBatchSize) {
     pageOffset_ += currentBatchSize;
 }
 
-const float* MNISTDataset::getInputDataAt(int batchIndex) const {
+const float* MNISTDataset::getInputDataAt(int _batchIndex) const {
     assert(batchedInputData_);
 
     size_t numImages = inputs_.size();
-    int ib0 = batchIndex * batchSize_;
+    int ib0 = pageOffset_;
     const int imageSize = inputDim();
 
     for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {
@@ -191,11 +191,11 @@ const float* MNISTDataset::getInputDataAt(int batchIndex) const {
     return batchedInputData_;
 }
 
-const float* MNISTDataset::getTargetDataAt(int batchIndex) const {
+const float* MNISTDataset::getTargetDataAt(int _batchIndex) const {
     assert(batchedTargetData_);
 
     size_t numTargets = targets_.size();
-    int ib0 = batchIndex * batchSize_;
+    int ib0 = pageOffset_;
     const int targetSize = outputDim();
 
     for (int i = 0, ib = ib0; i < batchSize_; i++, ib++) {

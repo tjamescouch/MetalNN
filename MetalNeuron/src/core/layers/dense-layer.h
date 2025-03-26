@@ -55,6 +55,7 @@ private:
     void backwardComputeDeltas(MTL::ComputeCommandEncoder* encoder, int batchSize);
     void backwardAccumulateSoftmaxGradients(MTL::ComputeCommandEncoder* encoder, int batchSize);
     void backwardComputeSoftmaxDeltas(MTL::ComputeCommandEncoder* encoder, int batchSize);
+    void backwardPropagateErrors(MTL::ComputeCommandEncoder* encoder, int batchSize);
     
     uint inputDim_;
     uint outputDim_;
@@ -81,6 +82,7 @@ private:
     
     
     MTL::ComputePipelineState* computeDeltasPipelineState_;
+    MTL::ComputePipelineState* propagateErrorsPipelineState_;
     MTL::ComputePipelineState* forwardPipelineState_;
     MTL::ComputePipelineState* backwardPipelineState_;
     

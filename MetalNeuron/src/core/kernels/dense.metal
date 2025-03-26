@@ -197,3 +197,43 @@ kernel void accumulate_partial_gradients(
     // Write explicitly into global gradient scratch buffer (no atomic needed if one thread per weight)
     gradientScratchBuffer[gradient_idx] = partial_gradient;
 }
+
+#define TILE_H 16u
+
+
+kernel void propagate_terminal_errors_to_previous(
+    device const float* deltaTerminal     [[buffer(0)]],
+    device const float* terminalWeights   [[buffer(1)]],
+    device float*       previousErrors    [[buffer(2)]],
+    constant uint& input_dim              [[buffer(3)]],
+    constant uint& output_dim             [[buffer(4)]],
+    constant uint& batch_size             [[buffer(5)]],
+    uint2 gid                              [[thread_position_in_grid]]
+)
+{
+    uint sample_id = gid.x; // Use x for sample_id
+    uint input_neuron = gid.y; // Use y for input_neuron
+
+    if (sample_id >= batch_size || input_neuron >= input_dim) return;
+
+    // Use threadgroup shared memory for accumulating errors
+    threadgroup float shared_error[TILE_H] = {0.0f};
+
+    // Accumulate error for this sample across all output neurons
+    for (uint j = 0; j < output_dim; j++) {
+        float weight = terminalWeights[input_neuron * output_dim + j];
+        float delta = deltaTerminal[sample_id * output_dim + j];
+        shared_error[gid.y] += weight * delta; // Accumulate in shared memory
+    }
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    // Write the accumulated error to the previousErrors buffer
+    if (gid.x == 0) {
+        float total_error = 0.0f;
+        for (uint i = 0; i < TILE_H; i++) {
+            total_error += shared_error[i];
+        }
+        previousErrors[sample_id * input_dim + input_neuron] = total_error;
+    }
+}

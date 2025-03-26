@@ -102,7 +102,7 @@ training:
       epsilon: 1e-8
 
   epochs: 5
-  batch_size: 2
+  batch_size: 1
 
 dataset:
   type: "text"
