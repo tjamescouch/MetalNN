@@ -162,13 +162,13 @@ kernel void backward_non_terminal_softmax_dense_layer(
 }
 
 kernel void backward_terminal_softmax_dense_layer(
-    device const float* inputs             [[buffer(0)]],  // h: Input activations
+    device const float* inputs             [[buffer(0)]],  // Input activations (h)
     device const float* weights            [[buffer(1)]],  // Weights matrix
     device const float* predictions        [[buffer(2)]],  // Predictions (y_hat)
     device const float* targets            [[buffer(3)]],  // Targets (y)
     device atomic_float* gradientWeights   [[buffer(4)]],  // Gradients for weights
     device atomic_float* gradientBiases    [[buffer(5)]],  // Gradients for biases
-    device float* errorsPreviousLayer      [[buffer(6)]],  // Errors for the previous layer
+    device float* errorsPreviousLayer      [[buffer(6)]],  // Errors for previous layer
     constant uint& input_dim               [[buffer(7)]],
     constant uint& output_dim              [[buffer(8)]],
     constant uint& batch_size              [[buffer(9)]],
@@ -183,47 +183,50 @@ kernel void backward_terminal_softmax_dense_layer(
 
     if (input_idx >= input_dim || sample_idx >= batch_size) return;
 
-    // Threadgroup memory to accumulate gradients efficiently
+    // Threadgroup memory for accumulation
     threadgroup float gradW_shared[TILE_W][TILE_H];
     threadgroup float gradB_shared[TILE_H];
     threadgroup float error_shared[TILE_W];
 
+    // Initialize local sums explicitly
+    float gradW_sum = 0.0f;
+    float gradB_sum = 0.0f;
+    float error_sum = 0.0f;
+
     float inputVal = inputs[sample_idx * input_dim + input_idx];
 
-    // Initialize shared memory explicitly
-    gradW_shared[tid.x][tid.y] = 0.0f;
-    if (tid.x == 0) gradB_shared[tid.y] = 0.0f;
-    error_shared[tid.x] = 0.0f;
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    // Compute deltas and partial gradient explicitly
+    // Compute deltas and local sums explicitly
     for (uint output_idx = tid.y; output_idx < output_dim; output_idx += TILE_H) {
         float pred = predictions[sample_idx * output_dim + output_idx];
         float target = targets[sample_idx * output_dim + output_idx];
 
-        // Softmax delta explicitly simplified
         float delta = pred - target;
 
-        // Accumulate partial gradients explicitly
-        gradW_shared[tid.x][tid.y] += inputVal * delta;
-        if (tid.x == 0) gradB_shared[tid.y] += delta;
+        gradW_sum += inputVal * delta;
+        if (tid.x == 0) {
+            gradB_sum += delta;
+        }
 
-        // Accumulate previous layer error explicitly
         float weight = weights[input_idx * output_dim + output_idx];
-        error_shared[tid.x] += weight * delta;
+        error_sum += weight * delta;
     }
+
+    // Store computed sums explicitly into shared memory once
+    gradW_shared[tid.x][tid.y] = gradW_sum;
+    if (tid.x == 0) {
+        gradB_shared[tid.y] = gradB_sum;
+    }
+    error_shared[tid.x] = error_sum;
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    // Write accumulated gradients to global memory explicitly
-    if (tid.x < input_dim) {
-        float gradW_total = 0.0f;
-        for (uint k = 0; k < TILE_H; k++) {
-            gradW_total += gradW_shared[tid.x][k];
+    // Explicitly write gradients back to global memory correctly
+    if (tid.y == 0 && input_idx < input_dim) {
+        for (uint output_idx = 0; output_idx < output_dim; ++output_idx) {
+            float gradW_total = gradW_shared[tid.x][output_idx % TILE_H];
+            uint globalGradWIdx = input_idx * output_dim + output_idx;
+            atomic_fetch_add_explicit(&gradientWeights[globalGradWIdx], gradW_total, memory_order_relaxed);
         }
-        uint globalGradWIdx = input_idx * output_dim + tid.y;
-        atomic_fetch_add_explicit(&gradientWeights[globalGradWIdx], gradW_total, memory_order_relaxed);
     }
 
     if (tid.x == 0 && tid.y < output_dim) {
@@ -232,7 +235,7 @@ kernel void backward_terminal_softmax_dense_layer(
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    // Write errors to previous layer explicitly
+    // Explicitly write errors to previous layer correctly
     if (tid.y == 0) {
         errorsPreviousLayer[sample_idx * input_dim + input_idx] = error_shared[tid.x];
     }

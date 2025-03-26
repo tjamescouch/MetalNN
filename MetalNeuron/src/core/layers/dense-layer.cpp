@@ -351,7 +351,7 @@ void DenseLayer::onForwardComplete(MTL::CommandQueue* _pCommandQueue, int batchS
 void DenseLayer::onBackwardComplete(MTL::CommandQueue* _pCommandQueue, int batchSize) {}
 
 void DenseLayer::debugLog() {
-    Logger::instance().printFloatBuffer(bufferWeights_, getName() + " W");
-    Logger::instance().printFloatBuffer(bufferBias_, getName() + " b");
-    Logger::instance().printFloatBuffer(optimizerWeights_->gradientBuffer(), getName() + " gradients W");
+    //Logger::instance().printFloatBuffer(bufferWeights_, getName() + " W");
+    //Logger::instance().printFloatBuffer(bufferBias_, getName() + " b");
+    //Logger::instance().printFloatBuffer(optimizerWeights_->gradientBuffer(), getName() + " gradients W");
 }
