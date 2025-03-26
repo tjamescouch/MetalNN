@@ -309,18 +309,56 @@ void DenseLayer::backwardNonTerminalNonSoftmax(MTL::ComputeCommandEncoder *encod
 
     encoder->setComputePipelineState(backwardPipelineState_);
     
+    /*
+     // Input activations from the previous layer (size = batch_size * input_dim)
+     device const float*      h               [[ buffer(0) ]],
+
+     // Weights for this layer (size = input_dim * output_dim)
+     device const float*      W               [[ buffer(1) ]],
+
+     // (Optional) Biases for this layer (size = output_dim)
+     // Remove if truly unused:
+     device const float*      b               [[ buffer(2) ]],
+
+     // Forward outputs (post-activation) from this layer (size = batch_size * output_dim)
+     device const float*      y_hat           [[ buffer(3) ]],
+
+     // Incoming error from the next layer (size = batch_size * output_dim)
+     device const float*      inputErrors     [[ buffer(4) ]],
+
+     // Output array for this layer’s delta (size = batch_size * output_dim)
+     device float*            outputError     [[ buffer(5) ]],
+
+     // Problem dimensions
+     constant uint&           input_dim       [[ buffer(6) ]],
+     constant uint&           output_dim      [[ buffer(7) ]],
+     constant uint&           activation      [[ buffer(8) ]],
+     constant uint&           batch_size      [[ buffer(9) ]],
+
+     // Final error back-propagated to the previous layer (size = batch_size * input_dim)
+     // Declared as atomic_float* to ensure correct alignment for atomic operations
+     device atomic_float*     prevLayerErrors [[ buffer(10) ]],
+
+     // Gradient accumulators for W (size = input_dim * output_dim)
+     device atomic_float*     gradientsW      [[ buffer(11) ]],
+
+     // Gradient accumulators for b (size = output_dim)
+     device atomic_float*     gradientsB      [[ buffer(12) ]],
+
+     */
+    
     // Binding buffers
     encoder->setBuffer(inputBuffers_[BufferType::Input][0], 0, 0);
     encoder->setBuffer(bufferWeights_, 0, 1);
     encoder->setBuffer(bufferBias_, 0, 2);
     encoder->setBuffer(outputBuffers_[BufferType::Output][0], 0, 3);
-    encoder->setBuffer(isTerminal_ ? inputBuffers_[BufferType::Targets][0] : inputBuffers_[BufferType::IncomingErrors][0], 0, 4);
-    encoder->setBuffer(outputBuffers_[BufferType::Delta][0], 0, 5);
+    encoder->setBuffer(inputBuffers_[BufferType::IncomingErrors][0], 0, 4);
+    encoder->setBuffer(bufferDeltaScratch_, 0, 5);
     encoder->setBytes(&inputDim_, sizeof(uint), 6);
     encoder->setBytes(&outputDim_, sizeof(uint), 7);
     encoder->setBytes(&activationRaw, sizeof(uint), 8);
-    encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors][0], 0, 9);
-    encoder->setBytes(&batchSize_, sizeof(uint), 10);
+    encoder->setBytes(&batchSize_, sizeof(uint), 9);
+    encoder->setBuffer(outputBuffers_[BufferType::OutgoingErrors][0], 0, 10);
     encoder->setBuffer(optimizerWeights_->gradientBuffer(), 0, 11);
     encoder->setBuffer(optimizerBiases_->gradientBuffer(), 0, 12);
 
