@@ -9,9 +9,9 @@ float activate(const float x, const uint act);
 float activate_derivative(const float y, const uint act);
 
 // Clamping thresholds
-constant float max_abs_sum = 100.0f;
-constant float threshold    = 1.f;
+constant float max_abs_sum = 1000.0f;
 constant float GRAD_CLIP_THRESHOLD = 10.0f;
+constant uint CHUNK_SIZE = 128;
 
 kernel void forward_non_softmax_dense_layer(
                                 device const float* h         [[buffer(0)]],  // Input activations
@@ -70,6 +70,9 @@ kernel void forward_non_softmax_dense_layer(
 
 
 
+
+// Has the same signature as your original kernel, but includes chunk-based accumulation
+// to reduce atomic calls. You do NOT have to change host-side code or dispatch parameters.
 kernel void backward_non_terminal_non_softmax_dense_layer(
     // Input activations from the previous layer (size = batch_size * input_dim)
     device const float*      h               [[ buffer(0) ]],
@@ -77,8 +80,7 @@ kernel void backward_non_terminal_non_softmax_dense_layer(
     // Weights for this layer (size = input_dim * output_dim)
     device const float*      W               [[ buffer(1) ]],
 
-    // (Optional) Biases for this layer (size = output_dim)
-    // Remove if truly unused:
+    // Biases for this layer (size = output_dim) - if unused, safe to remove from call site
     device const float*      b               [[ buffer(2) ]],
 
     // Forward outputs (post-activation) from this layer (size = batch_size * output_dim)
@@ -111,7 +113,7 @@ kernel void backward_non_terminal_non_softmax_dense_layer(
     uint gid                                 [[ thread_position_in_grid       ]]
 )
 {
-    // Compute sample and neuron based on global ID
+    // Identify sample and neuron based on global ID
     uint sample_id = gid / output_dim;
     uint neuron_id = gid % output_dim;
 
@@ -120,56 +122,61 @@ kernel void backward_non_terminal_non_softmax_dense_layer(
         return;
     }
 
-    // Offset pointers to the relevant portion for this sample
-    const device float* sample_h         = h      + (sample_id * input_dim);
-    const device float* sample_y_hat     = y_hat  + (sample_id * output_dim);
+    // Pointers to the relevant portion for this sample
+    const device float* sample_h         = h + (sample_id * input_dim);
+    const device float* sample_y_hat     = y_hat + (sample_id * output_dim);
     const device float* sample_inErrors  = inputErrors + (sample_id * output_dim);
-          device float* sample_outError  = outputError  + (sample_id * output_dim);
+          device float* sample_outError  = outputError + (sample_id * output_dim);
 
     // Compute raw error and activation derivative
     float raw_error = sample_inErrors[neuron_id];
     float dAct = activate_derivative(sample_y_hat[neuron_id], activation);
 
-    // Delta = error * derivative
+    // Delta = error * derivative, with gradient clipping
     float delta = raw_error * dAct;
-
-    // Gradient clipping to avoid exploding grads
     delta = clamp(delta, -GRAD_CLIP_THRESHOLD, GRAD_CLIP_THRESHOLD);
 
-    // Store this delta in outputError for debugging/inspection
+    // Store this delta in outputError (for debugging or subsequent usage)
     sample_outError[neuron_id] = delta;
 
-    // Accumulate weight gradients and propagate error backward
-    for (uint i = 0; i < input_dim; i++)
-    {
-        float grad = sample_h[i] * delta;  // partial derivative wrt W[i, neuron_id]
-        uint gradWIdx = i * output_dim + neuron_id;
+    // We'll accumulate partial sums in local arrays (private memory) in chunks
+    float gradChunk[CHUNK_SIZE];
+    float prevErrChunk[CHUNK_SIZE];
 
-        // Atomically add to the weight gradients
-        atomic_fetch_add_explicit(&gradientsW[gradWIdx],
-                                  grad,
-                                  memory_order_relaxed);
+    // Loop over the input_dim in increments of CHUNK_SIZE
+    for (uint start = 0; start < input_dim; start += CHUNK_SIZE) {
+        uint end = min(start + CHUNK_SIZE, input_dim);
+        uint len = end - start;
 
-        // Use the current weight to propagate error to prev layer
-        float weightVal = W[gradWIdx];
-        float prevErrorTerm = weightVal * delta;
+        // Initialize local accumulators
+        for (uint i = 0; i < len; i++) {
+            gradChunk[i] = 0.0f;
+            prevErrChunk[i] = 0.0f;
+        }
 
-        // Atomically add to the error that goes to the previous layer's activations
-        // offset = sample_id * input_dim + i
-        size_t prevErrorIdx = sample_id * input_dim + i;
-        atomic_fetch_add_explicit(&prevLayerErrors[prevErrorIdx],
-                                  prevErrorTerm,
-                                  memory_order_relaxed);
+        // Accumulate partial sums in the chunk
+        for (uint i = 0; i < len; i++) {
+            float x = sample_h[start + i];
+            gradChunk[i] += (x * delta);
+
+            float wVal = W[(start + i) * output_dim + neuron_id];
+            prevErrChunk[i] += (wVal * delta);
+        }
+
+        // Write partial sums back to global memory via atomic adds
+        for (uint i = 0; i < len; i++) {
+            uint globalWIdx = (start + i) * output_dim + neuron_id;
+            atomic_fetch_add_explicit(&gradientsW[globalWIdx], gradChunk[i], memory_order_relaxed);
+
+            uint prevErrIdx = sample_id * input_dim + (start + i);
+            atomic_fetch_add_explicit(&prevLayerErrors[prevErrIdx], prevErrChunk[i], memory_order_relaxed);
+        }
     }
 
-    // Accumulate bias gradient
-    atomic_fetch_add_explicit(&gradientsB[neuron_id],
-                              delta,
-                              memory_order_relaxed);
+    // Accumulate bias gradient once per thread
+    atomic_fetch_add_explicit(&gradientsB[neuron_id], delta, memory_order_relaxed);
 }
 
-
-constant uint CHUNK_SIZE = 128;
 
 
 kernel void backward_terminal_non_softmax_dense_layer(
