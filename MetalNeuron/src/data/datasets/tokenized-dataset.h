@@ -25,7 +25,7 @@ public:
 
 private:
     void oneHotEncode(std::vector<float>& buffer, int index, int vocabSize, int tokenID);
-    int logitDecode(const float* vector, int index, int vocabSize);
+    int probabilityDecode(const float* vector, int index, int vocabSize);
     void shuffleIndices();
     void preprocessBatch(); // explicitly tokenize raw sequences into numeric batches
 

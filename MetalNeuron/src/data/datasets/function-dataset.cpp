@@ -109,5 +109,5 @@ const float* FunctionDataset::getInputDataAt(int batchIndex) const {
 }
 
 const float* FunctionDataset::getTargetDataAt(int batchIndex) const {
-    return targets_.data() + batchIndex * outputDim_ * targetSequenceLength_;
+    return targets_.data() + batchIndex * outputDim_;
 }

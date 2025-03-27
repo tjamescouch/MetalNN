@@ -53,7 +53,7 @@ void TextCrawler::loadFile(const std::string& filepath) {
     // explicitly filter only allowed characters (ASCII 32-126, space, newline)
     for (char c : unfilteredContent) {
         if ((c >= 32 && c < 127) || c == ' ' || c == '\n') {
-            currentFileContent_ += c;
+            currentFileContent_ += c == '\n' ? ' ' : c;
         }
     }
 
