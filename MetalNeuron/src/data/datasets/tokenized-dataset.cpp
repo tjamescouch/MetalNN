@@ -96,16 +96,20 @@ void TokenizedDataset::loadNextBatch(int currentBatchSize) {
     loadData(currentBatchSize);
 }
 
-float TokenizedDataset::calculateLoss(const float* predictions, int _outputDimTimesBatchSize, const float* targets, int currentBatchSize) {
+float TokenizedDataset::calculateLoss(const float* predictions, int outputDim, const float* targets, int currentBatchSize, const float* inputData, int inputSize) {
     float loss = 0.0f;
     int dim = this->outputDim();
-
+    
     for (int batch = 0; batch < currentBatchSize; ++batch) {
+        std::vector<int> v;
+        for (int i = 0; i < sequenceLength_; i++) {
+            v.push_back(inputData[i + batch * sequenceLength_]);
+        }
+        std::string s = tokenizer_->detokenize(v);
+        
         int targetTokenId = probabilityDecode(targets, batch, dim);
         int predictedTokenId = probabilityDecode(predictions, batch, dim);
 
-        Logger::log << "Batch " << batch << " predicted token ID: " << predictedTokenId << std::endl;
-        Logger::log << "Batch " << batch << " target token ID: " << targetTokenId << std::endl;
 
         std::string predictedToken = tokenizer_->detokenize({predictedTokenId});
         std::string targetToken = tokenizer_->detokenize({targetTokenId});
@@ -114,18 +118,22 @@ float TokenizedDataset::calculateLoss(const float* predictions, int _outputDimTi
         targetToken = targetToken == "\n" ? "\\n" : targetToken;
 
         if (predictedToken == targetToken) {
-            Logger::log << "💎 value: '" << predictedToken << "'" << std::endl;
+            Logger::log << "💎 '" << predictedToken << "'" << std::endl;
+            Logger::log << "'" << s << predictedToken << "'" << std::endl;
         } else {
             Logger::log << "❌ predicted: '" << predictedToken << "'" << std::endl;
-            Logger::log << "❌ target:    '" << targetToken << "'" << std::endl;
+            Logger::log << "🟢 target:    '" << targetToken << "'" << std::endl;
+            Logger::log << "predicted: '" << s << predictedToken << "'" << std::endl;
+            Logger::log << "target:    '" << s << targetToken << "'" << std::endl;
         }
 
         // Correct cross-entropy loss calculation using one-hot encoded targets explicitly
         int correctClassIndex = batch * dim + targetTokenId;
         float pred = predictions[correctClassIndex];
         loss += -logf(pred + 1e-9f);
-    }
 
+    }
+    
     return loss / static_cast<float>(currentBatchSize);
 }
 

@@ -21,7 +21,7 @@ layers:
     name: "mha_1"
     input_shape: [20, 128]
     output_shape: [20, 128]
-    num_heads: 1
+    num_heads: 4
     initializer: xavier
 
   - type: LayerNormalization
@@ -109,7 +109,7 @@ dataset:
   dataset_size: 100000
   sequence_length: 20
   samples_per_file: 5000
-  corpus_directory: "./enwiki20201020"
+  corpus_directory: "./shakespeare"
   tokenizer:
     type: "character"
     parameters:

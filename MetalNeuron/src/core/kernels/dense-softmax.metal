@@ -3,97 +3,65 @@ using namespace metal;
 
 #include "common.metal"
 
-
-
 float activate(const float x, const uint act);
 float activate_derivative(const float y, const uint act);
 
 // Clamping thresholds
-constant float max_abs_sum = 1000.0f;
 constant float threshold    = 1.f;
-constant float epsilon = 1.0e-5f;
 
 kernel void forward_softmax_dense_layer(
-                                device const float* h         [[buffer(0)]],  // Input activations
-                                device       float* y         [[buffer(1)]],  // Output activations
-                                device const float* W         [[buffer(2)]],  // Weights
-                                device const float* b         [[buffer(3)]],  // Biases
-                                constant uint& hidden_dim     [[buffer(4)]],  // hidden_dim
-                                constant uint& output_dim     [[buffer(5)]],  // output_dim
-                                constant uint& activation     [[buffer(6)]],  // Activation type
-                                constant uint& batchSize      [[buffer(7)]],  // # of samples
-                                device float* debug           [[buffer(8)]],  // Debug buffer
-                                uint tid                      [[thread_position_in_threadgroup]],
+                                device const float* h         [[buffer(0)]],
+                                device float* y               [[buffer(1)]],
+                                device const float* W         [[buffer(2)]],
+                                device const float* b         [[buffer(3)]],
+                                constant uint& hidden_dim     [[buffer(4)]],
+                                constant uint& output_dim     [[buffer(5)]],
+                                constant uint& activation     [[buffer(6)]],
+                                constant uint& batchSize      [[buffer(7)]],
+                                device float* debug           [[buffer(8)]],
                                 uint gid                      [[thread_position_in_grid]]
                                 )
 {
-    
-    // sample_id, neuron_id
     uint sample_id = gid / output_dim;
     uint neuron_id = gid % output_dim;
-    
+
     if (sample_id >= batchSize || neuron_id >= output_dim) return;
-    
-    
-    // We'll use a threadgroup array for partial storage
-    threadgroup float shared_y[1024];
-    
-    // 1) Compute the pre-activation sum
+
+    // Compute linear sum (dense layer)
     float sum = b[neuron_id];
     for (uint i = 0; i < hidden_dim; ++i) {
-        float inputVal = h[sample_id * hidden_dim + i];
-        float weightVal = W[i * output_dim + neuron_id];
-        sum += inputVal * weightVal;
+        sum += h[sample_id * hidden_dim + i] * W[i * output_dim + neuron_id];
     }
+
+    // Store logits temporarily in global memory
+    y[sample_id * output_dim + neuron_id] = sum;
     
-    
-    // Clamp to avoid numerical blow-up
-    sum = clamp(sum, -max_abs_sum, max_abs_sum);
-    
-    // Store in threadgroup memory to do optional softmax
-    shared_y[tid] = sum;
-    
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    
-    // We do a per-sample softmax in threadgroup memory
-    uint sample_offset = sample_id * output_dim;
-    // Find max for numeric stability
-    float maxVal = shared_y[sample_offset];  // We assume sample_offset+0 is in range
-    for (uint i = 1; i < output_dim; ++i) {
-        float val = shared_y[sample_offset + i];
-        maxVal = max(maxVal, val);
-    }
-    
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    
-    // Exponentiate each
-    shared_y[tid] = exp(shared_y[tid] - maxVal);
-    
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    
-    // One thread (neuron_id=0) sums and normalizes
+    threadgroup_barrier(mem_flags::mem_device);
+
+    // Compute softmax
     if (neuron_id == 0) {
-        float sumExp = 0.0f;
-        for (uint i = 0; i < output_dim; ++i) {
-            sumExp += shared_y[sample_offset + i];
+        float maxLogit = y[sample_id * output_dim];
+        for (uint i = 1; i < output_dim; i++) {
+            maxLogit = max(maxLogit, y[sample_id * output_dim + i]);
         }
-        // Normalize
-        float denominator = abs(sumExp) > epsilon ? sumExp : epsilon;
-        for (uint i = 0; i < output_dim; ++i) {
-            shared_y[sample_offset + i] /= denominator;
+
+        float sumExp = 0.0f;
+        for (uint i = 0; i < output_dim; i++) {
+            y[sample_id * output_dim + i] = exp(y[sample_id * output_dim + i] - maxLogit);
+            sumExp += y[sample_id * output_dim + i];
+        }
+
+        float denominator = max(sumExp, 1e-9f);
+        for (uint i = 0; i < output_dim; i++) {
+            y[sample_id * output_dim + i] /= denominator;
         }
     }
-    
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    
-    
-    // 3) Write the result to the output array
-    y[gid] = shared_y[tid];
-    
-    debug[gid] = y[gid];
+
+    threadgroup_barrier(mem_flags::mem_device);
+
+    // Write the normalized softmax outputs to debug for verification
+    debug[sample_id * output_dim + neuron_id] = y[sample_id * output_dim + neuron_id];
 }
-
-
 
 kernel void backward_non_terminal_softmax_dense_layer(
                                            device const float* h                [[buffer(0)]],  // input activations

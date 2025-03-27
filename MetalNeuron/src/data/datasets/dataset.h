@@ -13,7 +13,7 @@ public:
     virtual int numSamples() const = 0;
 
     virtual int getDatasetSize() const = 0;
-    virtual float calculateLoss(const float* predictedData, int outputDim, const float* targetData, int currentBatchSize) = 0;
+    virtual float calculateLoss(const float* predictedData, int outputDim, const float* targetData, int currentBatchSize, const float* inputData, int inputSize) = 0;
 
 
     virtual int inputDim() const = 0;
