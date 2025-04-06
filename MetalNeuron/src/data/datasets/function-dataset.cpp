@@ -32,7 +32,7 @@ int FunctionDataset::getDatasetSize() const {
     return datasetSize_;
 }
 
-float FunctionDataset::calculateLoss(const float* predictedData, int outputDim, const float* targetData, int currentBatchSize) {
+float FunctionDataset::calculateLoss(const float* predictedData, int outputDim, const float* targetData, int currentBatchSize, const float* inputData, int inputSize) {
     float mse = 0.0f;
 
     for (int i = 0; i < outputDim; ++i) {
@@ -109,5 +109,5 @@ const float* FunctionDataset::getInputDataAt(int batchIndex) const {
 }
 
 const float* FunctionDataset::getTargetDataAt(int batchIndex) const {
-    return targets_.data() + batchIndex * outputDim_ * targetSequenceLength_;
+    return targets_.data() + batchIndex * outputDim_;
 }

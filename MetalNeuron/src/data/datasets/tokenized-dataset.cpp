@@ -32,15 +32,15 @@ const float* TokenizedDataset::getInputDataAt(int batchIndex) const {
 // explicitly get flattened target data for batch
 const float* TokenizedDataset::getTargetDataAt(int batchIndex) const {
     assert(batchIndex < batchSize_);
-    return &flattenedTargetBuffer_[batchIndex * sequenceLength_ * tokenizer_->vocabSize()];
+    return &flattenedTargetBuffer_[batchIndex * tokenizer_->vocabSize()];
 }
 
 // explicitly tokenizes new batch of raw text
-void TokenizedDataset::loadData(int batchSize) {
-    inputData_.resize(batchSize);
-    targetData_.resize(batchSize);
+void TokenizedDataset::loadData(int _batchSize) {
+    inputData_.resize(batchSize_);
+    targetData_.resize(batchSize_);
     
-    for (int i = 0; i < batchSize; ++i) {
+    for (int i = 0; i < batchSize_; ++i) {
         std::string sequence = textCrawler_->getRandomSequence();
         std::vector<int> tokenIds = tokenizer_->tokenize(sequence);
         
@@ -49,14 +49,15 @@ void TokenizedDataset::loadData(int batchSize) {
         inputData_[i].resize(0);
         targetData_[i].resize(0);
         
-        int iToken = 0;
-        for (iToken = 0; iToken < tokenIds.size() - 1; iToken++){
+        for (int iToken = 0; iToken < tokenIds.size(); iToken++){
             int token = tokenIds[iToken];
             
-            inputData_[i].push_back(token);    // inputs explicitly all tokens except last
+            if (iToken == tokenIds.size() - 1) {
+                targetData_[i].push_back(token);   // targets explicitly next token predictions
+            } else {
+                inputData_[i].push_back(token);    // inputs explicitly all tokens except last
+            }
         }
-
-        targetData_[i].push_back(tokenIds[iToken]);   // targets explicitly next token predictions
     }
     
     preprocessBatch();
@@ -76,18 +77,17 @@ void TokenizedDataset::preprocessBatch() {
     flattenedInputBuffer_.resize(0);
     flattenedTargetBuffer_.resize(0);
     
-    flattenedInputBuffer_.resize(batchSize_ * (sequenceLength_ - 1));
-    flattenedTargetBuffer_.resize(batchSize_ * (sequenceLength_ - 1) * vocabSize);
+    flattenedInputBuffer_.resize(batchSize_ * (sequenceLength_));
+    flattenedTargetBuffer_.resize(batchSize_ * (sequenceLength_) * vocabSize);
     std::fill(flattenedTargetBuffer_.begin(), flattenedTargetBuffer_.end(), 0.0f);
 
     for (int i = 0; i < batchSize_; ++i) {
         // copy inputs explicitly
-        std::copy(inputData_[i].begin(), inputData_[i].end(),
-                  flattenedInputBuffer_.begin() + i * (sequenceLength_ - 1));
+        std::copy(inputData_[i].begin(), inputData_[i].end(), flattenedInputBuffer_.begin() + i * (sequenceLength_));
 
         // explicitly one-hot encode targets
         int tokenID = targetData_[i][0];
-        oneHotEncode(flattenedTargetBuffer_, (i * (sequenceLength_ - 1)), vocabSize, tokenID);
+        oneHotEncode(flattenedTargetBuffer_, (i), vocabSize, tokenID);
     }
 }
 
@@ -96,44 +96,50 @@ void TokenizedDataset::loadNextBatch(int currentBatchSize) {
     loadData(currentBatchSize);
 }
 
-float TokenizedDataset::calculateLoss(const float* predictions, int outputDim, const float* targets, int batchSize) {
+float TokenizedDataset::calculateLoss(const float* predictions, int outputDim, const float* targets, int currentBatchSize, const float* inputData, int inputSize) {
     float loss = 0.0f;
     int dim = this->outputDim();
     
-    for (int batch = 0; batch < batchSize; ++batch) {
-        int predictedTokenId = logitDecode(predictions, batch, dim);
-        int targetTokenId = logitDecode(targets, batch, dim);
+    for (int batch = 0; batch < currentBatchSize; ++batch) {
+        std::vector<int> v;
+        for (int i = 0; i < sequenceLength_; i++) {
+            v.push_back(inputData[i + batch * sequenceLength_]);
+        }
+        std::string s = tokenizer_->detokenize(v);
         
-        Logger::log << "Batch " << batch << " prediction token ID: " << predictedTokenId << std::endl;
-        
+        int targetTokenId = probabilityDecode(targets, batch, dim);
+        int predictedTokenId = probabilityDecode(predictions, batch, dim);
+
+
         std::string predictedToken = tokenizer_->detokenize({predictedTokenId});
         std::string targetToken = tokenizer_->detokenize({targetTokenId});
-        
+
         predictedToken = predictedToken == "\n" ? "\\n" : predictedToken;
         targetToken = targetToken == "\n" ? "\\n" : targetToken;
-        
+
         if (predictedToken == targetToken) {
-            Logger::log << "💎 value: " << predictedToken << std::endl;
+            Logger::log << "💎 '" << predictedToken << "'" << std::endl;
+            Logger::log << "'" << s << predictedToken << "'" << std::endl;
         } else {
-            Logger::log << "❌ predicted: " << predictedToken << std::endl;
-            Logger::log << "❌ target: " << targetToken << std::endl;
+            Logger::log << "❌ predicted: '" << predictedToken << "'" << std::endl;
+            Logger::log << "🟢 target:    '" << targetToken << "'" << std::endl;
+            Logger::log << "predicted: '" << s << predictedToken << "'" << std::endl;
+            Logger::log << "target:    '" << s << targetToken << "'" << std::endl;
         }
 
-        // Cross-entropy loss calculation explicitly across vocab dimension
-        for (int j = 0; j < dim; ++j) {
-            int index = batch * dim + j;
-            float pred = predictions[index];
-            float target = targets[index];
-            loss += -(target * logf(pred + 1e-9f));
-        }
+        // Correct cross-entropy loss calculation using one-hot encoded targets explicitly
+        int correctClassIndex = batch * dim + targetTokenId;
+        float pred = predictions[correctClassIndex];
+        loss += -logf(pred + 1e-9f);
+
     }
     
-    return loss / static_cast<float>(batchSize);
+    return loss / static_cast<float>(currentBatchSize);
 }
 
 int TokenizedDataset::inputDim() const {
     // input dimension equals sequence length minus 1 (since the last token is used as target)
-    return sequenceLength_ - 1;
+    return sequenceLength_;
 }
 
 int TokenizedDataset::outputDim() const {
@@ -146,7 +152,7 @@ void TokenizedDataset::oneHotEncode(std::vector<float>& buffer, int index, int v
     buffer[offset + tokenID] = 1.0f;
 }
 
-int TokenizedDataset::logitDecode(const float* vector, int index, int vocabSize) {
+int TokenizedDataset::probabilityDecode(const float* vector, int index, int vocabSize) {
     int offset = index * vocabSize;
     int maxTokenID = 0;
     float maxValue = 0.0f;

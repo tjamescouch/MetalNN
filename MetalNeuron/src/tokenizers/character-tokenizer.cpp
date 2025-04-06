@@ -25,7 +25,7 @@ void CharacterTokenizer::buildVocabulary() {
     for (int c = 32; c < 127; ++c) { // printable ASCII explicitly
         charset.insert(static_cast<char>(c));
     }
-    charset.insert('\n');  // explicitly include newline
+    //charset.insert('\n');  // explicitly include newline
     
     int idx = 0;
     for (char c : charset) {
@@ -34,7 +34,7 @@ void CharacterTokenizer::buildVocabulary() {
     }
     
     while (idx2char_.size() < 128) {
-        idx2char_.push_back(' ');
+        idx2char_.push_back('?');
     }
 }
 
@@ -43,7 +43,7 @@ std::vector<int> CharacterTokenizer::tokenize(const std::string& text) const {
     std::vector<int> tokens;
     tokens.reserve(text.size());
 
-    Logger::log << "Tokenizing text: " << text << std::endl;
+    //Logger::log << "Tokenizing text: " << text << std::endl;
     
     for (char c : text) {
         auto it = char2idx_.find(c);
@@ -52,7 +52,7 @@ std::vector<int> CharacterTokenizer::tokenize(const std::string& text) const {
         } else {
             Logger::log << "Character not in vocabulary: " << c << std::endl;
             
-            tokens.push_back(char2idx_.find(' ')->second);
+            tokens.push_back(char2idx_.find('?')->second);
         }
     }
     

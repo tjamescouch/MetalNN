@@ -27,7 +27,7 @@ const char* modelFilename = "feed-forward.yml";
 //const char* modelFilename = "layer-norm.yml";
 //const char* modelFilename = "sequence-length.yml";
 //const char* modelFilename = "passthru.yml";
-//const char* modelFilename = "transformer-complete.yml";
+// const char* modelFilename = "transformer-complete.yml";
 
 #pragma mark - ViewDelegate
 #pragma region ViewDelegate {

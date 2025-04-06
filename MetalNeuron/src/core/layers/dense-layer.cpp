@@ -216,11 +216,8 @@ void DenseLayer::forward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
 }
 
 void DenseLayer::backward(MTL::CommandBuffer* cmdBuf, int _batchSize) {
-    uint activationRaw = static_cast<uint>(activation_);
     uint bs = (uint)batchSize_;
     decay_ *= decayRate_;
-    uint input_dim = (uint)inputDim_;
-    uint output_dim = (uint)outputDim_;
     
     auto encoder = cmdBuf->computeCommandEncoder();
     
@@ -308,44 +305,6 @@ void DenseLayer::backwardNonTerminalNonSoftmax(MTL::ComputeCommandEncoder *encod
     uint activationRaw = static_cast<uint>(activation_);
 
     encoder->setComputePipelineState(backwardPipelineState_);
-    
-    /*
-     // Input activations from the previous layer (size = batch_size * input_dim)
-     device const float*      h               [[ buffer(0) ]],
-
-     // Weights for this layer (size = input_dim * output_dim)
-     device const float*      W               [[ buffer(1) ]],
-
-     // (Optional) Biases for this layer (size = output_dim)
-     // Remove if truly unused:
-     device const float*      b               [[ buffer(2) ]],
-
-     // Forward outputs (post-activation) from this layer (size = batch_size * output_dim)
-     device const float*      y_hat           [[ buffer(3) ]],
-
-     // Incoming error from the next layer (size = batch_size * output_dim)
-     device const float*      inputErrors     [[ buffer(4) ]],
-
-     // Output array for this layer’s delta (size = batch_size * output_dim)
-     device float*            outputError     [[ buffer(5) ]],
-
-     // Problem dimensions
-     constant uint&           input_dim       [[ buffer(6) ]],
-     constant uint&           output_dim      [[ buffer(7) ]],
-     constant uint&           activation      [[ buffer(8) ]],
-     constant uint&           batch_size      [[ buffer(9) ]],
-
-     // Final error back-propagated to the previous layer (size = batch_size * input_dim)
-     // Declared as atomic_float* to ensure correct alignment for atomic operations
-     device atomic_float*     prevLayerErrors [[ buffer(10) ]],
-
-     // Gradient accumulators for W (size = input_dim * output_dim)
-     device atomic_float*     gradientsW      [[ buffer(11) ]],
-
-     // Gradient accumulators for b (size = output_dim)
-     device atomic_float*     gradientsB      [[ buffer(12) ]],
-
-     */
     
     // Binding buffers
     encoder->setBuffer(inputBuffers_[BufferType::Input][0], 0, 0);

@@ -139,7 +139,7 @@ void MNISTDataset::loadLabels(const std::string& labelsPath) {
     }
 }
 
-float MNISTDataset::calculateLoss(const float* predictedData, int outputDim, const float* targetData, int currentBatchSize) {
+float MNISTDataset::calculateLoss(const float* predictedData, int outputDim, const float* targetData, int currentBatchSize, const float* inputData, int inputSie) {
     const float epsilon = 1e-10f;
     float loss = 0.0f;
     
