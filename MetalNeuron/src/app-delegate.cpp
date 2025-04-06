@@ -93,11 +93,12 @@ void AppDelegate::applicationDidFinishLaunching( NS::Notification* pNotification
     _pMtkView->setDelegate( _pViewDelegate );
     
     _pWindow->setContentView( _pMtkView );
-    _pWindow->setTitle( NS::String::string( "Metal Compute", NS::StringEncoding::UTF8StringEncoding ) );
+    _pWindow->setTitle( NS::String::string( "Metal NN", NS::StringEncoding::UTF8StringEncoding ) );
     
     _pWindow->makeKeyAndOrderFront( nullptr );
     
     setMenuActionHandlers(
+        [this] { this->getNeuralEngine()->listenForConnections(); },
         [this] { this->getNeuralEngine()->runTraining(); },
         [this] { this->getNeuralEngine()->runInference(); },
         [this] { this->getNeuralEngine()->saveParameters(); },

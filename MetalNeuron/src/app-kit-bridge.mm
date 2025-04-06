@@ -8,6 +8,7 @@
 #import <Cocoa/Cocoa.h>
 #include "app-kit-bridge.h"
 
+static std::function<void()> listenHandler;
 static std::function<void()> trainNetworkHandler;
 static std::function<void()> runInferenceHandler;
 static std::function<void()> saveParamsHandler;
@@ -18,6 +19,10 @@ static std::function<void()> loadParamsHandler;
 @end
 
 @implementation AppMenuHandler
+- (void)listen:(id)sender {
+    if (listenHandler) listenHandler();
+}
+
 - (void)trainNetwork:(id)sender {
     if (trainNetworkHandler) trainNetworkHandler();
 }
@@ -41,15 +46,17 @@ static std::function<void()> loadParamsHandler;
 @end
 
 void setMenuActionHandlers(
-    std::function<void()> trainHandler,
-    std::function<void()> inferenceHandler,
-    std::function<void()> saveHandler,
-    std::function<void()> loadHandler
+    std::function<void()> _listenHandler,
+    std::function<void()> _trainHandler,
+    std::function<void()> _inferenceHandler,
+    std::function<void()> _saveHandler,
+    std::function<void()> _loadHandler
 ) {
-    trainNetworkHandler = trainHandler;
-    runInferenceHandler = inferenceHandler;
-    saveParamsHandler = saveHandler;
-    loadParamsHandler = loadHandler;
+    listenHandler = _listenHandler;
+    trainNetworkHandler = _trainHandler;
+    runInferenceHandler = _inferenceHandler;
+    saveParamsHandler = _saveHandler;
+    loadParamsHandler = _loadHandler;
 }
 
 void setupMenus() {
@@ -67,16 +74,17 @@ void setupMenus() {
                                                    keyEquivalent:@"q"];
     [appMenu addItem:quitMenuItem];
     [appMenuItem setSubmenu:appMenu];
+    
+    // Make this static so it persists
+    static AppMenuHandler* handler = [[AppMenuHandler alloc] init];
 
     // Custom Actions menu
     NSMenuItem* actionsMenuItem = [[NSMenuItem alloc] init];
     [mainMenu addItem:actionsMenuItem];
 
     NSMenu* actionsMenu = [[NSMenu alloc] initWithTitle:@"Actions"];
-
-    // Make this static so it persists
-    static AppMenuHandler* handler = [[AppMenuHandler alloc] init];
-
+    
+    
     NSMenuItem* trainMenuItem = [[NSMenuItem alloc] initWithTitle:@"Train Network"
                                                            action:@selector(trainNetwork:)
                                                     keyEquivalent:@"l"];
@@ -100,8 +108,27 @@ void setupMenus() {
                                                          keyEquivalent:@"o"];
     [loadParamsMenuItem setTarget:handler];
     [actionsMenu addItem:loadParamsMenuItem];
+    
+    
+    
+    
+    // Custom Network menu
+    NSMenuItem* networkMenuItem = [[NSMenuItem alloc] init];
+    [mainMenu addItem:networkMenuItem];
+
+    NSMenu* networkMenu = [[NSMenu alloc] initWithTitle:@"Network"];
+    
+    NSMenuItem* listenMenuItem = [[NSMenuItem alloc] initWithTitle:@"Listen"
+                                                           action:@selector(listen:)
+                                                    keyEquivalent:@"l"];
+    [listenMenuItem setTarget:handler];
+    [networkMenu addItem:listenMenuItem];
+    
+
+
 
     [actionsMenuItem setSubmenu:actionsMenu];
+    [networkMenuItem setSubmenu:networkMenu];
 
     [NSApp setMainMenu:mainMenu];
 }

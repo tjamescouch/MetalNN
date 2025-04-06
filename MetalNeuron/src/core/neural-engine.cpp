@@ -60,6 +60,10 @@ NeuralEngine::~NeuralEngine() {
     if (_pDevice) _pDevice->release();
 }
 
+void NeuralEngine::listenForConnections() {
+    Logger::log << "listenForConnections" << std::endl;
+}
+
 void NeuralEngine::runTraining() {
     Logger::instance().clear();
     TrainingManager::instance().setTraining(true);

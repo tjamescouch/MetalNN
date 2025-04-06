@@ -17,6 +17,7 @@ void updateTextField(const char* message);
 void setupMenus();
 
 void setMenuActionHandlers(
+    std::function<void()> listenHandler,
     std::function<void()> trainHandler,
     std::function<void()> inferenceHandler,
     std::function<void()> saveHandler,

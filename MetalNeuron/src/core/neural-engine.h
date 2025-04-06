@@ -36,9 +36,7 @@ public:
 
     void connectDynamicLayers(ModelConfig& config);
     void createDynamicLayers(ModelConfig& config);
-    
-    void handleKeyStateChange();
-    
+        
     void runTraining();
     void runInference();
     void saveParameters();
@@ -46,6 +44,8 @@ public:
     
     void saveModel(const std::string& filepath);
     void loadModel(const std::string& filepath);
+    
+    void listenForConnections();
     
     
     static constexpr int kMaxFramesInFlight = 3;
